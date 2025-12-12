@@ -1,0 +1,109 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jenkins
+---
+# Persistent storage for Jenkins home (works with k3s default 'local-path' storage class)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jenkins-home
+  namespace: jenkins
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: local-path
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins
+  namespace: jenkins
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jenkins
+  template:
+    metadata:
+      labels:
+        app: jenkins
+    spec:
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+        - name: jenkins
+          image: jenkins/jenkins:lts-jdk17
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080   # Jenkins HTTP
+            - containerPort: 50000  # Inbound agent JNLP
+          env:
+            # Serve Jenkins under /jenkins so the Ingress path is clean and no stripPrefix is needed
+            - name: JENKINS_OPTS
+              value: "--prefix=/jenkins"
+            # (Optional but recommended) trust reverse proxy headers from Traefik
+            - name: JAVA_OPTS
+              value: "-Dhudson.TcpSlaveAgentListener.hostNameVerification=false -Djenkins.install.runSetupWizard=true"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+          volumeMounts:
+            - name: jenkins-home
+              mountPath: /var/jenkins_home
+      volumes:
+        - name: jenkins-home
+          persistentVolumeClaim:
+            claimName: jenkins-home
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jenkins
+  namespace: jenkins
+spec:
+  type: ClusterIP
+  selector:
+    app: jenkins
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+    - name: agent
+      port: 50000
+      targetPort: 50000
+---
+# Traefik Ingress: serves both HTTP (web) and HTTPS (websecure), with TLS on your host.
+# IMPORTANT: Replace 'demo-tls' with your TLS secret, or keep it if you've already created it for this host.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jenkins
+  namespace: jenkins
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: ["<<< FULL HOST NAME: dns_prefix + dns_basename >>>"]
+      secretName: demo-tls   # <-- use the same secret you created earlier, or swap to your own
+  rules:
+    - host: <<< FULL HOST NAME: dns_prefix + dns_basename >>>
+      http:
+        paths:
+          - path: /jenkins
+            pathType: Prefix
+            backend:
+              service:
+                name: jenkins
+                port:
+                  number: 8080
