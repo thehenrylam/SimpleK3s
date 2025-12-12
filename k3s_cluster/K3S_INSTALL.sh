@@ -40,6 +40,8 @@ function main_setup() {
 
     if [ $? -eq 0 ]; then
       log_okay "PRIMARY node has been set up!"
+      # Set up HelmChartConfigs
+      setup_helmchartconfig_traefik
     else
       log_fail "PRIMARY node has not been set up correctly!"
     fi 
@@ -104,6 +106,35 @@ function swapfile_setup() {
   echo "/swapfile none swap sw 0 0" | sudo tee -a /etc/fstab
 
   log_info "Set up swapfile has been COMPLETED"
+}
+
+function setup_helmchartconfig_traefik() {
+  log_info "Writing Traefik HelmChartConfig manifest"
+
+  # Make sure the manifests directory exists
+  sudo mkdir -p /var/lib/rancher/k3s/server/manifests
+
+  # Write the HelmChartConfig manifest for Traefik
+  sudo tee /var/lib/rancher/k3s/server/manifests/traefik-config.yaml >/dev/null <<'YAML'
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    ports:
+      web:
+        nodePort: 30080
+      websecure:
+        nodePort: 30443
+YAML
+
+  if [ $? -eq 0 ]; then
+    log_okay "Traefik HelmChartConfig written to /var/lib/rancher/k3s/server/manifests/traefik-config.yaml"
+  else
+    log_warn "Failed to write Traefik HelmChartConfig"
+  fi
 }
 
 
