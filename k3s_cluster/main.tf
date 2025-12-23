@@ -334,34 +334,6 @@ resource "aws_lb" "elb_main" {
     }
 }
 
-# # Create a load balancer target group (port: 6443)
-# resource "aws_lb_target_group" "tgroup_6443" {
-#     name     = "${local.tgroup_name_6443}"
-#     port     = 6443
-#     protocol = "TCP"
-#     vpc_id   = var.vpc_id
-#     tags = {
-#         Name = "${local.tgroup_name_6443}"
-#     }
-# }
-# # Attach instances to target group (port: 6443)
-# resource "aws_lb_target_group_attachment" "tgroup_attachment_6443" {
-#     count = var.node_count
-#     target_group_arn = aws_lb_target_group.tgroup_6443.arn
-#     target_id        = aws_instance.k8s_node[count.index].id
-#     port             = 6443
-# }
-# # Add listener to load balancer (port: 6443)
-# resource "aws_lb_listener" "anb_listener_main_6443" {
-#     load_balancer_arn = aws_lb.elb_main.arn
-#     port              = "6443"
-#     protocol          = "TCP"
-#     default_action {
-#         type             = "forward"
-#         target_group_arn = aws_lb_target_group.tgroup_6443.arn
-#     }
-# }
-
 # Create a load balancer target group (port: 80)
 resource "aws_lb_target_group" "tgroup_80" {
     name     = "${local.tgroup_name_80}"
