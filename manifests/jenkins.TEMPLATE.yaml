@@ -31,10 +31,24 @@ spec:
       labels:
         app: jenkins
     spec:
-      securityContext:
-        fsGroup: 1000
+      securityContext: # Jenkins runs as user 1000 inside the container
+        fsGroup: 1000 
         runAsUser: 1000
-        runAsGroup: 1000
+        runAsGroup: 1000  
+      initContainers: # Wait for external DNS/HTTP to be available before starting Jenkins
+        - name: wait-for-updates-jenkins-io
+          image: curlimages/curl:8.2.1
+          command:
+            - sh
+            - -c
+            - |
+              for i in $(seq 1 60); do
+                curl --head --fail --max-time 5 https://updates.jenkins.io >/dev/null 2>&1 && exit 0
+                echo "waiting for external DNS/HTTP (updates.jenkins.io)... ($i)"
+                sleep 5
+              done
+              echo "timed out waiting for updates.jenkins.io" >&2
+              exit 1
       containers:
         - name: jenkins
           image: jenkins/jenkins:lts-jdk17
@@ -47,8 +61,8 @@ spec:
             - name: JENKINS_OPTS
               value: "--prefix=/jenkins"
             # (Optional but recommended) trust reverse proxy headers from Traefik
-            - name: JAVA_OPTS
-              value: "-Dhudson.TcpSlaveAgentListener.hostNameVerification=false -Djenkins.install.runSetupWizard=true"
+            - name: JAVA_OPTS # Disable Java negative DNS caching using (-Dsun.net.inetaddr.negative.ttl=0 -Dsun.net.inetaddr.ttl=60)
+              value: "-Dhudson.TcpSlaveAgentListener.hostNameVerification=false -Djenkins.install.runSetupWizard=true -Dsun.net.inetaddr.negative.ttl=0 -Dsun.net.inetaddr.ttl=60"
           resources:
             requests:
               cpu: "250m"

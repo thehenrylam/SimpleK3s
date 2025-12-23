@@ -37,3 +37,15 @@ variable "cidr_blocks" {
 variable "admin_ip_list" {
     type      = list(string)
 }
+
+# K3s Specific Config: Traefik NodePorts
+variable "k3s_nodeport_traefik_http" {
+    description = "The traefik nodeport representing the K3 pod HTTP port"
+    type        = number
+    default     = 30080
+}
+variable "k3s_nodeport_traefik_https" {
+    description = "The traefik nodeport representing the K3 pod HTTPS port"
+    type        = number
+    default     = 30443
+}

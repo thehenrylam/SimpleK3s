@@ -110,7 +110,12 @@ resource "aws_instance" "k8s_node" {
     private_ip = count.index == 0 ? replace(var.cidr_blocks[count.index], "0/24", "100") : null
 
     user_data = templatefile("${path.module}/K3S_INSTALL.sh", {
-        count_index = count.index
+        count_index         = count.index,
+        swapfile_alloc_amt  = "2G",
+        k3s_secret_token    = "K_THIS_IS_A_TOKEN",
+        controller_host     = "10.0.1.100",
+        nodeport_http       = 30080,
+        nodeport_https      = 30443
     })
 
     root_block_device {
@@ -181,10 +186,17 @@ resource "aws_security_group" "sg_main" {
     }
     # Egress : DNS : ALL
     egress {
-        description = "Allow DNS queries"
+        description = "Allow DNS queries (UDP)"
         from_port   = 53
         to_port     = 53
         protocol    = "udp"
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+    egress {
+        description = "Allow DNS queries (TCP)"
+        from_port   = 53
+        to_port     = 53
+        protocol    = "tcp"
         cidr_blocks = ["0.0.0.0/0"]
     }
 
@@ -196,7 +208,23 @@ resource "aws_security_group" "sg_main" {
         from_port   = 6443
         to_port     = 6443
         protocol    = "tcp"
-        cidr_blocks = ["0.0.0.0/0"] # TODO: Make it point to itself (as a security group)
+        self        = true
+    }
+    # Ingress : Traefik (HTTP) : ALL
+    ingress {
+        description = "Allow Traefik (HTTP) for instances"
+        from_port   = var.k3s_nodeport_traefik_http
+        to_port     = var.k3s_nodeport_traefik_http
+        protocol    = "tcp"
+        self        = true
+    }
+    # Ingress : Traefik (HTTPS) : ALL
+    ingress {
+        description = "Allow Traefik (HTTPS) for instances"
+        from_port   = var.k3s_nodeport_traefik_https
+        to_port     = var.k3s_nodeport_traefik_https
+        protocol    = "tcp"
+        self        = true
     }
     # Ingress : ETCD (2379) : SELF
     ingress {
@@ -204,7 +232,7 @@ resource "aws_security_group" "sg_main" {
         from_port   = 2379
         to_port     = 2379
         protocol    = "tcp"
-        cidr_blocks = ["0.0.0.0/0"] # TODO: Make it point to itself (as a security group)
+        self        = true
     }
     # Ingress : ETCD (2380) : SELF
     ingress {
@@ -212,23 +240,23 @@ resource "aws_security_group" "sg_main" {
         from_port   = 2380
         to_port     = 2380
         protocol    = "tcp"
-        cidr_blocks = ["0.0.0.0/0"] # TODO: Make it point to itself (as a security group)
+        self        = true
     }
     # Ingress : FLANNEL : SELF
     ingress {
         description = "Allow Flannel for instances"
         from_port   = 8472
         to_port     = 8472
-        protocol    = "tcp"
-        cidr_blocks = ["0.0.0.0/0"] # TODO: Make it point to itself (as a security group)
+        protocol    = "udp"
+        self        = true
     }
     # Ingress : KUBELET : SELF
     ingress {
-        description = "Allow Flannel for instances"
+        description = "Allow Kubelet for instances"
         from_port   = 10250
         to_port     = 10250
         protocol    = "tcp"
-        cidr_blocks = ["0.0.0.0/0"] # TODO: Make it point to itself (as a security group)
+        self        = true
     }
     # FOUNDATIONAL : Egress
     # Egress : Kube-API : SELF
@@ -237,7 +265,23 @@ resource "aws_security_group" "sg_main" {
         from_port   = 6443
         to_port     = 6443
         protocol    = "tcp"
-        cidr_blocks = ["0.0.0.0/0"] # TODO: Make it point to itself (as a security group)
+        self        = true
+    }
+    # Ingress : Traefik (HTTP) : ALL
+    egress {
+        description = "Allow Traefik (HTTP) for instances"
+        from_port   = var.k3s_nodeport_traefik_http
+        to_port     = var.k3s_nodeport_traefik_http
+        protocol    = "tcp"
+        self        = true
+    }
+    # Ingress : Traefik (HTTPS) : ALL
+    egress {
+        description = "Allow Traefik (HTTPS) for instances"
+        from_port   = var.k3s_nodeport_traefik_https
+        to_port     = var.k3s_nodeport_traefik_https
+        protocol    = "tcp"
+        self        = true
     }
     # Egress : ETCD (2379) : SELF
     egress {
@@ -245,7 +289,7 @@ resource "aws_security_group" "sg_main" {
         from_port   = 2379
         to_port     = 2379
         protocol    = "tcp"
-        cidr_blocks = ["0.0.0.0/0"] # TODO: Make it point to itself (as a security group)
+        self        = true
     }
     # Egress : ETCD (2380) : SELF
     egress {
@@ -253,23 +297,23 @@ resource "aws_security_group" "sg_main" {
         from_port   = 2380
         to_port     = 2380
         protocol    = "tcp"
-        cidr_blocks = ["0.0.0.0/0"] # TODO: Make it point to itself (as a security group)
+        self        = true
     }
     # Egress : FLANNEL : SELF
     egress {
         description = "Allow Flannel for instances"
         from_port   = 8472
         to_port     = 8472
-        protocol    = "tcp"
-        cidr_blocks = ["0.0.0.0/0"] # TODO: Make it point to itself (as a security group)
+        protocol    = "udp"
+        self        = true
     }
     # Egress : KUBELET : SELF
     egress {
-        description = "Allow Flannel for instances"
+        description = "Allow Kubelet for instances"
         from_port   = 10250
         to_port     = 10250
         protocol    = "tcp"
-        cidr_blocks = ["0.0.0.0/0"] # TODO: Make it point to itself (as a security group)
+        self        = true
     }
 
 }
@@ -321,7 +365,7 @@ resource "aws_lb" "elb_main" {
 # Create a load balancer target group (port: 80)
 resource "aws_lb_target_group" "tgroup_80" {
     name     = "${local.tgroup_name_80}"
-    port     = 80 # 30850 # Traefik port that represents port 80
+    port     = var.k3s_nodeport_traefik_http # Traefik port that represents port 80
     protocol = "TCP"
     vpc_id   = var.vpc_id
     tags = {
@@ -333,7 +377,7 @@ resource "aws_lb_target_group_attachment" "tgroup_attachment_80" {
     count = var.node_count
     target_group_arn = aws_lb_target_group.tgroup_80.arn
     target_id        = aws_instance.k8s_node[count.index].id
-    port             = 80 # 30850 # Traefik port that represents port 80
+    port             = var.k3s_nodeport_traefik_http
 }
 # Add listener to load balancer (port: 80)
 resource "aws_lb_listener" "anb_listener_main_80" {
@@ -349,7 +393,7 @@ resource "aws_lb_listener" "anb_listener_main_80" {
 # Create a load balancer target group (port: 443)
 resource "aws_lb_target_group" "tgroup_443" {
     name     = "${local.tgroup_name_443}"
-    port     = 443 # 30764 # Traefik port that represents port 443
+    port     = var.k3s_nodeport_traefik_https # Traefik port that represents port 443
     protocol = "TCP"
     vpc_id   = var.vpc_id
     tags = {
@@ -361,7 +405,7 @@ resource "aws_lb_target_group_attachment" "tgroup_attachment_443" {
     count = var.node_count
     target_group_arn = aws_lb_target_group.tgroup_443.arn
     target_id        = aws_instance.k8s_node[count.index].id
-    port             = 443 # 30764 # Traefik port that represents port 443
+    port             = var.k3s_nodeport_traefik_https
 }
 # Add listener to load balancer (port: 443)
 resource "aws_lb_listener" "anb_listener_main_443" {
