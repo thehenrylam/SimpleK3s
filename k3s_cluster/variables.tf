@@ -13,16 +13,6 @@ variable "subnet_ids" {
     type        = list(string)
 }
 
-# project name 
-variable "project_name" {
-  type        = string
-  default     = "k3s_test"
-}
-# region 
-variable "region" {
-  type        = string
-  default     = "us-east-1"
-}
 # node count
 variable "node_count" {
   type        = number
@@ -48,4 +38,39 @@ variable "k3s_nodeport_traefik_https" {
     description = "The traefik nodeport representing the K3 pod HTTPS port"
     type        = number
     default     = 30443
+}
+
+variable "k3s_token" {
+    description = "The K3s cluster token for node authentication"
+    type        = string
+}
+
+variable "ec2_ami_id" {
+    description = "The AMI ID for the EC2 instances"
+    type        = string
+    default     = "ami-01b1eba85c1cd6a3d" # debian-13-arm64-20250814-2204 (US East 1)
+}
+
+variable "ec2_instance_type" {
+    description = "The EC2 instance type for K3s nodes"
+    type        = string
+    default     = "t4g.micro"
+}
+
+variable "ec2_swapfile_size" {
+    description = "The swapfile size for EC2 instances"
+    type        = string
+    default     = "2G"
+}
+
+variable "ec2_ebs_volume_size" {
+    description = "The EBS volume size for EC2 instances"
+    type        = number
+    default     = 24
+}
+
+variable "ec2_ebs_volume_type" {
+    description = "The EBS volume type for EC2 instances"
+    type        = string
+    default     = "gp2"
 }

@@ -4,7 +4,7 @@ output "k3s_cluster_load_balancer" {
 }
 
 output "k3s_controller_public_ip" {
-  value = aws_instance.k8s_node[0].public_ip
+  value = aws_instance.ec2_node[0].public_ip
 }
 
 output "ssh_private_key_path" {

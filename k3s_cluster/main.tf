@@ -1,393 +1,50 @@
 terraform {
     required_providers {
-        assert = {
-            source = "opentofu/assert"
-            version = "0.14.0"
-        }
         aws = {
             source  = "hashicorp/aws"
             version = ">= 6.0"
         }
-        cloudinit = {
-            source  = "opentofu/cloudinit"
-            version = ">= 2.3.7"
+        # Used by tls_private_key
+        tls = {
+            source  = "hashicorp/tls"
+            version = ">= 4.0"
+        }
+        # Used by random_string
+        random = {
+            source  = "hashicorp/random"
+            version = ">= 3.0"
+        }
+        # Used by local_file
+        local = {
+            source  = "hashicorp/local"
+            version = ">= 2.0"
+        }
+        # Used by assert
+        assert = {
+            source = "opentofu/assert"
+            version = "0.14.0"
         }
     }
 }
 
 locals {
-    irole_name          = "irole-k3s-${var.nickname}_ssm-for-ec2"
-    iprofile_name       = "iprofile-k3s-${var.nickname}_ssm-for-ec2"
+    module              = "k3s"
+    module_name         = "${local.module}-${var.nickname}"
 
-    ec2_name            = "ec2-k3s-${var.nickname}"
+    irole_name          = "irole-${local.module_name}_ssm-for-ec2"
+    iprofile_name       = "iprofile-${local.module_name}_ssm-for-ec2"
 
-    elb_name            = "elb-k3s-${var.nickname}"
-    lport_name          = "lport-k3s-${var.nickname}"
+    ec2_name            = "ec2-${local.module_name}"
+    sg_ec2_name         = "sg-${local.module_name}_for-ec2"
 
-    tgroup_name         = "tgroup-k3s-${var.nickname}"
+    elb_name            = "elb-${local.module_name}"
+    sg_elb_name         = "sg-${local.module_name}_for-elb"
+    lport_name          = "lport-${local.module_name}"
+
+    tgroup_name         = "tgroup-${local.module_name}"
     tgroup_name_6443    = "${local.tgroup_name}-6443"
     tgroup_name_80      = "${local.tgroup_name}-80"
     tgroup_name_443     = "${local.tgroup_name}-443"
 
-    keypair_name        = "kp-${var.nickname}-k8s-node"
+    keypair_name        = "kp-${local.module_name}-node"
 }
-
-#########################################################
-#    Keypairs to access EC2 instances (first option)    #
-#########################################################
-# Set up the AWS KeyPair
-resource "aws_key_pair" "tls_key_k8s_node" {
-    key_name    = local.keypair_name 
-    public_key  = tls_private_key.tls_key_k8s_node.public_key_openssh
-}
-# Generate a TLS Private Key (Stored Locally)
-resource "tls_private_key" "tls_key_k8s_node" {
-    algorithm   = "RSA"
-    rsa_bits    = 4096
-}
-# Output the private key to a local file for future use
-resource "local_file" "private_key" {
-    content         = tls_private_key.tls_key_k8s_node.private_key_pem
-    filename        = "${path.module}/kp-${var.nickname}-k8s-node.pem"  # Path to store the private key
-    file_permission = "0400"
-}
-
-#################################################################################
-#    IAM role to use Systems Manager to access EC2 instances (second option)    #
-#################################################################################
-# Set up IAM Role
-resource "aws_iam_role" "irole_ssm_ec2" {
-    name = "${local.irole_name}"
-    assume_role_policy = jsonencode({
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "sts:AssumeRole"
-                ],
-                "Principal": {
-                    "Service": [
-                        "ec2.amazonaws.com"
-                    ]
-                }
-            }
-        ]
-    })
-}
-# Attach the permission policy
-resource "aws_iam_role_policy_attachment" "ipolicy_attachment_ssm_ec2" {
-  role       = aws_iam_role.irole_ssm_ec2.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-}
-# Set up EC2 instance profile for to assign the iam role
-resource "aws_iam_instance_profile" "iprofile_ssm_ec2" {
-  name = "${local.iprofile_name}"
-  role = aws_iam_role.irole_ssm_ec2.name
-}
-
-#######################################
-#    EC2 instances for K3S Cluster    #
-#######################################
-# Set up random strings for the purposes of appending them to node names
-resource "random_string" "node_suffix" {
-  count = var.node_count
-  length  = 5 
-  special = false 
-  upper   = false 
-  numeric  = true
-}
-# Initialize EC2 instances for the K3s cluster
-resource "aws_instance" "k8s_node" {
-    count                         = var.node_count
-    ami                           = "ami-01b1eba85c1cd6a3d" 
-    instance_type                 = "t4g.micro"
-    subnet_id                     = var.subnet_ids[count.index % var.node_count] 
-    key_name                      = aws_key_pair.tls_key_k8s_node.key_name 
-    iam_instance_profile          = aws_iam_instance_profile.iprofile_ssm_ec2.name
-    security_groups               = [aws_security_group.sg_main.id]  
-    associate_public_ip_address   = true
-    private_ip = count.index == 0 ? replace(var.cidr_blocks[count.index], "0/24", "100") : null
-
-    user_data = templatefile("${path.module}/K3S_INSTALL.sh", {
-        count_index         = count.index,
-        swapfile_alloc_amt  = "2G",
-        k3s_secret_token    = "K_THIS_IS_A_TOKEN",
-        controller_host     = "10.0.1.100",
-        nodeport_http       = 30080,
-        nodeport_https      = 30443
-    })
-
-    root_block_device {
-        volume_size = 24 
-        volume_type = "gp2" 
-    }
-
-    tags = {
-        Name = "${local.ec2_name}-${random_string.node_suffix[count.index].result}"
-    }
-}
-
-###########################################
-#    Security Groups fro EC2 instances    #
-###########################################
-# Set up security groups 
-resource "aws_security_group" "sg_main" {
-    name          = "k8s_node_sg"
-    description   = "K8s node secuirty group"
-    vpc_id        = var.vpc_id
-
-    tags = {
-        Name = "k8s_node_sg"
-    }
-
-    # FUNCTIONAL : Port policies that can change based on project requirements
-    # FUNCTIONAL : Ingress
-    # Ingress : SSH : ADMIN
-    ingress {
-        description = "Allow SSH for Admin IP(s)"
-        from_port   = 22
-        to_port     = 22
-        protocol    = "tcp"
-        cidr_blocks = var.admin_ip_list
-    }
-    # Ingress : HTTP : ALL
-    ingress {
-        description = "Allow HTTP for End-Users"
-        from_port   = 80
-        to_port     = 80
-        protocol    = "tcp"
-        cidr_blocks = ["0.0.0.0/0"]
-    }
-    # Ingress : HTTPS : ALL
-    ingress {
-        description = "Allow HTTPS for End-Users"
-        from_port   = 443
-        to_port     = 443
-        protocol    = "tcp"
-        cidr_blocks = ["0.0.0.0/0"]
-    }
-    # FOUNDATIONAL : Egress
-    # Egress : HTTP : ALL
-    egress {
-        description = "Allow HTTP for End-Users"
-        from_port   = 80
-        to_port     = 80
-        protocol    = "tcp"
-        cidr_blocks = ["0.0.0.0/0"]
-    }
-    # Egress : HTTPS : ALL
-    egress {
-        description = "Allow HTTPS for End-Users"
-        from_port   = 443
-        to_port     = 443
-        protocol    = "tcp"
-        cidr_blocks = ["0.0.0.0/0"]
-    }
-    # Egress : DNS : ALL
-    egress {
-        description = "Allow DNS queries (UDP)"
-        from_port   = 53
-        to_port     = 53
-        protocol    = "udp"
-        cidr_blocks = ["0.0.0.0/0"]
-    }
-    egress {
-        description = "Allow DNS queries (TCP)"
-        from_port   = 53
-        to_port     = 53
-        protocol    = "tcp"
-        cidr_blocks = ["0.0.0.0/0"]
-    }
-
-    # FOUNDATIONAL : Port policies for Kubernetes to work (ONLY TOUCH THIS IF YOU KNOW WHAT YOU ARE DOING!)
-    # FOUNDATIONAL : Ingress
-    # Ingress : Kube-API : SELF
-    ingress {
-        description = "Allow Kube-API for instances"
-        from_port   = 6443
-        to_port     = 6443
-        protocol    = "tcp"
-        self        = true
-    }
-    # Ingress : Traefik (HTTP) : ALL
-    ingress {
-        description = "Allow Traefik (HTTP) for instances"
-        from_port   = var.k3s_nodeport_traefik_http
-        to_port     = var.k3s_nodeport_traefik_http
-        protocol    = "tcp"
-        self        = true
-    }
-    # Ingress : Traefik (HTTPS) : ALL
-    ingress {
-        description = "Allow Traefik (HTTPS) for instances"
-        from_port   = var.k3s_nodeport_traefik_https
-        to_port     = var.k3s_nodeport_traefik_https
-        protocol    = "tcp"
-        self        = true
-    }
-    # Ingress : ETCD (2379) : SELF
-    ingress {
-        description = "Allow etcd (2379) for instances"
-        from_port   = 2379
-        to_port     = 2379
-        protocol    = "tcp"
-        self        = true
-    }
-    # Ingress : ETCD (2380) : SELF
-    ingress {
-        description = "Allow etcd (2380) for instances"
-        from_port   = 2380
-        to_port     = 2380
-        protocol    = "tcp"
-        self        = true
-    }
-    # Ingress : FLANNEL : SELF
-    ingress {
-        description = "Allow Flannel for instances"
-        from_port   = 8472
-        to_port     = 8472
-        protocol    = "udp"
-        self        = true
-    }
-    # Ingress : KUBELET : SELF
-    ingress {
-        description = "Allow Kubelet for instances"
-        from_port   = 10250
-        to_port     = 10250
-        protocol    = "tcp"
-        self        = true
-    }
-    # FOUNDATIONAL : Egress
-    # Egress : Kube-API : SELF
-    egress {
-        description = "Allow Kube-API for instances"
-        from_port   = 6443
-        to_port     = 6443
-        protocol    = "tcp"
-        self        = true
-    }
-    # Ingress : Traefik (HTTP) : ALL
-    egress {
-        description = "Allow Traefik (HTTP) for instances"
-        from_port   = var.k3s_nodeport_traefik_http
-        to_port     = var.k3s_nodeport_traefik_http
-        protocol    = "tcp"
-        self        = true
-    }
-    # Ingress : Traefik (HTTPS) : ALL
-    egress {
-        description = "Allow Traefik (HTTPS) for instances"
-        from_port   = var.k3s_nodeport_traefik_https
-        to_port     = var.k3s_nodeport_traefik_https
-        protocol    = "tcp"
-        self        = true
-    }
-    # Egress : ETCD (2379) : SELF
-    egress {
-        description = "Allow etcd (2379) for instances"
-        from_port   = 2379
-        to_port     = 2379
-        protocol    = "tcp"
-        self        = true
-    }
-    # Egress : ETCD (2380) : SELF
-    egress {
-        description = "Allow etcd (2380) for instances"
-        from_port   = 2380
-        to_port     = 2380
-        protocol    = "tcp"
-        self        = true
-    }
-    # Egress : FLANNEL : SELF
-    egress {
-        description = "Allow Flannel for instances"
-        from_port   = 8472
-        to_port     = 8472
-        protocol    = "udp"
-        self        = true
-    }
-    # Egress : KUBELET : SELF
-    egress {
-        description = "Allow Kubelet for instances"
-        from_port   = 10250
-        to_port     = 10250
-        protocol    = "tcp"
-        self        = true
-    }
-
-}
-
-###############################################
-#    Elastic Load Balancer for K3s cluster    #
-###############################################
-# Create a application load balancer
-resource "aws_lb" "elb_main" {
-    name               = "${local.elb_name}"
-    internal           = false
-    load_balancer_type = "network"
-    security_groups    = [aws_security_group.sg_main.id]
-    subnets            = [for subnet_id in var.subnet_ids : subnet_id ] # <-- Connect this up
-
-    tags = {
-        Name = "${local.elb_name}"
-    }
-}
-
-# Create a load balancer target group (port: 80)
-resource "aws_lb_target_group" "tgroup_80" {
-    name     = "${local.tgroup_name_80}"
-    port     = var.k3s_nodeport_traefik_http # Traefik port that represents port 80
-    protocol = "TCP"
-    vpc_id   = var.vpc_id
-    tags = {
-        Name = "${local.tgroup_name_80}"
-    }
-}
-# Attach instances to target group (port: 80)
-resource "aws_lb_target_group_attachment" "tgroup_attachment_80" {
-    count = var.node_count
-    target_group_arn = aws_lb_target_group.tgroup_80.arn
-    target_id        = aws_instance.k8s_node[count.index].id
-    port             = var.k3s_nodeport_traefik_http
-}
-# Add listener to load balancer (port: 80)
-resource "aws_lb_listener" "anb_listener_main_80" {
-    load_balancer_arn = aws_lb.elb_main.arn
-    port              = "80"
-    protocol          = "TCP"
-    default_action {
-        type             = "forward"
-        target_group_arn = aws_lb_target_group.tgroup_80.arn
-    }
-}
-
-# Create a load balancer target group (port: 443)
-resource "aws_lb_target_group" "tgroup_443" {
-    name     = "${local.tgroup_name_443}"
-    port     = var.k3s_nodeport_traefik_https # Traefik port that represents port 443
-    protocol = "TCP"
-    vpc_id   = var.vpc_id
-    tags = {
-        Name = "${local.tgroup_name_443}"
-    }
-}
-# Attach instances to target group (port: 443)
-resource "aws_lb_target_group_attachment" "tgroup_attachment_443" {
-    count = var.node_count
-    target_group_arn = aws_lb_target_group.tgroup_443.arn
-    target_id        = aws_instance.k8s_node[count.index].id
-    port             = var.k3s_nodeport_traefik_https
-}
-# Add listener to load balancer (port: 443)
-resource "aws_lb_listener" "anb_listener_main_443" {
-    load_balancer_arn = aws_lb.elb_main.arn
-    port              = "443"
-    protocol          = "TCP"
-    default_action {
-        type             = "forward"
-        target_group_arn = aws_lb_target_group.tgroup_443.arn
-    }
-}
-
-

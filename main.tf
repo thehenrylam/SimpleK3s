@@ -2,6 +2,10 @@
 
 terraform {
     required_providers {
+        aws = {
+            source  = "hashicorp/aws"
+            version = ">= 6.0"
+        }
         assert = {
             source = "opentofu/assert"
             version = "0.14.0"
@@ -9,11 +13,15 @@ terraform {
     }
 }
 
+# Establish AWS Provider
+provider "aws" {
+    region = var.aws_region
+}
+
 module "vpc_cloud" {
     source                  = "./vpc_cloud" 
     nickname                = var.nickname 
     node_count              = var.node_count 
-    aws_region              = var.aws_region 
     vpc_cidr_block          = var.vpc_cidr_block 
     sbn_cidr_blocks         = var.sbn_cidr_blocks 
     sbn_availability_zones  = var.sbn_availability_zones 
@@ -26,6 +34,7 @@ module "k3s_cluster" {
     admin_ip_list           = var.admin_ip_list 
     vpc_id                  = module.vpc_cloud.vpc_id 
     subnet_ids              = module.vpc_cloud.subnet_public_ids 
+    k3s_token               = "K_THIS_IS_A_TOKEN"
 }
 
 # Publish the cluster via Route 53
