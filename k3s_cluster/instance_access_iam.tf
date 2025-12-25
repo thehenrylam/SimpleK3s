@@ -4,8 +4,13 @@
 # Set up EC2 IAM instance profile to use SSM 
 # USAGE: This will be applied onto EC2 instances
 resource "aws_iam_instance_profile" "iprofile_ssm_ec2" {
-  name = "${local.iprofile_name}"
-  role = aws_iam_role.irole_ssm_ec2.name
+    name = "${local.iprofile_name}"
+    role = aws_iam_role.irole_ssm_ec2.name
+
+    tags = {
+        Name        = "${local.iprofile_name}"
+        Nickname    = "${var.nickname}"
+    }
 }
 # Set up IAM Role
 resource "aws_iam_role" "irole_ssm_ec2" {
@@ -26,9 +31,14 @@ resource "aws_iam_role" "irole_ssm_ec2" {
             }
         ]
     })
+
+    tags = {
+        Name        = "${local.irole_name}"
+        Nickname    = "${var.nickname}"
+    }
 }
 # Attach the permission policy
 resource "aws_iam_role_policy_attachment" "ipolicy_attachment_ssm_ec2" {
-  role       = aws_iam_role.irole_ssm_ec2.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+    role       = aws_iam_role.irole_ssm_ec2.name
+    policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }

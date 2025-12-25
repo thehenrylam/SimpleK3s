@@ -10,7 +10,8 @@ resource "aws_lb" "elb_main" {
     subnets            = [for subnet_id in var.subnet_ids : subnet_id ] # <-- Connect this up
 
     tags = {
-        Name = "${local.elb_name}"
+        Name        = "${local.elb_name}"
+        Nickname    = "${var.nickname}"
     }
 }
 

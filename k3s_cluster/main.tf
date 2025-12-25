@@ -47,10 +47,12 @@ locals {
     iprofile_name       = "iprofile-${local.module_name}_ssm-for-ec2"
 
     ec2_name            = "ec2-${local.module_name}"
-    sg_ec2_name         = "sg-${local.module_name}_for-ec2"
+    sg_ec2_name         = "sgroup-${local.module_name}_for-ec2"
+
+    ebs_name            = "ebs-${local.module_name}"
 
     elb_name            = "elb-${local.module_name}"
-    sg_elb_name         = "sg-${local.module_name}_for-elb"
+    sg_elb_name         = "sgroup-${local.module_name}_for-elb"
     lport_name          = "lport-${local.module_name}"
 
     tgroup_name         = "tgroup-${local.module_name}"

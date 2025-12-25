@@ -50,3 +50,8 @@ variable "dns_prefix" {
     type        = string
     default     = "k3s"
 }
+
+variable "k3s_token" {
+    description = "The K3s cluster token for node authentication"
+    type        = string
+}

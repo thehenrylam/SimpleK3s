@@ -18,7 +18,7 @@ resource "aws_instance" "ec2_node" {
     # The first node (controller) goes into controller_subnet_id
     # The rest are round-robin'd across the other subnets
     subnet_id                     = count.index == 0 ? local.controller_subnet_id : var.subnet_ids[count.index % length(var.subnet_ids)]
-    key_name                      = aws_key_pair.tls_key_k8s_node.key_name 
+    key_name                      = aws_key_pair.tls_key.key_name 
     iam_instance_profile          = aws_iam_instance_profile.iprofile_ssm_ec2.name
     security_groups               = [aws_security_group.sg_instances.id]  
     associate_public_ip_address   = true
@@ -37,9 +37,15 @@ resource "aws_instance" "ec2_node" {
     root_block_device {
         volume_size = var.ec2_ebs_volume_size
         volume_type = var.ec2_ebs_volume_type
+
+        tags = {
+            Name        = "${local.ebs_name}-root-${random_string.node_suffix[count.index].result}"
+            Nickname    = "${var.nickname}"
+        }
     }
 
     tags = {
-        Name = "${local.ec2_name}-${random_string.node_suffix[count.index].result}"
+        Name        = "${local.ec2_name}-${random_string.node_suffix[count.index].result}"
+        Nickname    = "${var.nickname}"
     }
 }
