@@ -32,143 +32,183 @@ function log_fail() {
   echo -e "$(print_date) [FAIL] $1" 2>&1 | tee -a $LOG_FILE
 }
 
+### HELPER FUNCTIONS ### 
+# Wait for K3s API to be ready
+wait_for_k3s_api() {
+  FUNCTION_NAME="wait_for_k3s_api"
+  log_info "[$FUNCTION_NAME] Waiting for K3s API to be ready..."
+  for i in {1..120}; do
+    if sudo kubectl get --raw=/readyz >/dev/null 2>&1; then
+      log_okay "[$FUNCTION_NAME] K3s API is ready!"
+      return 0
+    fi
+    sleep 2
+  done
+  log_fail "[$FUNCTION_NAME] K3s API is not ready after 240s"
+  return 1
+}
+# Wait for a kubectl resource to be available
+wait_for_resource() {
+  FUNCTION_NAME="wait_for_resource"
+  log_info "[$FUNCTION_NAME] Waiting for resource to be available..."
+  # usage: wait_for_resource <kubectl args that must succeed>
+  for i in {1..120}; do
+    if eval "$@" >/dev/null 2>&1; then
+      log_okay "[$FUNCTION_NAME] Resource is available!"
+      return 0
+    fi
+    sleep 2
+  done
+  log_fail "[$FUNCTION_NAME] Resource is not available after 240s"
+  return 1
+}
+# Wait for kube-system namespace to be ready
+wait_for_kubesystem_ready() {
+  FUNCTION_NAME="wait_for_kubesystem_ready"
+  log_info "[$FUNCTION_NAME] Waiting for kube-system to be ready..."
+  wait_for_k3s_api || return 1
+
+  log_info "[$FUNCTION_NAME] Waiting for kube-system namespace..."
+  wait_for_resource "sudo kubectl get ns kube-system" || {
+    log_fail "[$FUNCTION_NAME] kube-system namespace missing"
+    return 1
+  }
+
+  log_info "[$FUNCTION_NAME] Waiting for kube-system/kube-root-ca.crt configmap..."
+  wait_for_resource "sudo kubectl -n kube-system get cm kube-root-ca.crt" || {
+    log_fail "[$FUNCTION_NAME] kube-root-ca.crt missing in kube-system"
+    return 1
+  }
+
+  log_okay "[$FUNCTION_NAME] kube-system is ready!"
+}
+# Wait for Traefik to be ready (so that we can customize it afterwards)
+wait_for_traefik_ready() {
+  FUNCTION_NAME="wait_for_traefik_ready"
+  log_info "[$FUNCTION_NAME] Waiting for traefik to be ready..."
+  wait_for_k3s_api || return 1
+
+  log_info "[$FUNCTION_NAME] Waiting for traefik helm install job exists..."
+  wait_for_resource "sudo kubectl -n kube-system get job helm-install-traefik" || {
+    log_fail "[$FUNCTION_NAME] helm-install-traefik job never appeared"
+    return 1
+  }
+
+  log_info "[$FUNCTION_NAME] Waiting for traefik helm install job complete..."
+  sudo kubectl -n kube-system wait --for=condition=complete job/helm-install-traefik --timeout=240s || {
+    log_fail "[$FUNCTION_NAME] helm-install-traefik job did not complete"
+    sudo kubectl -n kube-system describe job helm-install-traefik || true
+    sudo kubectl -n kube-system get events --sort-by=.metadata.creationTimestamp | tail -n 50 || true
+    return 1
+  }
+
+  log_info "[$FUNCTION_NAME] Waiting for traefik deployment to be present..."
+  wait_for_resource "sudo kubectl -n kube-system get deploy traefik" || {
+    log_fail "[$FUNCTION_NAME] traefik deployment never appeared"
+    return 1
+  }
+
+  log_info "[$FUNCTION_NAME] Waiting for traefik deployment to be ready..."
+  sudo kubectl -n kube-system rollout status deploy/traefik --timeout=240s || {
+    log_fail "[$FUNCTION_NAME] traefik deployment not ready"
+    sudo kubectl -n kube-system get pods -o wide | egrep -i 'traefik|helm-install' || true
+    return 1
+  }
+
+  log_okay "[$FUNCTION_NAME] traefik is ready!"
+}
+
 ### MAIN SETUP ###
 function main_setup() {
-  log_info "Setup for node: ${count_index} has now STARTED"
+  FUNCTION_NAME="main_setup"
+  log_info "[$FUNCTION_NAME] Setup for node: ${count_index} has now STARTED"
 
   # Main K3S node
   if [ ${count_index} -eq 0 ]; then
-    log_info "Node equals to 0: Set this node up as PRIMARY node!"
-    log_info "K3S_TOKEN: ${k3s_secret_token}"
-    log_info "CONTROLLER_HOST ${controller_host}"
+    log_info "[$FUNCTION_NAME] Node equals to 0: Set this node up as PRIMARY node!"
+    log_info "[$FUNCTION_NAME] K3S_TOKEN: ${k3s_secret_token}"
+    log_info "[$FUNCTION_NAME] CONTROLLER_HOST ${controller_host}"
 
-    log_info "PRIMARY node is being set up!"
+    log_info "[$FUNCTION_NAME] PRIMARY node is being set up!"
     # Set up first server
     curl -sfL https://get.k3s.io | K3S_TOKEN="${k3s_secret_token}" sh -s - server \
       --cluster-init \
       --tls-san="${controller_host}" 2>&1 | tee -a $LOG_FILE # Optional, needed if using a fixed registration address
 
     if [ $? -eq 0 ]; then
-      log_okay "PRIMARY node has been set up!"
-      # Set up HelmChartConfigs
-      setup_helmchartconfig_traefik
+      log_okay "[$FUNCTION_NAME] PRIMARY node has been set up!"
     else
-      log_fail "PRIMARY node has not been set up correctly!"
-    fi 
+      log_fail "[$FUNCTION_NAME] K3s installation command failed on PRIMARY node!"
+      exit 1
+    fi
 
   fi
 
   # Secondary K3S node
   if [ ! ${count_index} -eq 0 ]; then
-    log_info "Node doesn't equal 0: Set this node up as SECONDARY node!"
-    log_info "K3S_TOKEN: ${k3s_secret_token}"
-    log_info "CONTROLLER_HOST: ${controller_host}"
+    log_info "[$FUNCTION_NAME] Node doesn't equal 0: Set this node up as SECONDARY node!"
+    log_info "[$FUNCTION_NAME] K3S_TOKEN: ${k3s_secret_token}"
+    log_info "[$FUNCTION_NAME] CONTROLLER_HOST: ${controller_host}"
 
-    log_info "Waiting for the PRIMARY node to get set up"
+    log_info "[$FUNCTION_NAME] Waiting for the PRIMARY node to get set up"
     # Wait until the master node is up
     ETCD_0=down
     while [[ "$ETCD_0" == "down" ]]; do 
       curl --connect-timeout 3 -k https://${controller_host}:6443 && ETCD_0=up || ETCD_0=down
     done
     if [[ "$ETCD_0" == "up" ]]; then
-      log_okay "PRIMARY node is now up! (ETCD_0: $ETCD_0)"
+      log_okay "[$FUNCTION_NAME] PRIMARY node is now up! (ETCD_0: $ETCD_0)"
     else
-      log_fail "PRIMARY node is still down! (ETCD_0: $ETCD_0)"
+      log_fail "[$FUNCTION_NAME] PRIMARY node is still down! (ETCD_0: $ETCD_0)"
     fi 
 
-    log_info "SECONDARY node is being set up!"
+    log_info "[$FUNCTION_NAME] SECONDARY node is being set up!"
     # Set up agent server
     curl -sfL https://get.k3s.io | K3S_TOKEN="${k3s_secret_token}" sh -s - server \
       --server https://${controller_host}:6443 \
       --tls-san=${controller_host} 2>&1 | tee -a $LOG_FILE # Optional, needed if using a fixed registration address
     
     if [ $? -eq 0 ]; then
-      log_okay "SECONDARY node has been set up!"
+      log_okay "[$FUNCTION_NAME] SECONDARY node has been set up!"
     else
-      log_fail "SECONDARY node has not been set up correctly!"
+      log_fail "[$FUNCTION_NAME] SECONDARY node has not been set up correctly!"
     fi 
 
   fi
 
-  log_info "Setup for node: ${count_index} has been COMPLETED"
-}
-
-function restart_coredns() {
-  # Restart CoreDNS to help address stale coreDNS service issues
-  # Why do we do this?
-  #  - CoreDNS has a habit of being stale on initial cluster setup
-  #  - Restarting the coreDNS would help new pods to resolve DNS properly
-  log_info "Restarting CoreDNS (address stale CoreDNS service issues)"
-  log_info "Determine if current node is PRIMARY node"
-  if [ ${count_index} -eq 0 ]; then
-    log_info "Current node is PRIMARY node: Proceed to restart CoreDNS"
-
-    # Wait until CoreDNS deployment is available
-    log_info "Waiting for CoreDNS deployment to be available"
-    CORE_DNS_READY=false
-    for i in $(seq 1 36); do # Wait up to 3 minutes (36 attempts x 5 sec = 180 sec)
-      sudo kubectl -n kube-system get deploy/coredns >/dev/null 2>&1 && CORE_DNS_READY=true && break
-      log_info "CoreDNS deployment is not yet available: Waiting..."
-      sleep 5
-    done
-
-    # If CoreDNS isn't available after waiting, then abort the operation
-    if [ "$CORE_DNS_READY" = false ]; then
-      log_fail "CoreDNS deployment is still not available after waiting: Aborting CoreDNS restart"
-      exit 1
-    fi
-
-    # Kick off CoreDNS restart
-    log_info "Kicking off CoreDNS restart now"
-    sudo kubectl -n kube-system rollout restart deploy/coredns
-    if [ $? -eq 0 ]; then
-      log_okay "CoreDNS restart has been kicked off successfully"
-    else
-      log_warn "CoreDNS restart may have failed to start, continue to monitor rollout status"
-    fi
-
-    # Wait until CoreDNS deployment is successfully rolled out
-    log_info "Waiting for CoreDNS deployment to be successfully rolled out (3 minutes)"
-    sudo kubectl -n kube-system rollout status deploy/coredns --timeout=3m
-    if [ $? -eq 0 ]; then
-      log_okay "CoreDNS deployment has been successfully rolled out!"
-    else
-      log_fail "CoreDNS deployment failed to roll out within the timeout period (3 minutes)"
-      exit 1
-    fi
-
-  else
-    log_info "Current node is not PRIMARY node: Skip CoreDNS restart"
-  fi
+  log_info "[$FUNCTION_NAME] Setup for node: ${count_index} has been COMPLETED"
 }
 
 ### SWAPFILE SETUP ###
 function swapfile_setup() {
-  log_info "Set up swapfile has now STARTED"
+  FUNCTION_NAME="swapfile_setup"
+  log_info "[$FUNCTION_NAME] Set up swapfile has now STARTED"
 
-  log_info "Allocating ${swapfile_alloc_amt} to /swapfile"
+  log_info "[$FUNCTION_NAME] Allocating ${swapfile_alloc_amt} to /swapfile"
   sudo fallocate -l "${swapfile_alloc_amt}" /swapfile
   
-  log_info "Setting up permissions on /swapfile"
+  log_info "[$FUNCTION_NAME] Setting up permissions on /swapfile"
   sudo chmod 0600 /swapfile
   
-  log_info "Make /swapfile into a swapfile"
+  log_info "[$FUNCTION_NAME] Make /swapfile into a swapfile"
   sudo mkswap /swapfile
   
-  log_info "Enable swap to use /swapfile"
+  log_info "[$FUNCTION_NAME] Enable swap to use /swapfile"
   sudo swapon /swapfile
   
-  log_info "Backup /etc/fstab"
+  log_info "[$FUNCTION_NAME] Backup /etc/fstab"
   sudo cp /etc/fstab /etc/fstab_backup
 
-  log_info "Log /swapfile into /etc/fstab"
+  log_info "[$FUNCTION_NAME] Log /swapfile into /etc/fstab"
   echo "/swapfile none swap sw 0 0" | sudo tee -a /etc/fstab
 
-  log_info "Set up swapfile has been COMPLETED"
+  log_info "[$FUNCTION_NAME] Set up swapfile has been COMPLETED"
 }
 
 function setup_helmchartconfig_traefik() {
-  log_info "Writing Traefik HelmChartConfig manifest"
+  FUNCTION_NAME="setup_helmchartconfig_traefik"
+  log_info "[$FUNCTION_NAME] Writing Traefik HelmChartConfig manifest"
+  wait_for_traefik_ready || return 1
 
   # Make sure the manifests directory exists
   sudo mkdir -p /var/lib/rancher/k3s/server/manifests
@@ -190,9 +230,9 @@ spec:
 YAML
 
   if [ $? -eq 0 ]; then
-    log_okay "Traefik HelmChartConfig written to /var/lib/rancher/k3s/server/manifests/traefik-config.yaml"
+    log_okay "[$FUNCTION_NAME] Traefik HelmChartConfig written to /var/lib/rancher/k3s/server/manifests/traefik-config.yaml"
   else
-    log_warn "Failed to write Traefik HelmChartConfig"
+    log_warn "[$FUNCTION_NAME] Failed to write Traefik HelmChartConfig"
   fi
 }
 
@@ -200,5 +240,5 @@ YAML
 # Execute the list of actions
 swapfile_setup
 main_setup
-### Temporarily Disabled # restart_coredns
-
+wait_for_kubesystem_ready
+setup_helmchartconfig_traefik
