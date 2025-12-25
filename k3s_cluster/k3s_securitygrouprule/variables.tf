@@ -24,6 +24,24 @@ variable "self" {
     default     = false
 }
 
+variable "cidr_blocks" {
+    description = "The list of CIDR blocks for the security group rule"
+    type        = list(string)
+    default     = []
+}
+
+variable "ipv6_cidr_blocks" {
+    description = "The list of IPv6 CIDR blocks for the security group rule"
+    type        = list(string)
+    default     = []
+}
+
+variable "source_security_group_id" {
+    description = "The ID of the source security group for the security group rule"
+    type        = string
+    default     = null
+}
+
 variable "security_group_id" {
     description = "The ID of the security group to apply the rule to"
     type        = string
