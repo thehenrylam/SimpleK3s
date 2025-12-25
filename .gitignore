@@ -44,3 +44,6 @@ _tmp*/
 # CUSTOM: Ignore certain k8s manifests
 manifests/jenkins.yaml
 *.pem
+
+# CUSTOM: Ignore .DS_Store files
+.DS_Store

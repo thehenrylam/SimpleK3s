@@ -1,6 +1,9 @@
 # SimpleK3s
 A simple K3s implementation for AWS
 
+# Requirements
+- OpenTofu v1.11.2 or Terraform v1.14.3
+
 # How to use:
 ### Example Setup:
 1. Copy the `main.TEMPLATE.tfvars` file to a filename of your choosing (e.g. Suppose its changed to `main.tfvars` for the sake of example)

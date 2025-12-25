@@ -27,6 +27,18 @@ terraform {
     }
 }
 
+##############################
+# Subnet lookup (for CIDRs)  #
+##############################
+data "aws_subnet" "selected" {
+  count = length(var.subnet_ids)
+  id    = var.subnet_ids[count.index]
+}
+
+data "aws_subnet" "controller" {
+  id = coalesce(var.controller_subnet_id, var.subnet_ids[0])
+}
+
 locals {
     module              = "k3s"
     module_name         = "${local.module}-${var.nickname}"
@@ -47,4 +59,12 @@ locals {
     tgroup_name_443     = "${local.tgroup_name}-443"
 
     keypair_name        = "kp-${local.module_name}-node"
+
+    # Controller node networking (node 0)
+    # If the controller_subnet_id is not set, default to the FIRST subnet in subnet_ids
+    controller_subnet_id    = coalesce(var.controller_subnet_id, var.subnet_ids[0])
+    controller_subnet_cidr  = data.aws_subnet.controller.cidr_block
+    # If the controller_private_ip is not set, compute it via cidrhost()
+    controller_private_ip   = coalesce(var.controller_private_ip, cidrhost(local.controller_subnet_cidr, var.controller_private_ip_hostnum))
+    controller_host         = local.controller_private_ip
 }
