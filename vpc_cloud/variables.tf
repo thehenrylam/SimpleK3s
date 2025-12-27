@@ -8,11 +8,6 @@ variable "node_count" {
   default     = 1
 }
 
-variable "aws_region" {
-    description = "The AWS region to create resources in."
-    type = string
-}
-
 variable "vpc_cidr_block" {
     description = "The CIDR block that the VPC will use"
     type = string

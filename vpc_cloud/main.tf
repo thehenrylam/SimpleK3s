@@ -2,13 +2,13 @@
 
 terraform {
     required_providers {
-        assert = {
-            source = "opentofu/assert"
-            version = "0.14.0"
-        }
         aws = {
             source  = "hashicorp/aws"
             version = ">= 6.0"
+        }
+        assert = {
+            source = "opentofu/assert"
+            version = "0.14.0"
         }
         cloudinit = {
             source  = "opentofu/cloudinit"
@@ -22,10 +22,6 @@ locals {
     rtb_name = "rtb-${var.nickname}"
     igw_name = "igw-${var.nickname}"
     sbn_name = "sbn-${var.nickname}"
-}
-
-provider "aws" {
-    region = var.aws_region
 }
 
 # VPC

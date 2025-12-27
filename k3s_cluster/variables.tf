@@ -11,31 +11,58 @@ variable "vpc_id" {
 variable "subnet_ids" {
     description = "The subnet ids that EC2 instance will use"
     type        = list(string)
+
+    validation {
+        condition     = length(var.subnet_ids) > 0
+        error_message = "The subnet ids must contain at least 1 subnet id"
+    }
 }
 
-# project name 
-variable "project_name" {
-  type        = string
-  default     = "k3s_test"
-}
-# region 
-variable "region" {
-  type        = string
-  default     = "us-east-1"
-}
 # node count
 variable "node_count" {
-  type        = number
-  default     = 1
+    description = "The number of nodes to deploy on the K3s cluster"
+    type        = number
+    default     = 1
+
+    validation {
+        condition     = var.node_count >= 1
+        error_message = "The number of nodes MUST be equal or greater than 1"
+    }
 }
-# cidr blocks
-variable "cidr_blocks" {
-  type        = list(string)
-  default     = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24", "10.0.4.0/24"] 
+
+#############################################
+#   Networking (avoid fragile CIDR lists)   #
+#############################################
+# Which subnet the controller (node 0) should live in. Defaults to subnet_ids[0].
+variable "controller_subnet_id" {
+    description = "Subnet ID to place the controller node in. Must be one of subnet_ids from var.subnet_ids. If null, it defaults to subnet_ids[0]"
+    type        = string
+    default     = null
+
+    validation {
+        condition     = var.controller_subnet_id == null || contains(var.subnet_ids, var.controller_subnet_id)
+        error_message = "controller_subnet_id must be null or one of the values in subnet_ids."
+    }
+}
+
+# This is an override to explicitly set the controller private IP.
+variable "controller_private_ip" {
+    description = "Optional explicit private IP for the controller node. If null, computed via cidrhost()."
+    type        = string
+    default     = null
+}
+
+# This is a host number to use in the last octet of the controller private IP.
+# By default we pick host #100 from the controller subnet (works for /16, /20, /24, etc).
+variable "controller_private_ip_hostnum" {
+    description = "Host number within the controller subnet to use for the controller private IP when controller_private_ip is null."
+    type        = number
+    default     = 100
 }
 
 variable "admin_ip_list" {
-    type      = list(string)
+    description = "The list of admin IPs to allow SSH access into the individual hosts"
+    type        = list(string)
 }
 
 # K3s Specific Config: Traefik NodePorts
@@ -48,4 +75,39 @@ variable "k3s_nodeport_traefik_https" {
     description = "The traefik nodeport representing the K3 pod HTTPS port"
     type        = number
     default     = 30443
+}
+
+variable "k3s_token" {
+    description = "The K3s cluster token for node authentication"
+    type        = string
+}
+
+variable "ec2_ami_id" {
+    description = "The AMI ID for the EC2 instances"
+    type        = string
+    default     = "ami-01b1eba85c1cd6a3d" # debian-13-arm64-20250814-2204 (US East 1)
+}
+
+variable "ec2_instance_type" {
+    description = "The EC2 instance type for K3s nodes"
+    type        = string
+    default     = "t4g.micro"
+}
+
+variable "ec2_swapfile_size" {
+    description = "The swapfile size for EC2 instances"
+    type        = string
+    default     = "2G"
+}
+
+variable "ec2_ebs_volume_size" {
+    description = "The EBS volume size for EC2 instances"
+    type        = number
+    default     = 24
+}
+
+variable "ec2_ebs_volume_type" {
+    description = "The EBS volume type for EC2 instances"
+    type        = string
+    default     = "gp2"
 }
