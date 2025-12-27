@@ -31,7 +31,7 @@ resource "aws_security_group_rule" "sgr_ssh_admin" {
 ########################################################################
 # Allow HTTP egress (Package Downloads, etc)
 module "k3s_sgr_node_http" {
-    source              = "./k3s_securitygrouprule_cidr"
+    source              = "./k3s_securitygrouprule/cidr"
     type                = "egress" # Egress only
     port                = 80
     protocol            = "tcp"
@@ -42,7 +42,7 @@ module "k3s_sgr_node_http" {
 
 # Allow HTTPS egress (Package Downloads, etc)
 module "k3s_sgr_node_https" {
-    source              = "./k3s_securitygrouprule_cidr"
+    source              = "./k3s_securitygrouprule/cidr"
     type                = "egress" # Egress only
     port                = 443
     protocol            = "tcp"
@@ -56,7 +56,7 @@ module "k3s_sgr_node_https" {
 ############################################################################
 # Allow Traefik NodePorts whose traffic is handled by Load Balancer (HTTP : Port 80)
 module "k3s_sgr_traefik_http" {
-    source                      = "./k3s_securitygrouprule_sgroup"
+    source                      = "./k3s_securitygrouprule/sgroup"
     type                        = "ingress" # Ingress only (Access from LB)
     port                        = var.k3s_nodeport_traefik_http
     protocol                    = "tcp"
@@ -67,7 +67,7 @@ module "k3s_sgr_traefik_http" {
 
 # Allow Traefik NodePorts whose traffic is handled by Load Balancer (HTTPS : Port 443)
 module "k3s_sgr_traefik_https" {
-    source                      = "./k3s_securitygrouprule_sgroup"
+    source                      = "./k3s_securitygrouprule/sgroup"
     type                        = "ingress" # Ingress only (Access from LB)
     port                        = var.k3s_nodeport_traefik_https
     protocol                    = "tcp"
@@ -103,7 +103,7 @@ resource "aws_security_group_rule" "sgr_dns_tcp" {
 ###############################################################################################
 # Allow Kube-API access for cross-node cluster
 module "k3s_sgr_kubeapi" {
-    source              = "./k3s_securitygrouprule_self"
+    source              = "./k3s_securitygrouprule/self"
     type                = "both" # Ingress + Egress
     port                = 6443
     protocol            = "tcp"
@@ -113,7 +113,7 @@ module "k3s_sgr_kubeapi" {
 
 # Allow Kubelet metrics access for cross-node cluster
 module "k3s_sgr_kubelet_metrics" {
-    source              = "./k3s_securitygrouprule_self"
+    source              = "./k3s_securitygrouprule/self"
     type                = "both" # Ingress + Egress
     port                = 10250
     protocol            = "tcp"
@@ -123,7 +123,7 @@ module "k3s_sgr_kubelet_metrics" {
 
 # Allow Flannel for cross-node cluster
 module "k3s_sgr_flannel" {
-    source              = "./k3s_securitygrouprule_self"
+    source              = "./k3s_securitygrouprule/self"
     type                = "both" # Ingress + Egress
     port                = 8472
     protocol            = "udp"
@@ -133,7 +133,7 @@ module "k3s_sgr_flannel" {
 
 # Allow ETCD ports for cross-node cluster (2379 and 2380)
 module "k3s_sgr_etcd_2379" {
-    source              = "./k3s_securitygrouprule_self"
+    source              = "./k3s_securitygrouprule/self"
     type                = "both" # Ingress + Egress
     port                = 2379
     protocol            = "tcp"
@@ -141,7 +141,7 @@ module "k3s_sgr_etcd_2379" {
     description         = "ETCD client communication port"
 }
 module "k3s_sgr_etcd_2380" {
-    source              = "./k3s_securitygrouprule_self"
+    source              = "./k3s_securitygrouprule/self"
     type                = "both" # Ingress + Egress
     port                = 2380
     protocol            = "tcp"

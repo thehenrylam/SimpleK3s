@@ -14,7 +14,7 @@ resource "aws_security_group" "sg_elb" {
 
 # Inbound: public HTTP/HTTPS
 module "elb_ingress_http" {
-    source              = "./k3s_securitygrouprule_cidr"
+    source              = "./k3s_securitygrouprule/cidr"
     type                = "ingress"
     port                = 80
     protocol            = "tcp"
@@ -24,7 +24,7 @@ module "elb_ingress_http" {
 }
 
 module "elb_ingress_https" {
-    source              = "./k3s_securitygrouprule_cidr"
+    source              = "./k3s_securitygrouprule/cidr"
     type                = "ingress"
     port                = 443
     protocol            = "tcp"
@@ -35,7 +35,7 @@ module "elb_ingress_https" {
 
 # Outbound: only to instances on Traefik NodePorts
 module "elb_egress_to_nodes_http" {
-    source                      = "./k3s_securitygrouprule_sgroup"
+    source                      = "./k3s_securitygrouprule/sgroup"
     type                        = "egress"
     port                        = var.k3s_nodeport_traefik_http
     protocol                    = "tcp"
@@ -45,7 +45,7 @@ module "elb_egress_to_nodes_http" {
 }
 
 module "elb_egress_to_nodes_https" {
-    source                      = "./k3s_securitygrouprule_sgroup"
+    source                      = "./k3s_securitygrouprule/sgroup"
     type                        = "egress"
     port                        = var.k3s_nodeport_traefik_https
     protocol                    = "tcp"
