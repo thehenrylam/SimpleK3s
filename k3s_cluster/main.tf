@@ -27,17 +27,25 @@ terraform {
     }
 }
 
+###################################
+#   VPC lookup (for CIDR Block)   #
+###################################
+data "aws_vpc" "selected" {
+    id = var.vpc_id
+}
+
 ##############################
 # Subnet lookup (for CIDRs)  #
 ##############################
 data "aws_subnet" "selected" {
-  count = length(var.subnet_ids)
-  id    = var.subnet_ids[count.index]
+    count = length(var.subnet_ids)
+    id    = var.subnet_ids[count.index]
 }
 
 data "aws_subnet" "controller" {
-  id = coalesce(var.controller_subnet_id, var.subnet_ids[0])
+    id = coalesce(var.controller_subnet_id, var.subnet_ids[0])
 }
+
 
 locals {
     module              = "k3s"
@@ -62,6 +70,19 @@ locals {
 
     keypair_name        = "kp-${local.module_name}-node"
 
+    #############################
+    #   Computed Values (VPC)   #
+    #############################
+    vpc_cidr                = data.aws_vpc.selected.cidr_block
+    # IP to VPC DNS Resolver is always at VPC+2 (i.e. x.x.x.2)
+    # NOTE: If you have custom DHCP options set or custom DNS servers, ensure that the DNS server IP is correctly set
+    # NOTE: If you are having lots of issues with DNS resolution, try setting this to "0.0.0.0/0" to allow all outbound DNS queries
+    # Link to Docs: https://tutorialsdojo.com/using-amazon-route-53-resolver/
+    vpc_dns_resolver_cidr   = "${cidrhost(local.vpc_cidr, 2)}/32"
+
+    #########################################
+    #   Computed Values (Controller Node)   #
+    #########################################
     # Controller node networking (node 0)
     # If the controller_subnet_id is not set, default to the FIRST subnet in subnet_ids
     controller_subnet_id    = coalesce(var.controller_subnet_id, var.subnet_ids[0])

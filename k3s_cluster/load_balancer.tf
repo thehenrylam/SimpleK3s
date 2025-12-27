@@ -6,7 +6,7 @@ resource "aws_lb" "elb_main" {
     name               = "${local.elb_name}"
     internal           = false
     load_balancer_type = "network"
-    security_groups    = [aws_security_group.sg_instances.id]
+    security_groups    = [aws_security_group.sg_elb.id]
     subnets            = [for subnet_id in var.subnet_ids : subnet_id ] # <-- Connect this up
 
     tags = {
