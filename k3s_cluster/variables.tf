@@ -20,9 +20,9 @@ variable "subnet_ids" {
 
 # node count
 variable "node_count" {
-    description = "The number of nodes to deploy on the K3s cluster"
+    description = "The number of nodes to deploy on the K3s cluster (highly recommended to have odd node count from Kubernetes recommendations)"
     type        = number
-    default     = 1
+    default     = 3
 
     validation {
         condition     = var.node_count >= 1
@@ -89,25 +89,25 @@ variable "ec2_ami_id" {
 }
 
 variable "ec2_instance_type" {
-    description = "The EC2 instance type for K3s nodes"
+    description = "The EC2 instance type for K3s nodes (Minimum size is t4g.small to mitigate control node flakiness)"
     type        = string
-    default     = "t4g.micro"
+    default     = "t4g.small" 
 }
 
 variable "ec2_swapfile_size" {
-    description = "The swapfile size for EC2 instances"
+    description = "The swapfile size for EC2 instances (default: 1G)"
     type        = string
-    default     = "2G"
+    default     = "1G"
 }
 
 variable "ec2_ebs_volume_size" {
-    description = "The EBS volume size for EC2 instances"
+    description = "The EBS volume size for EC2 instances (default: 12)"
     type        = number
-    default     = 24
+    default     = 12
 }
 
 variable "ec2_ebs_volume_type" {
-    description = "The EBS volume type for EC2 instances"
+    description = "The EBS volume type for EC2 instances (default: gp3)"
     type        = string
-    default     = "gp2"
+    default     = "gp3" # gp3 is favored since we are using small volumes while maintaining reliable performance
 }
