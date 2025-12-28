@@ -19,7 +19,7 @@ provider "aws" {
 }
 
 module "vpc_cloud" {
-    source                  = "./vpc_cloud" 
+    source                  = "../modules/vpc_cloud" 
     nickname                = var.nickname 
     node_count              = var.node_count 
     vpc_cidr_block          = var.vpc_cidr_block 
@@ -28,7 +28,7 @@ module "vpc_cloud" {
 }
 
 module "k3s_cluster" {
-    source                  = "./k3s_cluster" 
+    source                  = "../../k3s_cluster" 
     nickname                = var.nickname 
     node_count              = var.node_count 
     admin_ip_list           = var.admin_ip_list 
