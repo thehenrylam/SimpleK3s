@@ -38,6 +38,9 @@ override.tf.json
 .terraformrc
 terraform.rc
 
+# CUSTOM: Ignore git *.patch files
+*.patch
+
 # CUSTOM: Ignore tmp folders
 _tmp*/
 
