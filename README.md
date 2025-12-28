@@ -18,17 +18,6 @@ In addition, it serves as a way to transition nicely into EKS since your apps wo
 | Operational Ease 🛠️  | ⭐️          | ⭐️⭐️⭐️            | ⭐️⭐️⭐️⭐️⭐️ |
 | Best For... 🫥       | Small Projects | Scalable MVPs | Full Production |
 
-# Can't Decide?
-flowchart LR
-    A[Idea / MVP] --> B{ Are Features<br>Needed? }
-    B -- No --> C[**Full DiY**]
-    B -- Yes --> D[**SimpleK3s**]
-    C --> B
-    D --> E{ Enterprise Ops<br>Needed?   }
-    E -- No --> D
-    E -- Yes --> F
-    F[**EKS**]
-
 # Disclaimer
 - This is **NOT** meant to be a $0 or lowest possible price point setup.
     - Remember, a webapp running on 1-2 instances will **ALWAYS** be cheaper than a Kubernetes cluster.
