@@ -6,17 +6,17 @@ Perfect for Hobbyists and Entrepreneurs who want a setup with critical enterpris
 This acts as a perfect starting point to deploy MVPs with scaling, monitoring, and good defaults for security in mind. 
 In addition, it serves as a way to transition nicely into EKS since your apps would be built with Kubernetes in mind from the very beginning.
 
-| Features                  | `Full DiY`     | `SimpleK3s`       | `EKS`               |
-| ------------------------- | -------------- | ----------------- | ------------------- |
-| Setup Speed ⏰            | Slow 🐌         | **Fastest** 🚀     | *Medium* 🏎️        |
-| Monthly Cost 💰           | **Least** 🤑    | *Medium* 💸        | Most 🔥💵🔥         |
-| Kubernetes-Ready ⚙️        | None 🚫        | **Yes** ✅         | **Yes** ✅         |
-| High Availability 🙂🙂🙂   | None 🚫         | **Yes** ✅         | **Yes** ✅         |
-| Auto Scaling 📈           | None 🚫         | **In Progress** 🏗️ | **Yes** ✅         |
-| Monitoring 🎥💻            | None 🚫        | **In Progress** 🏗️ | **Limited** ☁️🔭    |
-| Out-of-the-Box Security 🔐 | 100% DiY 😣    | **Strong** 💪      | **Strong** 💪      |
-| Operational Overhead 🛠️    | Most 🤮        | *Medium* 👷        | **Least** 🏖️       |
-| Best For                  | Small Projects | Scalable MVPs      | Full Production   |
+| Features             | `Full DiY` | `SimpleK3s`       | `EKS`    |
+| -------------------: | :--------: | :---------------: | :------: |
+| Setup Speed 🚀       | ⭐️          | ⭐️⭐️⭐️⭐️⭐️         | ⭐️⭐️⭐️    |
+| Cost Efficiency 🤑   | ⭐️⭐️⭐️⭐️⭐️   | ⭐️⭐️⭐️             | ⭐️       |
+| Kubernetes-Ready ⚙️  | 🚫          | ✅                | ✅       |
+| High Availability 🦾 | 🚫          | ✅                | ✅       |
+| Auto Scaling 📈      | 🚫          | 🏗️ (**WIP**) 🏗️   | ✅       |
+| Monitoring 👀        | 🚫          | 🏗️ (**WIP**) 🏗️   | ✅       |
+| Security 🔐          | ⭐️          | ⭐️⭐️⭐️            | ⭐️⭐️⭐️⭐️⭐️ |
+| Operational Ease 🛠️  | ⭐️          | ⭐️⭐️⭐️            | ⭐️⭐️⭐️⭐️⭐️ |
+| Best For... 🫥       | Small Projects | Scalable MVPs | Full Production |
 
 # Can't Decide?
 flowchart LR
