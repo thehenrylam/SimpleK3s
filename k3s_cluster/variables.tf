@@ -3,6 +3,11 @@ variable "nickname" {
     type        = string
 }
 
+variable "aws_region" {
+    description = "The aws region that the resources will deploy on (should be the same as used in the VPC)"
+    type        = string
+}
+
 variable "vpc_id" {
     description = "The vpc id that the module will reside in"
     type        = string
@@ -28,6 +33,15 @@ variable "node_count" {
         condition     = var.node_count >= 1
         error_message = "The number of nodes MUST be equal or greater than 1"
     }
+}
+
+###########################################
+#   Account ID (to set IAM permissions)   #
+###########################################
+variable "account_id" {
+    description = "The account ID. Used to help set IAM permissions for least-priviledged setups"
+    type        = string
+    default     = null
 }
 
 #############################################

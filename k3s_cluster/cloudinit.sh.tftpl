@@ -1,0 +1,60 @@
+#!/bin/bash
+set -euo pipefail
+
+# Get a helpful message on any error
+trap 'rc=$?; echo "ERROR: cloud-init failed at line $LINENO (exit $rc)"; exit $rc' ERR
+
+# set up cloud init log
+LOG_FILE="/var/log/simplek3s-cloudinit.log"
+mkdir -p "$(dirname "$LOG_FILE")"
+touch "$LOG_FILE"
+chmod 0644 "$LOG_FILE"
+
+# Send all output (stdout+stderr) to:
+#  - your log file
+#  - cloud-init output log (via console)
+#  - syslog (tagged)
+exec > >(awk '{ print strftime("[%Y-%m-%d %H:%M:%S]"), $0 }' \
+  | tee -a "$LOG_FILE" \
+  | logger -t simplek3s-cloudinit) 2>&1
+echo "=== SimpleK3s cloud-init starting ==="
+echo "User: $(id)"
+echo "Hostname: $(hostname)"
+echo "Date: $(date -Is)"
+
+echo "Set up packages (apt-get)"
+# update package manager
+apt-get update -y
+# install essentials
+apt-get install -y awscli ca-certificates gettext-base
+# install nice-to-haves
+apt-get install -y fastfetch htop
+
+BOOTSTRAP_BUCKET="${bootstrap_bucket}"
+BOOTSTRAP_DIR="/opt/simplek3s/bootstrap"
+
+echo "Initialize directory: $BOOTSTRAP_DIR"
+mkdir -p $BOOTSTRAP_DIR
+
+echo "Download minimal setup files"
+aws s3 cp "s3://$BOOTSTRAP_BUCKET/${s3key_k3s_install}" \
+  "$BOOTSTRAP_DIR/K3S_INSTALL.sh"
+aws s3 cp "s3://$BOOTSTRAP_BUCKET/${s3key_traefik_cfg_tmpl}" \
+  "$BOOTSTRAP_DIR/traefik-config.yaml.tmpl"
+
+# Setup environment script
+echo "Setup environment script: simplek3s.env"
+cat >$BOOTSTRAP_DIR/simplek3s.env <<EOF
+COUNT_INDEX=${count_index}
+SWAPFILE_ALLOC_AMT=${swapfile_alloc_amt}
+CONTROLLER_HOST=${controller_host}
+NODEPORT_HTTP=${nodeport_http}
+NODEPORT_HTTPS=${nodeport_https}
+NICKNAME=${nickname}
+AWS_REGION=${aws_region}
+EOF
+
+# Execute installation script
+echo "Execute installation script"
+chmod +x $BOOTSTRAP_DIR/K3S_INSTALL.sh
+$BOOTSTRAP_DIR/K3S_INSTALL.sh

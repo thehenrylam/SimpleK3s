@@ -6,14 +6,23 @@ set -euo pipefail
 # -e            : Exits on ANY command failure 
 # -o pipefail   : Make pipeline fail if any command in them fails 
 
-# Variables surrounded with "$" and "{}" is set by a templatefile(...) command 
-# Variables referenced externally:
-#   - count_index         : The index number of the initialized machine 
-#   - swapfile_alloc_amt  : The swapfile allocation amount (e.g. "2G")
-#   - k3s_secret_token    : The secret token for initializing K3s and referencing the controller host  
-#   - controller_host     : The K3s controller host (represented by IP address, usually cloud private IP) 
-#   - nodeport_http       : The nodeport of the HTTP port (Allow HTTP access from the K3s pod) 
-#   - nodeport_https      : The nodeport of the HTTPS port (Allow HTTPS access from the K3s pod) 
+SCRIPT_DIR=$(dirname $0)
+cd $SCRIPT_DIR
+
+# Retrieve all of the needed environment variables from this file
+source ./simplek3s.env
+
+COUNT_INDEX="$COUNT_INDEX"
+
+PARAM_NAME="/simplek3s/$NICKNAME/k3s-token"
+REGION="$AWS_REGION"
+
+SWAPFILE_ALLOC_AMT="$SWAPFILE_ALLOC_AMT"
+
+CONTROLLER_HOST="$CONTROLLER_HOST"
+
+NODEPORT_HTTP="$NODEPORT_HTTP"
+NODEPORT_HTTPS="$NODEPORT_HTTPS"
 
 LOG_FILE="./K3S_INSTALL.log"
 function print_date() {
@@ -33,18 +42,50 @@ function log_fail() {
 }
 
 ### HELPER FUNCTIONS ### 
+
+PLACEHOLDER_TOKEN="__UNINITIALIZED__" # This is the placeholder token that we're supposed to ignore 
+wait_for_real_k3s_token() {
+  FUNCTION_NAME="wait_for_real_k3s_token"
+  local max_attempts="${1:-180}"   # 180 * 2s = 6 minutes
+  local sleep_s="${2:-2}"
+
+  for ((i=1; i<=max_attempts; i++)); do
+    # get value (may fail temporarily)
+    local v=""
+    if v="$(aws ssm get-parameter \
+      --name "$PARAM_NAME" \
+      --with-decryption \
+      --query "Parameter.Value" \
+      --output text \
+      --region "$REGION" 2>/dev/null)"; then
+
+      # "ready" when it's not empty and not the placeholder
+      if [[ -n "$v" && "$v" != "$PLACEHOLDER_TOKEN" ]]; then
+        echo "$v"
+        return 0
+      fi
+    fi
+
+    log_info "[$FUNCTION_NAME] Waiting for real token in SSM (attempt ${i}/${max_attempts})..."
+    sleep "$sleep_s"
+  done
+
+  log_fail "[$FUNCTION_NAME] Timed out waiting for k3s token to be populated in SSM."
+  return 1
+}
+
 # Wait for K3s API to be ready
 wait_for_k3s_api() {
   FUNCTION_NAME="wait_for_k3s_api"
   log_info "[$FUNCTION_NAME] Waiting for K3s API to be ready..."
-  for i in {1..120}; do
+  for i in {1..18}; do
     if sudo kubectl get --raw=/readyz >/dev/null 2>&1; then
       log_okay "[$FUNCTION_NAME] K3s API is ready!"
       return 0
     fi
-    sleep 2
+    sleep 10
   done
-  log_fail "[$FUNCTION_NAME] K3s API is not ready after 240s"
+  log_fail "[$FUNCTION_NAME] K3s API is not ready after 180s"
   return 1
 }
 # Wait for a kubectl resource to be available
@@ -52,14 +93,14 @@ wait_for_resource() {
   FUNCTION_NAME="wait_for_resource"
   log_info "[$FUNCTION_NAME] Waiting for resource to be available..."
   # usage: wait_for_resource <kubectl args that must succeed>
-  for i in {1..120}; do
+  for i in {1..18}; do
     if eval "$@" >/dev/null 2>&1; then
       log_okay "[$FUNCTION_NAME] Resource is available!"
       return 0
     fi
-    sleep 2
+    sleep 10
   done
-  log_fail "[$FUNCTION_NAME] Resource is not available after 240s"
+  log_fail "[$FUNCTION_NAME] Resource is not available after 180s"
   return 1
 }
 # Wait for kube-system namespace to be ready
@@ -121,19 +162,18 @@ wait_for_traefik_ready() {
 ### MAIN SETUP ###
 function main_setup() {
   FUNCTION_NAME="main_setup"
-  log_info "[$FUNCTION_NAME] Setup for node: ${count_index} has now STARTED"
+  log_info "[$FUNCTION_NAME] Setup for node: $COUNT_INDEX has now STARTED"
 
   # Main K3S node
-  if [ ${count_index} -eq 0 ]; then
+  if [ $COUNT_INDEX -eq 0 ]; then
     log_info "[$FUNCTION_NAME] Node equals to 0: Set this node up as PRIMARY node!"
-    log_info "[$FUNCTION_NAME] K3S_TOKEN: ${k3s_secret_token}"
-    log_info "[$FUNCTION_NAME] CONTROLLER_HOST ${controller_host}"
+    log_info "[$FUNCTION_NAME] CONTROLLER_HOST $CONTROLLER_HOST"
 
     log_info "[$FUNCTION_NAME] PRIMARY node is being set up!"
-    # Set up first server
-    curl -sfL https://get.k3s.io | K3S_TOKEN="${k3s_secret_token}" sh -s - server \
+    # Set up first server -  Do NOT use a token (Let K3s automatically generate it)
+    curl -sfL https://get.k3s.io | sh -s - server \
       --cluster-init \
-      --tls-san="${controller_host}" 2>&1 | tee -a $LOG_FILE # Optional, needed if using a fixed registration address
+      --tls-san="$CONTROLLER_HOST" 2>&1 | tee -a $LOG_FILE
 
     if [ $? -eq 0 ]; then
       log_okay "[$FUNCTION_NAME] PRIMARY node has been set up!"
@@ -142,19 +182,40 @@ function main_setup() {
       exit 1
     fi
 
+    # Read the generated token (server token file)
+    log_info "[$FUNCTION_NAME] Store K3s token into AWS SSM Parameter Store..."
+    TOKEN="$(sudo cat /var/lib/rancher/k3s/server/token)"
+
+    if [[ -z "$TOKEN" || "$TOKEN" == "$PLACEHOLDER_TOKEN" ]]; then
+      log_fail "[$FUNCTION_NAME] token read from disk looks invalid"
+      exit 1
+    fi
+
+    # Store in Parameter Store (SecureString). Overwrite allows rebuilds.
+    aws ssm put-parameter \
+      --name "$PARAM_NAME" \
+      --type "SecureString" \
+      --value "$TOKEN" \
+      --overwrite \
+      --region "$AWS_REGION"
+
+    if [ $? -eq 0 ]; then
+      log_okay "[$FUNCTION_NAME] Stored K3s token into AWS SSM Parameter Store!"
+    else
+      log_fail "[$FUNCTION_NAME] Something went wrong when storing K3s token into AWS SSM Parameter Store!"
+    fi 
   fi
 
   # Secondary K3S node
-  if [ ! ${count_index} -eq 0 ]; then
+  if [ ! $COUNT_INDEX -eq 0 ]; then    
     log_info "[$FUNCTION_NAME] Node doesn't equal 0: Set this node up as SECONDARY node!"
-    log_info "[$FUNCTION_NAME] K3S_TOKEN: ${k3s_secret_token}"
-    log_info "[$FUNCTION_NAME] CONTROLLER_HOST: ${controller_host}"
+    log_info "[$FUNCTION_NAME] CONTROLLER_HOST: $CONTROLLER_HOST"
 
     log_info "[$FUNCTION_NAME] Waiting for the PRIMARY node to get set up"
     # Wait until the master node is up
     ETCD_0=down
     while [[ "$ETCD_0" == "down" ]]; do 
-      curl --connect-timeout 3 -k https://${controller_host}:6443 && ETCD_0=up || ETCD_0=down
+      curl --connect-timeout 3 -k https://$CONTROLLER_HOST:6443 && ETCD_0=up || ETCD_0=down
     done
     if [[ "$ETCD_0" == "up" ]]; then
       log_okay "[$FUNCTION_NAME] PRIMARY node is now up! (ETCD_0: $ETCD_0)"
@@ -162,12 +223,17 @@ function main_setup() {
       log_fail "[$FUNCTION_NAME] PRIMARY node is still down! (ETCD_0: $ETCD_0)"
     fi 
 
+    log_info "[$FUNCTION_NAME] Retrieving k3s token!"
+    # Try to ping AWS SSM to see if the k3s token is ready
+    TOKEN="$(wait_for_real_k3s_token 180 2)"
+    log_info "[$FUNCTION_NAME] k3s token retrieved!"
+
     log_info "[$FUNCTION_NAME] SECONDARY node is being set up!"
     # Set up agent server
-    curl -sfL https://get.k3s.io | K3S_TOKEN="${k3s_secret_token}" sh -s - server \
-      --server https://${controller_host}:6443 \
-      --tls-san=${controller_host} 2>&1 | tee -a $LOG_FILE # Optional, needed if using a fixed registration address
-    
+    curl -sfL https://get.k3s.io | K3S_TOKEN="$TOKEN" sh -s - server \
+      --server "https://$CONTROLLER_HOST:6443" \
+      --tls-san="$CONTROLLER_HOST" | tee -a $LOG_FILE 
+
     if [ $? -eq 0 ]; then
       log_okay "[$FUNCTION_NAME] SECONDARY node has been set up!"
     else
@@ -176,7 +242,7 @@ function main_setup() {
 
   fi
 
-  log_info "[$FUNCTION_NAME] Setup for node: ${count_index} has been COMPLETED"
+  log_info "[$FUNCTION_NAME] Setup for node: $COUNT_INDEX has been COMPLETED"
 }
 
 ### SWAPFILE SETUP ###
@@ -184,8 +250,8 @@ function swapfile_setup() {
   FUNCTION_NAME="swapfile_setup"
   log_info "[$FUNCTION_NAME] Set up swapfile has now STARTED"
 
-  log_info "[$FUNCTION_NAME] Allocating ${swapfile_alloc_amt} to /swapfile"
-  sudo fallocate -l "${swapfile_alloc_amt}" /swapfile
+  log_info "[$FUNCTION_NAME] Allocating $SWAPFILE_ALLOC_AMT to /swapfile"
+  sudo fallocate -l "$SWAPFILE_ALLOC_AMT" /swapfile
   
   log_info "[$FUNCTION_NAME] Setting up permissions on /swapfile"
   sudo chmod 0600 /swapfile
@@ -213,21 +279,13 @@ function setup_helmchartconfig_traefik() {
   # Make sure the manifests directory exists
   sudo mkdir -p /var/lib/rancher/k3s/server/manifests
 
-  # Write the HelmChartConfig manifest for Traefik
-  sudo tee /var/lib/rancher/k3s/server/manifests/traefik-config.yaml >/dev/null <<YAML
-apiVersion: helm.cattle.io/v1
-kind: HelmChartConfig
-metadata:
-  name: traefik
-  namespace: kube-system
-spec:
-  valuesContent: |-
-    ports:
-      web:
-        nodePort: ${nodeport_http}
-      websecure:
-        nodePort: ${nodeport_https}
-YAML
+  # Substitute using environment variables using the traefik-config.yaml.tmpl template file
+  # Then transfer it to the /var/lib/rancher/k3s/server/manifests/ folder
+  export NODEPORT_HTTP NODEPORT_HTTPS
+  envsubst '${NODEPORT_HTTP} ${NODEPORT_HTTPS}' \
+    < ./traefik-config.yaml.tmpl \
+    | sudo tee /var/lib/rancher/k3s/server/manifests/traefik-config.yaml >/dev/null
+  export -n NODEPORT_HTTP NODEPORT_HTTPS
 
   if [ $? -eq 0 ]; then
     log_okay "[$FUNCTION_NAME] Traefik HelmChartConfig written to /var/lib/rancher/k3s/server/manifests/traefik-config.yaml"

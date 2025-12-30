@@ -46,13 +46,37 @@ data "aws_subnet" "controller" {
     id = coalesce(var.controller_subnet_id, var.subnet_ids[0])
 }
 
+########################################
+# Get current AWS Partition (for IAM)  #
+########################################
+data "aws_partition" "current" {}
+##############################################
+# Get current AWS Caller Identity (for IAM)  #
+##############################################
+data "aws_caller_identity" "current" {}
 
 locals {
+    uninitialized       = "__UNINITIALIZED__"
+
     module              = "k3s"
     module_name         = "${local.module}-${var.nickname}"
 
     irole_name          = "irole-${local.module_name}_ssm-for-ec2"
     iprofile_name       = "iprofile-${local.module_name}_ssm-for-ec2"
+
+    ipolicy_k3s_pstore_name = "ipolicy-${local.module_name}_k3s-paramstore"
+    ipolicy_s3_bstrap_name  = "ipolicy-${local.module_name}_s3-bootstrap"
+
+    # Bootstrapping : Infra
+    # S3 bstrap (bootstrap) acts as a way to get around the 16KB cloud-init limit when initializing K3s nodes
+    s3_bstrap_name          = "s3-${local.module_name}-bootstrap"
+    s3_bstrap_key_root      = "bootstrap" # This is used as part of a key
+    # Bootstrapping : Data
+    # Filepaths for S3
+    k3s_install_path        = "${path.module}/bootstrap/K3S_INSTALL.sh"
+    traefik_cfg_tmpl_path   = "${path.module}/bootstrap/manifests/traefik-config.yaml.tmpl"
+    # SSM Parameter (for k3s_token)
+    pstore_k3s_token_name   = "pstore-${local.module_name}_k3s-token" 
 
     ec2_name            = "ec2-${local.module_name}"
     sg_ec2_name         = "sgroup-${local.module_name}_for-ec2"
@@ -90,4 +114,9 @@ locals {
     # If the controller_private_ip is not set, compute it via cidrhost()
     controller_private_ip   = coalesce(var.controller_private_ip, cidrhost(local.controller_subnet_cidr, var.controller_private_ip_hostnum))
     controller_host         = local.controller_private_ip
+
+    #########################################
+    #   Computed Values (Caller Identity)   #
+    #########################################
+    account_id              = coalesce(var.account_id, data.aws_caller_identity.current.account_id)
 }

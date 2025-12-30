@@ -30,6 +30,7 @@ module "vpc_cloud" {
 module "k3s_cluster" {
     source                  = "../../k3s_cluster" 
     nickname                = var.nickname 
+    aws_region              = var.aws_region
     node_count              = var.node_count 
     admin_ip_list           = var.admin_ip_list 
     vpc_id                  = module.vpc_cloud.vpc_id 
