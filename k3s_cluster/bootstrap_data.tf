@@ -1,8 +1,8 @@
 ##############################################
 #    Bootstrapping (Setup After Creation)    #
 ##############################################
-# How it works: ...
-resource "aws_ssm_parameter" "secret" {
+# SSM Parameter: K3s Token
+resource "aws_ssm_parameter" "k3s_token" {
     name        = "/simplek3s/${var.nickname}/k3s-token"
     description = "The K3s token - This is set on runtime"
     type        = "SecureString"
@@ -47,6 +47,15 @@ resource "aws_s3_object" "traefik_cfg_tmpl" {
     source = local.traefik_cfg_tmpl_path
 }
 
+resource "aws_s3_object" "simplek3s_env" {
+    bucket = aws_s3_bucket.bootstrap.id
+    key    = "${local.s3_bstrap_key_root}/simplek3s.env"
+    source = local_file.simplek3s_env.filename
+
+    depends_on = [
+        local_file.simplek3s_env
+    ]
+}
 resource "local_file" "simplek3s_env" {
     content  = templatefile("${local.simplek3s_path}.tmpl", {
         bootstrap_dir           = local.bstrap_dir,
@@ -62,13 +71,4 @@ resource "local_file" "simplek3s_env" {
         s3key_traefik_cfg_tmpl  = "${local.s3_bstrap_key_root}/manifests/traefik-config.yaml.tmpl",
     })
     filename = local.simplek3s_path
-}
-resource "aws_s3_object" "simplek3s_env" {
-    bucket = aws_s3_bucket.bootstrap.id
-    key    = "${local.s3_bstrap_key_root}/simplek3s.env"
-    source = local.simplek3s_path
-
-    depends_on = [
-        local_file.simplek3s_env
-    ]
 }
