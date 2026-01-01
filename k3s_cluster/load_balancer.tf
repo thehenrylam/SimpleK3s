@@ -13,6 +13,11 @@ resource "aws_lb" "elb_main" {
         Name        = "${local.elb_name}"
         Nickname    = "${var.nickname}"
     }
+
+    # Wait for EC2 node to be set up before we start setting up ELB
+    depends_on = [
+        aws_instance.ec2_node 
+    ]
 }
 
 ###########################################################

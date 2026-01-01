@@ -12,7 +12,7 @@ cd $SCRIPT_DIR
 # Retrieve all of the needed environment variables from this file
 source ./simplek3s.env
 
-COUNT_INDEX="$COUNT_INDEX"
+COUNT_INDEX="$1"
 
 PARAM_NAME="/simplek3s/$NICKNAME/k3s-token"
 REGION="$AWS_REGION"
@@ -283,7 +283,7 @@ function setup_helmchartconfig_traefik() {
   # Then transfer it to the /var/lib/rancher/k3s/server/manifests/ folder
   export NODEPORT_HTTP NODEPORT_HTTPS
   envsubst '${NODEPORT_HTTP} ${NODEPORT_HTTPS}' \
-    < ./traefik-config.yaml.tmpl \
+    < ./manifests/traefik-config.yaml.tmpl \
     | sudo tee /var/lib/rancher/k3s/server/manifests/traefik-config.yaml >/dev/null
   export -n NODEPORT_HTTP NODEPORT_HTTPS
 

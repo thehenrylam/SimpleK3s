@@ -70,11 +70,29 @@ locals {
     # Bootstrapping : Infra
     # S3 bstrap (bootstrap) acts as a way to get around the 16KB cloud-init limit when initializing K3s nodes
     s3_bstrap_name          = "s3-${local.module_name}-bootstrap"
-    s3_bstrap_key_root      = "bootstrap" # This is used as part of a key
     # Bootstrapping : Data
+    # Key bootstrapping values
+    bstrap_dir                  = "/opt/simplek3s/"
     # Filepaths for S3
+    s3_bstrap_key_root          = "bootstrap" # This is used as part of a key
+    s3_bstrap_key_root_default  = "${local.s3_bstrap_key_root}/default"
+    s3_bstrap_key_root_custom   = "${local.s3_bstrap_key_root}/custom"
+    s3_files_key_src_path   = [
+        { # K3S Installation
+            desc    = "K3S Install",
+            key     = "${local.s3_bstrap_key_root_default}/K3S_INSTALL.sh",
+            src     = "${path.module}/bootstrap/K3S_INSTALL.sh"
+        },
+        { # Traefik Config (Template)
+            desc    = "Traefik Config (Template)",
+            key     = "${local.s3_bstrap_key_root_default}/manifests/traefik-config.yaml.tmpl",
+            src     = "${path.module}/bootstrap/manifests/traefik-config.yaml.tmpl"
+        },
+    ]
+
     k3s_install_path        = "${path.module}/bootstrap/K3S_INSTALL.sh"
     traefik_cfg_tmpl_path   = "${path.module}/bootstrap/manifests/traefik-config.yaml.tmpl"
+    simplek3s_path          = "${path.module}/bootstrap/simplek3s.env"
     # SSM Parameter (for k3s_token)
     pstore_k3s_token_name   = "pstore-${local.module_name}_k3s-token" 
 

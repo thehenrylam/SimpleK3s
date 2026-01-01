@@ -27,15 +27,11 @@ resource "aws_instance" "ec2_node" {
 
     user_data = templatefile("${path.module}/cloudinit.sh.tftpl", {
         count_index             = count.index,
-        nickname                = var.nickname,
-        aws_region              = var.aws_region,
         bootstrap_bucket        = aws_s3_bucket.bootstrap.bucket,
-        swapfile_alloc_amt      = var.ec2_swapfile_size,
-        controller_host         = local.controller_host,
-        nodeport_http           = var.k3s_nodeport_traefik_http,
-        nodeport_https          = var.k3s_nodeport_traefik_https,
+        bootstrap_dir           = local.bstrap_dir,
+        s3key_simplek3s_env     = aws_s3_object.simplek3s_env.key,
         s3key_k3s_install       = aws_s3_object.k3s_install.key,
-        s3key_traefik_cfg_tmpl  = aws_s3_object.traefik_cfg_tmpl.key
+        s3key_traefik_cfg_tmpl  = aws_s3_object.traefik_cfg_tmpl.key,
     })
 
     root_block_device {

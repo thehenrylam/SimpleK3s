@@ -30,31 +30,31 @@ apt-get install -y awscli ca-certificates gettext-base
 # install nice-to-haves
 apt-get install -y fastfetch htop
 
+COUNT_INDEX="${count_index}"
+
 BOOTSTRAP_BUCKET="${bootstrap_bucket}"
-BOOTSTRAP_DIR="/opt/simplek3s/bootstrap"
+BOOTSTRAP_DIR="${bootstrap_dir}" # /opt/simplek3s/
 
 echo "Initialize directory: $BOOTSTRAP_DIR"
 mkdir -p $BOOTSTRAP_DIR
+cd $BOOTSTRAP_DIR
+
+function download_from_s3() {
+    S3KEY_VALUE="$1"
+    # GLOBAL VALUES:
+    #   - BOOTSTRAP_BUCKET
+    #   - BOOTSTRAP_DIR
+    aws s3 cp "s3://$BOOTSTRAP_BUCKET/$S3KEY_VALUE" \
+        "$BOOTSTRAP_DIR/$S3KEY_VALUE"
+}
+
 
 echo "Download minimal setup files"
-aws s3 cp "s3://$BOOTSTRAP_BUCKET/${s3key_k3s_install}" \
-  "$BOOTSTRAP_DIR/K3S_INSTALL.sh"
-aws s3 cp "s3://$BOOTSTRAP_BUCKET/${s3key_traefik_cfg_tmpl}" \
-  "$BOOTSTRAP_DIR/traefik-config.yaml.tmpl"
-
-# Setup environment script
-echo "Setup environment script: simplek3s.env"
-cat >$BOOTSTRAP_DIR/simplek3s.env <<EOF
-COUNT_INDEX=${count_index}
-SWAPFILE_ALLOC_AMT=${swapfile_alloc_amt}
-CONTROLLER_HOST=${controller_host}
-NODEPORT_HTTP=${nodeport_http}
-NODEPORT_HTTPS=${nodeport_https}
-NICKNAME=${nickname}
-AWS_REGION=${aws_region}
-EOF
+download_from_s3 "${s3key_simplek3s_env}"
+download_from_s3 "${s3key_k3s_install}"
+download_from_s3 "${s3key_traefik_cfg_tmpl}"
 
 # Execute installation script
 echo "Execute installation script"
-chmod +x $BOOTSTRAP_DIR/K3S_INSTALL.sh
-$BOOTSTRAP_DIR/K3S_INSTALL.sh
+chmod +x $BOOTSTRAP_DIR/${s3key_k3s_install}
+$BOOTSTRAP_DIR/${s3key_k3s_install} "$COUNT_INDEX"
