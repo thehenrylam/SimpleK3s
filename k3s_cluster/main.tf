@@ -77,16 +77,26 @@ locals {
     s3_bstrap_key_root          = "bootstrap" # This is used as part of a key
     s3_bstrap_key_root_default  = "${local.s3_bstrap_key_root}/default"
     s3_bstrap_key_root_custom   = "${local.s3_bstrap_key_root}/custom"
+
+    s3key_install_script    = "${local.s3_bstrap_key_root}/K3S_INSTALL.sh"
     s3_files_key_src_path   = [
+        { # SimpleK3s Env Vars
+            desc        = "SimpleK3s Env Vars",
+            key         = "${local.s3_bstrap_key_root}/simplek3s.env",
+            src         = local_file.simplek3s_env.filename, # This is a templated variable
+            precheck    = false # Can't precheck: this is a templated file!
+        },
         { # K3S Installation
-            desc    = "K3S Install",
-            key     = "${local.s3_bstrap_key_root_default}/K3S_INSTALL.sh",
-            src     = "${path.module}/bootstrap/K3S_INSTALL.sh"
+            desc        = "K3S Install",
+            key         = local.s3key_install_script,
+            src         = "${path.module}/bootstrap/K3S_INSTALL.sh",
+            precheck    = true
         },
         { # Traefik Config (Template)
-            desc    = "Traefik Config (Template)",
-            key     = "${local.s3_bstrap_key_root_default}/manifests/traefik-config.yaml.tmpl",
-            src     = "${path.module}/bootstrap/manifests/traefik-config.yaml.tmpl"
+            desc        = "Traefik Config (Template)",
+            key         = "${local.s3_bstrap_key_root}/manifests/traefik-config.yaml.tmpl",
+            src         = "${path.module}/bootstrap/manifests/traefik-config.yaml.tmpl",
+            precheck    = true
         },
     ]
 

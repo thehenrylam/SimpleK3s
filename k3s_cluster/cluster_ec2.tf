@@ -29,9 +29,8 @@ resource "aws_instance" "ec2_node" {
         count_index             = count.index,
         bootstrap_bucket        = aws_s3_bucket.bootstrap.bucket,
         bootstrap_dir           = local.bstrap_dir,
-        s3key_simplek3s_env     = aws_s3_object.simplek3s_env.key,
-        s3key_k3s_install       = aws_s3_object.k3s_install.key,
-        s3key_traefik_cfg_tmpl  = aws_s3_object.traefik_cfg_tmpl.key,
+        s3key_install_script    = local.s3key_install_script,
+        s3key_default           = [ for obj in aws_s3_object.bootstrap_s3_obj_default : obj.key ],
     })
 
     root_block_device {
