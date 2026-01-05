@@ -78,31 +78,40 @@ locals {
     s3_bstrap_key_root_default  = "${local.s3_bstrap_key_root}/default"
     s3_bstrap_key_root_custom   = "${local.s3_bstrap_key_root}/custom"
 
-    s3key_install_script    = "${local.s3_bstrap_key_root}/K3S_INSTALL.sh"
+    # IMPORTANT: Main installation script (i.e. what we use to kick off node installation) MUST be the FIRST item
     s3_files_key_src_path   = [
+        { # K3S Installation (Main installation script)
+            desc        = "K3S Install",
+            key         = "${local.s3_bstrap_key_root}/K3S_INSTALL.sh",
+            src         = "${path.module}/bootstrap/K3S_INSTALL.sh",
+            template    = null
+        },
         { # SimpleK3s Env Vars
             desc        = "SimpleK3s Env Vars",
             key         = "${local.s3_bstrap_key_root}/simplek3s.env",
-            src         = local_file.simplek3s_env.filename, # This is a templated variable
-            precheck    = false # Can't precheck: this is a templated file!
-        },
-        { # K3S Installation
-            desc        = "K3S Install",
-            key         = local.s3key_install_script,
-            src         = "${path.module}/bootstrap/K3S_INSTALL.sh",
-            precheck    = true
+            src         = "${path.module}/bootstrap/simplek3s.env", # local_file.simplek3s_env.filename, # This is a templated variable
+            template    = {
+                bootstrap_dir           = local.bstrap_dir
+                nickname                = var.nickname
+                aws_region              = var.aws_region
+                controller_host         = local.controller_host
+                swapfile_alloc_amt      = var.ec2_swapfile_size
+                nodeport_http           = var.k3s_nodeport_traefik_http
+                nodeport_https          = var.k3s_nodeport_traefik_https
+                s3_bucket_name          = local.s3_bstrap_name
+                s3key_simplek3s_env     = "${local.s3_bstrap_key_root}/simplek3s.env"
+                s3key_k3s_install       = "${local.s3_bstrap_key_root}/K3S_INSTALL.sh"
+                s3key_traefik_cfg_tmpl  = "${local.s3_bstrap_key_root}/manifests/traefik-config.yaml.tmpl"
+            }
         },
         { # Traefik Config (Template)
             desc        = "Traefik Config (Template)",
             key         = "${local.s3_bstrap_key_root}/manifests/traefik-config.yaml.tmpl",
             src         = "${path.module}/bootstrap/manifests/traefik-config.yaml.tmpl",
-            precheck    = true
+            template    = null
         },
     ]
 
-    k3s_install_path        = "${path.module}/bootstrap/K3S_INSTALL.sh"
-    traefik_cfg_tmpl_path   = "${path.module}/bootstrap/manifests/traefik-config.yaml.tmpl"
-    simplek3s_path          = "${path.module}/bootstrap/simplek3s.env"
     # SSM Parameter (for k3s_token)
     pstore_k3s_token_name   = "pstore-${local.module_name}_k3s-token" 
 

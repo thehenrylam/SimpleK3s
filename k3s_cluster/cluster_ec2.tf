@@ -29,7 +29,8 @@ resource "aws_instance" "ec2_node" {
         count_index             = count.index,
         bootstrap_bucket        = aws_s3_bucket.bootstrap.bucket,
         bootstrap_dir           = local.bstrap_dir,
-        s3key_install_script    = local.s3key_install_script,
+        # Assume the first object of local.s3_files_key_src_path is the installation script
+        s3key_install_script    = local.s3_files_key_src_path[0].key,
         s3key_default           = [ for obj in aws_s3_object.bootstrap_s3_obj_default : obj.key ],
     })
 

@@ -25,56 +25,34 @@ resource "aws_ssm_parameter" "k3s_token" {
 ###################################
 # plan-time checks
 resource "terraform_data" "bootstrap_files_check" {
-    # Construct a list:
-    #   Get every object's `src` value from local.s3_files_key_src_path
-    #   AS LONG AS the `precheck` value is TRUE
-    for_each = toset([for obj in local.s3_files_key_src_path : obj.src if obj.precheck == true])
+    # Goal: Make sure that all of the files set within local.s3_files_key_src_path is present
+    # Use the filepath directly if template is not set (i.e. null)
+    # Otherwise, assume that the file is a templated file, so we add a ".tmpl" file extension
+    count = length(local.s3_files_key_src_path)
     input = {
-        sha_check = filesha256(each.key)
+        sha_check = filesha256( 
+            local.s3_files_key_src_path[ count.index ].template == null ?
+            local.s3_files_key_src_path[ count.index ].src : 
+            "${local.s3_files_key_src_path[ count.index ].src}.tmpl"
+            
+        )
     }
 }
 
-# # Module-level Bootstrapping (This will be executed before everything else!)
-# resource "aws_s3_object" "k3s_install" {
-#     bucket = aws_s3_bucket.bootstrap.id
-#     key    = "${local.s3_bstrap_key_root}/K3S_INSTALL.sh"
-#     source = local.k3s_install_path
-# }
-# resource "aws_s3_object" "traefik_cfg_tmpl" {
-#     bucket = aws_s3_bucket.bootstrap.id
-#     key    = "${local.s3_bstrap_key_root}/manifests/traefik-config.yaml.tmpl"
-#     source = local.traefik_cfg_tmpl_path
-# }
-# resource "aws_s3_object" "simplek3s_env" {
-#     bucket = aws_s3_bucket.bootstrap.id
-#     key    = "${local.s3_bstrap_key_root}/simplek3s.env"
-#     source = local_file.simplek3s_env.filename
-#     depends_on = [
-#         local_file.simplek3s_env
-#     ]
-# }
-
-# Upload data files to S3 (default)
+# Template and upload data files to S3 (default)
 resource "aws_s3_object" "bootstrap_s3_obj_default" {
     count  = length(local.s3_files_key_src_path)
     bucket = aws_s3_bucket.bootstrap.id
     key    = local.s3_files_key_src_path[count.index].key
     source = local.s3_files_key_src_path[count.index].src
-}
 
-resource "local_file" "simplek3s_env" {
-    content  = templatefile("${local.simplek3s_path}.tmpl", {
-        bootstrap_dir           = local.bstrap_dir,
-        nickname                = var.nickname,
-        aws_region              = var.aws_region,
-        controller_host         = local.controller_host,
-        swapfile_alloc_amt      = var.ec2_swapfile_size,
-        nodeport_http           = var.k3s_nodeport_traefik_http,
-        nodeport_https          = var.k3s_nodeport_traefik_https,
-        s3_bucket_name          = local.s3_bstrap_name
-        s3key_simplek3s_env     = "${local.s3_bstrap_key_root}/simplek3s.env",
-        s3key_k3s_install       = "${local.s3_bstrap_key_root}/K3S_INSTALL.sh",
-        s3key_traefik_cfg_tmpl  = "${local.s3_bstrap_key_root}/manifests/traefik-config.yaml.tmpl",
-    })
-    filename = local.simplek3s_path
+    # Allow templating to execute before the files are uploaded to s3 bucket 
+    depends_on = [
+        local_file.bootstrap_s3_obj_default_tmpl
+    ]
+}
+resource "local_file" "bootstrap_s3_obj_default_tmpl" {
+    for_each    = { for obj in local.s3_files_key_src_path : obj.src => obj.template if obj.template != null }
+    content     = templatefile("${each.key}.tmpl", each.value)
+    filename    = each.key
 }
