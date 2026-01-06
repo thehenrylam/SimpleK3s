@@ -1,15 +1,18 @@
 ##############################################
 #    Bootstrapping (Setup After Creation)    #
 ##############################################
-# SSM Parameter: K3s Token
-resource "aws_ssm_parameter" "k3s_token" {
-    name        = "/simplek3s/${var.nickname}/k3s-token"
-    description = "The K3s token - This is set on runtime"
-    type        = "SecureString"
-    value       = local.uninitialized # Sets the value to a preset uninitialized value
+# SSM Parameter: Convert parameter store data into ssm params
+# Dynamic - Value can change without having Terraform report it
+resource "aws_ssm_parameter" "ssm_params_dynamic" {
+    count       = length(local.pstore_data)
+
+    description = local.pstore_data[ count.index ].desc
+    type        = local.pstore_data[ count.index ].type    
+    name        = local.pstore_data[ count.index ].key
+    value       = local.pstore_data[ count.index ].val
 
     tags = {
-        Name        = local.pstore_k3s_token_name
+        Name        = local.pstore_data[ count.index ].name
         Nickname    = var.nickname
     }
 
