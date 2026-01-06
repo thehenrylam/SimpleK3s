@@ -28,15 +28,15 @@ resource "aws_ssm_parameter" "ssm_params_dynamic" {
 ###################################
 # plan-time checks
 resource "terraform_data" "bootstrap_files_check" {
-    # Goal: Make sure that all of the files set within local.s3_files_key_src_path is present
+    # Goal: Make sure that all of the files set within local.s3obj_data is present
     # Use the filepath directly if template is not set (i.e. null)
     # Otherwise, assume that the file is a templated file, so we add a ".tmpl" file extension
-    count = length(local.s3_files_key_src_path)
+    count = length(local.s3obj_data)
     input = {
         sha_check = filesha256( 
-            local.s3_files_key_src_path[ count.index ].template == null ?
-            local.s3_files_key_src_path[ count.index ].src : 
-            "${local.s3_files_key_src_path[ count.index ].src}.tmpl"
+            local.s3obj_data[ count.index ].template == null ?
+            local.s3obj_data[ count.index ].src : 
+            "${local.s3obj_data[ count.index ].src}.tmpl"
             
         )
     }
@@ -44,10 +44,10 @@ resource "terraform_data" "bootstrap_files_check" {
 
 # Template and upload data files to S3 (default)
 resource "aws_s3_object" "bootstrap_s3_obj_default" {
-    count  = length(local.s3_files_key_src_path)
+    count  = length(local.s3obj_data)
     bucket = aws_s3_bucket.bootstrap.id
-    key    = local.s3_files_key_src_path[count.index].key
-    source = local.s3_files_key_src_path[count.index].src
+    key    = local.s3obj_data[count.index].key
+    source = local.s3obj_data[count.index].src
 
     # Allow templating to execute before the files are uploaded to s3 bucket 
     depends_on = [
@@ -55,7 +55,7 @@ resource "aws_s3_object" "bootstrap_s3_obj_default" {
     ]
 }
 resource "local_file" "bootstrap_s3_obj_default_tmpl" {
-    for_each    = { for obj in local.s3_files_key_src_path : obj.src => obj.template if obj.template != null }
+    for_each    = { for obj in local.s3obj_data : obj.src => obj.template if obj.template != null }
     content     = templatefile("${each.key}.tmpl", each.value)
     filename    = each.key
 }

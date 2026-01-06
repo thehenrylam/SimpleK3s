@@ -114,7 +114,7 @@ locals {
     s3_bstrap_key_root_custom   = "${local.s3_bstrap_key_root}/custom"
 
     # IMPORTANT: Main installation script (i.e. what we use to kick off node installation) MUST be the FIRST item
-    s3_files_key_src_path   = [
+    s3obj_data   = [
         { # K3S Installation (Main installation script)
             desc        = "K3S Install",
             key         = "${local.s3_bstrap_key_root}/K3S_INSTALL.sh",
