@@ -84,3 +84,6 @@ module "k3s_cluster" {
  - `AWS_PROFILE="your_aws_profile" tofu plan -var-file="main.tfvars"` # Dry run the infra allocation
  - `AWS_PROFILE="your_aws_profile" tofu apply -var-file="main.tfvars"` # Allocate infra
  - `AWS_PROFILE="your_aws_profile" tofu destroy -var-file="main.tfvars"` # Free allocation of infra 
+
+# Contributing
+Interested in adding more features? Check out the [CONTRIBUTING.md](https://github.com/thehenrylam/SimpleK3s?tab=contributing-ov-file) for code of conduct and a guide on how to make changes ot the project!
