@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+
+# Set arguments (exit on fail, fail if unset var, detect failures within pipes)
+set -euo pipefail
+
+# Define color variables
+RED=$'\033[0;91m'
+MGN=$'\033[0;95m'
+YLW=$'\033[0;93m'
+CYN=$'\033[0;96m'
+NC=$'\033[0m'
+
+UNDL=$'\033[4m'
+
+# Define color functions
+function red() {
+	echo -e "${RED}${1}${NC}" 
+}
+function ylw() {
+	echo -e "${YLW}${1}${NC}"
+}
+function cyn() {
+	echo -e "${CYN}${1}${NC}" 
+}
+
+function underline() {
+	echo -e "${UNDL}${1}${NC}"
+}
+
+# Define keyword printing
+function issue_id() {
+	cyn "ISSUE_ID"
+}
+
+MSG_FILE="$1"
+
+# Read the first line only (subject line)
+SUBJECT="$(head -n 1 "$MSG_FILE" | tr -d '\r')"
+
+# Allow merge commits (optional)
+if [[ "$SUBJECT" =~ ^Merge\  ]]; then
+  exit 0
+fi
+
+# Enforce: type#123 - Message
+# Allowed types: doc, ftr, bug, refactor, chore, sandbox
+PATTERN='^(doc|ftr|bug|refactor|chore|sandbox)#[0-9]+ - .+'
+
+if [[ ! "$SUBJECT" =~ $PATTERN ]]; then
+  cat >&2 <<EOF
+$(red "✖ Invalid commit message format.")
+
+Expected:
+  $(ylw $(underline doc))#$(issue_id) - Commit message for documentation
+  $(ylw $(underline ftr))#$(issue_id) - Commit message for features
+  $(ylw $(underline bug))#$(issue_id) - Commit message for bug fixes
+  $(ylw $(underline refactor))#$(issue_id) - Commit message for refactoring
+  $(ylw $(underline chore))#$(issue_id) - Commit message for misc (dep update)
+  $(ylw $(underline sandbox))#$(issue_id) - Commit message for sandboxing (testing only)
+
+Examples:
+  $(ylw $(underline ftr))#$(cyn 123) - Add S3 bootstrap for k3s nodes
+  $(ylw $(underline bug))#$(cyn 264) - Fix token fetch from SSM
+  $(ylw $(underline doc))#$(cyn 3908) - Update README with cost comparison
+
+Notes:
+  - $(issue_id) is the relevant GitHub Issue Number (e.g. #123)
+  - Must include " - " after the $(issue_id)
+  - PRs will be rejected if invalid $(issue_id)s within commits are found
+
+Don't know how to create a $(issue_id)?
+ 1. Go to the relevant GitHub Repo
+ 2. At the top banner, click on "$(underline 'Issues')"
+ 3. If working on an existing issue, use its issue number ($(underline "found with a '#' char"))
+ 4. If working on a new issue, click on "$(underline 'New issue')"
+ 5. Fill out the issue form (Refer to CONTRIBUTING.md to learn about best practices)
+ 6. Create the issue by clicking on "$(underline 'Create')"
+ 7. The created issue will now have an issue number ($(underline "found with a '#' char"))
+EOF
+  exit 1
+fi

@@ -38,6 +38,9 @@ But if it isn't clear enough, please open an Issue with the [help wanted](https:
 
 ## Requirements
 Check the [Requirements](https://github.com/thehenrylam/SimpleK3s?tab=readme-ov-file#requirements) section of the README.md
+Tip:
+- You can copy the `.git/` hooks to help make sure your commits are of the right format by executing `./.git-custom/apply.sh` 
+    - You can check inside the `.git-custom/` to make sure you understand what its doing with your `.git/` folder before you apply the customizations
 
 ## Example: How to make a change (step-by-step guide)
 ASSUMPTION: You want to fix a bug that causes a failure on cluster startup
