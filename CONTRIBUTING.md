@@ -86,10 +86,10 @@ The rules are kept short and easy to follow, failure to follow will likely lead 
 
 ```
 Breakdown: (Title)
-    BRANCH_TYPE/#ISSUE_ID PR_TITLE
+    BRANCH_TYPE#ISSUE_ID PR_TITLE
 
 Example: (Assume 'bugfix' type and issue id is '#12345')
-    bugfix/#12345 Fix a bug
+    bugfix#12345 Fix a bug
 
 See the BRANCH_TYPE via the Branch Guide
 ```
@@ -110,13 +110,13 @@ See the BRANCH_TYPE via the Branch Guide
 ## Branch Guide
 ```
 Breakdown:
-    BRANCH_TYPE/#ISSUE_ID_BRANCH_NAME
+    BRANCH_TYPE#ISSUE_ID_BRANCH_NAME
 
 Example: (Assume 'bugfix' type and issue id is '#12345')
-    bugfix/#12345_fix_a_bug
+    bugfix#12345_fix_a_bug
 
 Command:
-    git checkout -b "bugfix/#12345_fix_a_bug"
+    git checkout -b "bugfix#12345_fix_a_bug"
 ```
 
 **Branch Types**
@@ -140,9 +140,9 @@ Command:
 ```
 
 **Commit Types:**
-- `doc`         : Documentation
-- `ftr`         : Feature
-- `bug`         : Bug Fix
+- `document`    : Documentation
+- `feature`     : Feature
+- `bugfix`      : Bug Fix
 - `refactor`    : Refactorization
 - `chore`       : Misc (Dependency updates, etc)
 - `sandbox`     : Test commits for `sandbox` branch types (Not allowed for other branches)
