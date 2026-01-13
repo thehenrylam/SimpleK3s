@@ -44,7 +44,7 @@ fi
 
 # Enforce: type#123 - Message
 # Allowed types: doc, ftr, bug, refactor, chore, sandbox
-PATTERN='^(doc|ftr|bug|refactor|chore|sandbox)#[0-9]+ - .+'
+PATTERN='^(document|feature|bugfix|refactor|chore|sandbox)#[0-9]+ - .+'
 
 if [[ ! "$SUBJECT" =~ $PATTERN ]]; then
   cat >&2 <<EOF
