@@ -136,14 +136,17 @@ locals {
                 s3_bucket_name          = local.s3_bstrap_name
                 s3key_simplek3s_env     = "${local.s3_bstrap_key_root}/simplek3s.env"
                 s3key_k3s_install       = "${local.s3_bstrap_key_root}/K3S_INSTALL.sh"
-                s3key_traefik_cfg_tmpl  = "${local.s3_bstrap_key_root}/manifests/traefik-config.yaml.tmpl"
+                s3key_traefik_cfg_tmpl  = "${local.s3_bstrap_key_root}/manifests/traefik-config.yaml"
             }
         },
         { # Traefik Config (Template)
-            desc        = "Traefik Config (Template)",
-            key         = "${local.s3_bstrap_key_root}/manifests/traefik-config.yaml.tmpl",
-            src         = "${path.module}/bootstrap/manifests/traefik-config.yaml.tmpl",
-            template    = null
+            desc        = "Traefik Config",
+            key         = "${local.s3_bstrap_key_root}/manifests/traefik-config.yaml",
+            src         = "${path.module}/bootstrap/manifests/traefik-config.yaml",
+            template    = {
+                nodeport_http   = var.k3s_nodeport_traefik_http 
+                nodeport_https  = var.k3s_nodeport_traefik_https
+            }
         },
     ]
 }

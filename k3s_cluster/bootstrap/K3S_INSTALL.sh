@@ -6,11 +6,11 @@ set -euo pipefail
 # -e            : Exits on ANY command failure 
 # -o pipefail   : Make pipeline fail if any command in them fails 
 
-SCRIPT_DIR=$(dirname $0)
+SCRIPT_DIR=$(realpath $(dirname $0))
 cd $SCRIPT_DIR
 
 # Retrieve all of the needed environment variables from this file
-source ./simplek3s.env
+source $SCRIPT_DIR/simplek3s.env
 
 COUNT_INDEX="$1"
 
@@ -233,7 +233,7 @@ function main_setup() {
     # Set up agent server
     curl -sfL https://get.k3s.io | K3S_TOKEN="$TOKEN" sh -s - server \
       --server "https://$CONTROLLER_HOST:6443" \
-      --tls-san="$CONTROLLER_HOST" | tee -a $LOG_FILE 
+      --tls-san="$CONTROLLER_HOST" 2>&1 | tee -a $LOG_FILE 
 
     if [ $? -eq 0 ]; then
       log_okay "[$FUNCTION_NAME] SECONDARY node has been set up!"
@@ -280,13 +280,8 @@ function setup_helmchartconfig_traefik() {
   # Make sure the manifests directory exists
   sudo mkdir -p /var/lib/rancher/k3s/server/manifests
 
-  # Substitute using environment variables using the traefik-config.yaml.tmpl template file
-  # Then transfer it to the /var/lib/rancher/k3s/server/manifests/ folder
-  export NODEPORT_HTTP NODEPORT_HTTPS
-  envsubst '${NODEPORT_HTTP} ${NODEPORT_HTTPS}' \
-    < ./manifests/traefik-config.yaml.tmpl \
-    | sudo tee /var/lib/rancher/k3s/server/manifests/traefik-config.yaml >/dev/null
-  export -n NODEPORT_HTTP NODEPORT_HTTPS
+  # Transfer the Traefik manifest file to the /var/lib/rancher/k3s/server/manifests/ folder
+  sudo cp $SCRIPT_DIR/manifests/traefik-config.yaml /var/lib/rancher/k3s/server/manifests/traefik-config.yaml
 
   if [ $? -eq 0 ]; then
     log_okay "[$FUNCTION_NAME] Traefik HelmChartConfig written to /var/lib/rancher/k3s/server/manifests/traefik-config.yaml"
