@@ -300,4 +300,6 @@ function setup_helmchartconfig_traefik() {
 swapfile_setup
 main_setup
 wait_for_kubesystem_ready
-setup_helmchartconfig_traefik
+if [ $COUNT_INDEX -eq 0 ]; then
+  setup_helmchartconfig_traefik
+fi
