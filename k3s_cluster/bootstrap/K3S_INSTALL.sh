@@ -66,11 +66,9 @@ wait_for_real_k3s_token() {
       fi
     fi
 
-    log_info "[$FUNCTION_NAME] Waiting for real token in SSM (attempt ${i}/${max_attempts})..."
     sleep "$sleep_s"
   done
 
-  log_fail "[$FUNCTION_NAME] Timed out waiting for k3s token to be populated in SSM."
   return 1
 }
 
@@ -225,7 +223,10 @@ function main_setup() {
 
     log_info "[$FUNCTION_NAME] Retrieving k3s token!"
     # Try to ping AWS SSM to see if the k3s token is ready
-    TOKEN="$(wait_for_real_k3s_token 180 2)"
+    TOKEN="$(wait_for_real_k3s_token 180 2)" || {
+      log_fail "[$FUNCTION_NAME] Timed out waiting for k3s token to be populated in SSM."
+      exit 1
+    }
     log_info "[$FUNCTION_NAME] k3s token retrieved!"
 
     log_info "[$FUNCTION_NAME] SECONDARY node is being set up!"
