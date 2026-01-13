@@ -28,16 +28,16 @@ resource "aws_ssm_parameter" "ssm_params_dynamic" {
 ###################################
 # plan-time checks
 resource "terraform_data" "bootstrap_files_check" {
-    # Goal: Make sure that all of the files set within local.s3obj_data is present
-    # Use the filepath directly if template is not set (i.e. null)
-    # Otherwise, assume that the file is a templated file, so we add a ".tmpl" file extension
-    count = length(local.s3obj_data)
+    # Make sure that all of the files set within local.s3obj_data is present and templatable (if applicable)
+    # each.key      : Filepaths to be transferred over to the s3 bucket (if templated, assume to have ".tmpl" extension)
+    # each.value    : Template object to use for templating (determines what types of checks we will use)
+    for_each = { for i, o in local.s3obj_data : o.src => o.template }
+
     input = {
-        sha_check = filesha256( 
-            local.s3obj_data[ count.index ].template == null ?
-            local.s3obj_data[ count.index ].src : 
-            "${local.s3obj_data[ count.index ].src}.tmpl"
-            
+        # IF template IS null       : Check if file exists
+        # IF template ISN'T null    : Check if file can be templated
+        sha_check = (
+            each.value == null ? filesha256( each.key ) : sha256( templatefile( "${each.key}.tmpl", each.value ) )
         )
     }
 }
