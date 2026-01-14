@@ -44,24 +44,24 @@ fi
 
 # Enforce: type#123 - Message
 # Allowed types: doc, ftr, bug, refactor, chore, sandbox
-PATTERN='^(document|feature|bugfix|refactor|chore|sandbox)#[0-9]+ - .+'
+PATTERN='^(document|feature|bugfix|refactor|chore|sandbox)/#[0-9]+ - .+'
 
 if [[ ! "$SUBJECT" =~ $PATTERN ]]; then
   cat >&2 <<EOF
 $(red "✖ Invalid commit message format.")
 
 Expected:
-  $(ylw $(underline doc))#$(issue_id) - Commit message for documentation
-  $(ylw $(underline ftr))#$(issue_id) - Commit message for features
-  $(ylw $(underline bug))#$(issue_id) - Commit message for bug fixes
-  $(ylw $(underline refactor))#$(issue_id) - Commit message for refactoring
-  $(ylw $(underline chore))#$(issue_id) - Commit message for misc (dep update)
-  $(ylw $(underline sandbox))#$(issue_id) - Commit message for sandboxing (testing only)
+  $(ylw $(underline document))/#$(issue_id) - Commit message for documentation
+  $(ylw $(underline feature))/#$(issue_id) - Commit message for features
+  $(ylw $(underline bugfix))/#$(issue_id) - Commit message for bug fixes
+  $(ylw $(underline refactor))/#$(issue_id) - Commit message for refactoring
+  $(ylw $(underline chore))/#$(issue_id) - Commit message for misc (dep update)
+  $(ylw $(underline sandbox))/#$(issue_id) - Commit message for sandboxing (testing only)
 
 Examples:
-  $(ylw $(underline ftr))#$(cyn 123) - Add S3 bootstrap for k3s nodes
-  $(ylw $(underline bug))#$(cyn 264) - Fix token fetch from SSM
-  $(ylw $(underline doc))#$(cyn 3908) - Update README with cost comparison
+  $(ylw $(underline feature))/#$(cyn 123) - Add S3 bootstrap for k3s nodes
+  $(ylw $(underline bugfix))/#$(cyn 264) - Fix token fetch from SSM
+  $(ylw $(underline document))/#$(cyn 3908) - Update README with cost comparison
 
 Notes:
   - $(issue_id) is the relevant GitHub Issue Number (e.g. #123)
