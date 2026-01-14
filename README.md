@@ -1,6 +1,8 @@
 # SimpleK3s
 A simple K3s implementation for AWS
 
+This is a test on the sandbox/#14_experiment_with_naming_convention branch!
+
 # Features
 Perfect for Hobbyists and Entrepreneurs who want a setup with critical enterprise features without committing to EKS.
 This acts as a perfect starting point to deploy MVPs with scaling, monitoring, and good defaults for security in mind. 
