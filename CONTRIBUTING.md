@@ -86,12 +86,12 @@ The rules are kept short and easy to follow, failure to follow will likely lead 
 
 ```
 Breakdown: (Title)
-    BRANCH_TYPE#ISSUE_ID PR_TITLE
+    TYPE/#ISSUE_ID PR_TITLE
 
 Example: (Assume 'bugfix' type and issue id is '#12345')
-    bugfix#12345 Fix a bug
+    bugfix/#12345 Fix a bug
 
-See the BRANCH_TYPE via the Branch Guide
+See the TYPE via the Commit Guide
 ```
 
 **Keep your PRs:**
@@ -110,42 +110,36 @@ See the BRANCH_TYPE via the Branch Guide
 ## Branch Guide
 ```
 Breakdown:
-    BRANCH_TYPE#ISSUE_ID_BRANCH_NAME
+    TYPE/#ISSUE_ID_BRANCH_NAME
 
 Example: (Assume 'bugfix' type and issue id is '#12345')
-    bugfix#12345_fix_a_bug
+    bugfix/#12345_fix_a_bug
 
 Command:
-    git checkout -b "bugfix#12345_fix_a_bug"
-```
+    git checkout -b "bugfix/#12345_fix_a_bug"
 
-**Branch Types**
-- `document`    : Documentation
-- `feature`     : Feature
-- `bugfix`      : Bug Fix
-- `refactor`    : Refactorization
-- `chore`       : Misc (Dependency updates, etc)
-- `sandbox`     : Test branch to freely experiment (Not allowed for PRs)
+See the TYPE via the Commit Guide
+```
 
 ## Commit Guide
 ```
 Breakdown:
-    COMMIT_TYPE#ISSUE_ID - COMMIT_MESSAGE
+    TYPE/#ISSUE_ID - COMMIT_MESSAGE
 
 Example: (Assume 'bug' type and issue id is '#12345')
-    bug#12345 - This is a commit to resolve a bug
+    bugfix/#12345 - This is a commit to resolve a bug
 
 Command:
-    git commit -m "bug#12345 - This is a commit to resolve a bug"
+    git commit -m "bugfix/#12345 - This is a commit to resolve a bug"
 ```
 
-**Commit Types:**
+**Types:**
 - `document`    : Documentation
 - `feature`     : Feature
 - `bugfix`      : Bug Fix
 - `refactor`    : Refactorization
 - `chore`       : Misc (Dependency updates, etc)
-- `sandbox`     : Test commits for `sandbox` branch types (Not allowed for other branches)
+- `sandbox`     : Testing and experimentation
 
 ## Template for Issues
 ```
