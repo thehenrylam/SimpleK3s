@@ -2,6 +2,7 @@
 A simple K3s implementation for AWS
 
 This is a test on the sandbox/#14_experiment_with_naming_convention branch!
+- This is another test!
 
 # Features
 Perfect for Hobbyists and Entrepreneurs who want a setup with critical enterprise features without committing to EKS.
