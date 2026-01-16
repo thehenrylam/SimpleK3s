@@ -90,12 +90,13 @@ locals {
 ####################################
 locals {
     # List of param-store data
+    pstore_key_root = "/simplek3s/${var.nickname}"
     pstore_data = [
         {
             name    = "pstore-${local.module_name}_k3s-token"
             desc    = "The K3s token - This is set on runtime"
             type    = "SecureString"
-            key     = "/simplek3s/${var.nickname}/k3s-token"
+            key     = "${local.pstore_key_root}/k3s-token"
             val   = local.uninitialized
         },
     ]
@@ -115,16 +116,16 @@ locals {
 
     # IMPORTANT: Main installation script (i.e. what we use to kick off node installation) MUST be the FIRST item
     s3obj_data   = [
-        { # K3S Installation (Main installation script)
-            desc        = "K3S Install",
-            key         = "${local.s3_bstrap_key_root}/K3S_INSTALL.sh",
-            src         = "${path.module}/bootstrap/K3S_INSTALL.sh",
+        { # Default Installation (Main installation script)
+            desc        = "Default Init Script",
+            key         = "${local.s3_bstrap_key_root_default}/init.sh",
+            src         = "${path.module}/bootstrap/default/init.sh",
             template    = null
         },
         { # SimpleK3s Env Vars
             desc        = "SimpleK3s Env Vars",
-            key         = "${local.s3_bstrap_key_root}/simplek3s.env",
-            src         = "${path.module}/bootstrap/simplek3s.env", # local_file.simplek3s_env.filename, # This is a templated variable
+            key         = "${local.s3_bstrap_key_root_default}/simplek3s.env",
+            src         = "${path.module}/bootstrap/default/simplek3s.env", 
             template    = {
                 bootstrap_dir           = local.bstrap_dir
                 nickname                = var.nickname
@@ -133,21 +134,58 @@ locals {
                 swapfile_alloc_amt      = var.ec2_swapfile_size
                 nodeport_http           = var.k3s_nodeport_traefik_http
                 nodeport_https          = var.k3s_nodeport_traefik_https
+                pstore_key_root         = local.pstore_key_root
                 s3_bucket_name          = local.s3_bstrap_name
-                s3key_simplek3s_env     = "${local.s3_bstrap_key_root}/simplek3s.env"
-                s3key_k3s_install       = "${local.s3_bstrap_key_root}/K3S_INSTALL.sh"
-                s3key_traefik_cfg_tmpl  = "${local.s3_bstrap_key_root}/manifests/traefik-config.yaml"
+                s3key_simplek3s_env     = "${local.s3_bstrap_key_root_default}/simplek3s.env"
+                s3key_k3s_install       = "${local.s3_bstrap_key_root_default}/K3S_INSTALL.sh"
+                s3key_traefik_cfg_tmpl  = "${local.s3_bstrap_key_root_default}/manifests/traefik-config.yaml"
             }
         },
         { # Traefik Config (Template)
             desc        = "Traefik Config",
-            key         = "${local.s3_bstrap_key_root}/manifests/traefik-config.yaml",
-            src         = "${path.module}/bootstrap/manifests/traefik-config.yaml",
+            key         = "${local.s3_bstrap_key_root_default}/manifests/traefik-config.yaml",
+            src         = "${path.module}/bootstrap/default/manifests/traefik-config.yaml",
             template    = {
                 nodeport_http   = var.k3s_nodeport_traefik_http 
                 nodeport_https  = var.k3s_nodeport_traefik_https
             }
         },
+        { # Common Functions
+            desc        = "Common Functions",
+            key         = "${local.s3_bstrap_key_root_default}/common.sh",
+            src         = "${path.module}/bootstrap/default/common.sh",
+            template    = null
+        },
+        { # Common Functions (AWS)
+            desc        = "Common Functions (AWS)",
+            key         = "${local.s3_bstrap_key_root_default}/common_aws.sh",
+            src         = "${path.module}/bootstrap/default/common_aws.sh",
+            template    = null
+        },
+        {
+            desc        = "Init Script (Install Packages)",
+            key         = "${local.s3_bstrap_key_root_default}/01_install_packages.sh",
+            src         = "${path.module}/bootstrap/default/01_install_packages.sh",
+            template    = null
+        },
+        {
+            desc        = "Init Script (Setup Swapfile)",
+            key         = "${local.s3_bstrap_key_root_default}/02_setup_swapfile.sh",
+            src         = "${path.module}/bootstrap/default/02_setup_swapfile.sh",
+            template    = null
+        },
+        {
+            desc        = "Init Script (Install K3s)",
+            key         = "${local.s3_bstrap_key_root_default}/03_install_k3s.sh",
+            src         = "${path.module}/bootstrap/default/03_install_k3s.sh",
+            template    = null
+        },
+        {
+            desc        = "Init Script (Apply Traefik)",
+            key         = "${local.s3_bstrap_key_root_default}/04_apply_traefik.sh",
+            src         = "${path.module}/bootstrap/default/04_apply_traefik.sh",
+            template    = null
+        }
     ]
 }
 

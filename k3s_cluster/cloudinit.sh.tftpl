@@ -54,7 +54,10 @@ echo "Download S3 objects (default)"
 download_from_s3 "${s3key}"
 %{ endfor ~}
 
+# Enable execution rights to *.sh scripts
+echo "Enable execution rights to *.sh scripts"
+find $BOOTSTRAP_DIR/ -type f -name "*.sh" -exec chmod u+x {} \; 
+
 # Execute installation script
 echo "Execute installation script"
-chmod +x $BOOTSTRAP_DIR/${s3key_install_script}
-$BOOTSTRAP_DIR/${s3key_install_script} "$COUNT_INDEX"
+$BOOTSTRAP_DIR/${s3key_install_script} "$COUNT_INDEX" 2>&1
