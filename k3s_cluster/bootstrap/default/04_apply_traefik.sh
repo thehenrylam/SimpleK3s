@@ -74,11 +74,6 @@ wait_for_kubesystem_ready || {
     exit 1
 }
 
-wait_for_k3s_api || {
-    log_fail "Unable to confirm that K3s API is ready"
-    exit 1
-}
-
 wait_for_traefik_ready || {
     log_fail "Unable to confirm that Traefik is ready"
     exit 1
