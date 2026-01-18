@@ -19,14 +19,14 @@ function upload_k3s_token() {
     local token="${1}"
     local ssmkey_k3s_token="k3s-token"
     local token_type="SecureString"
-    set_ssm_param_overwrite "$ssmkey_k3s_token" "$token_type" "$token" || return 1
+    ssm_put "$ssmkey_k3s_token" "$token_type" "$token" "true" || return 1
     return 0
 }
 
 function download_k3s_token() {
     local ssmkey_k3s_token="k3s-token"
     local decrypt="decrypt"
-    local token="$(wait_ssm_param "$ssmkey_k3s_token" "$decrypt")" || return 1
+    local token="$(wait_ssm "$ssmkey_k3s_token" "$decrypt")" || return 1
     echo "$token"
     return 0
 }
