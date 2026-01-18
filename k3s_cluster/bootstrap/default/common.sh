@@ -96,7 +96,7 @@ function wait_for_cmd() {
         if "$@" >/dev/null 2>&1; then
             return 0
         fi
-        log_info "Waiting... $($i/$max_attempts)"
+        log_info "Waiting... ($i/$max_attempts)"
         sleep "$sleep_s"
     done
     return 1
