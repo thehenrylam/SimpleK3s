@@ -6,7 +6,7 @@
 
 SCRIPT_DIR=$(realpath $(dirname $0))
 # Retrieve all of the needed environment variables from this file
-source $SCRIPT_DIR/simplek3s.env
+source "$SCRIPT_DIR/simplek3s.env"
 
 # Set SSM token (disallow override)
 function set_ssm_param() {

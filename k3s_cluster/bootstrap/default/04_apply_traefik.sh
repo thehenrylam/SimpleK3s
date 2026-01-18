@@ -9,11 +9,11 @@ set -euo pipefail
 SCRIPT_DIR=$(realpath $(dirname $0))
 
 # Retrieve all of the needed environment variables from this file
-source $SCRIPT_DIR/simplek3s.env
+source "$SCRIPT_DIR/simplek3s.env"
 # Retrieve the common functions from common.sh
-source $SCRIPT_DIR/common.sh
+source "$SCRIPT_DIR/common.sh"
 # Retrieve the common functions from common_aws.sh
-source $SCRIPT_DIR/common_aws.sh
+source "$SCRIPT_DIR/common_aws.sh"
 
 # Wait for Traefik to be ready (so that we can customize it afterwards)
 function wait_for_traefik_ready() {

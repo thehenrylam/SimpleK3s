@@ -6,7 +6,7 @@
 
 SCRIPT_DIR=$(realpath $(dirname $0))
 # Retrieve all of the needed environment variables from this file
-source $SCRIPT_DIR/simplek3s.env
+source "$SCRIPT_DIR/simplek3s.env"
 
 # Get date
 function print_date() {

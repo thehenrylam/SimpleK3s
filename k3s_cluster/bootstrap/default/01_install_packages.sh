@@ -9,9 +9,9 @@ set -euo pipefail
 SCRIPT_DIR=$(realpath $(dirname $0))
 
 # Retrieve all of the needed environment variables from this file
-source $SCRIPT_DIR/simplek3s.env
+source "$SCRIPT_DIR/simplek3s.env"
 # Retrieve the common functions from common.sh
-source $SCRIPT_DIR/common.sh
+source "$SCRIPT_DIR/common.sh"
 
 function apt_update() {
     log_info "Kicking off update"

@@ -11,9 +11,9 @@ SCRIPT_DIR=$(realpath $(dirname $0))
 ALLOCATION_AMOUNT="${1}"
 
 # Retrieve all of the needed environment variables from this file
-source $SCRIPT_DIR/simplek3s.env
+source "$SCRIPT_DIR/simplek3s.env"
 # Retrieve the common functions from common.sh
-source $SCRIPT_DIR/common.sh
+source "$SCRIPT_DIR/common.sh"
 
 function setup_swapfile() {
     local allocation_amount="${1}"
