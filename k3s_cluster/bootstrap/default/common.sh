@@ -8,8 +8,6 @@ SCRIPT_DIR=$(realpath $(dirname $0))
 # Retrieve all of the needed environment variables from this file
 source $SCRIPT_DIR/simplek3s.env
 
-LOG_FILE="$1"
-
 # Get date
 function print_date() {
     echo "$(date +'%Y-%m-%dT%H:%M:%S.%3N')"
@@ -18,22 +16,22 @@ function print_date() {
 # Logging functions
 function log_info() {
     local _fcnname="${FUNCNAME[1]}"
-    echo -e "$(print_date) [INFO] [$_fcnname] $1" 2>&1 | tee -a $LOG_FILE
+    echo -e "$(print_date) [INFO] [$_fcnname] $1" 2>&1
 }
 
 function log_okay() {
     local _fcnname="${FUNCNAME[1]}"
-    echo -e "$(print_date) [OKAY] [$_fcnname] $1" 2>&1 | tee -a $LOG_FILE
+    echo -e "$(print_date) [OKAY] [$_fcnname] $1" 2>&1
 }
 
 function log_warn() {
     local _fcnname="${FUNCNAME[1]}"
-    echo -e "$(print_date) [WARN] [$_fcnname] $1" 2>&1 | tee -a $LOG_FILE
+    echo -e "$(print_date) [WARN] [$_fcnname] $1" 2>&1
 }
 
 function log_fail() {
     local _fcnname="${FUNCNAME[1]}"
-    echo -e "$(print_date) [FAIL] [$_fcnname] $1" 2>&1 | tee -a $LOG_FILE
+    echo -e "$(print_date) [FAIL] [$_fcnname] $1" 2>&1
 }
 
 # Install K3s (Controller)
@@ -46,7 +44,7 @@ function install_k3s_controller() {
 
     curl -sfL "$K3S_INSTALL_URL" | sh -s - server \
         --cluster-init \
-        --tls-san="$controller_host" 2>&1 | tee -a $LOG_FILE
+        --tls-san="$controller_host" 2>&1
 }
 # Install K3s (Server)
 function install_k3s_server() {
@@ -59,7 +57,7 @@ function install_k3s_server() {
 
     curl -sfL "$K3S_INSTALL_URL" | K3S_TOKEN="$token" sh -s - server \
         --server "https://$controller_host:6443" \
-        --tls-san="$controller_host" 2>&1 | tee -a $LOG_FILE 
+        --tls-san="$controller_host" 2>&1 
 }
 
 # Get the K3s token

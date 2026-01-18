@@ -8,12 +8,10 @@ set -euo pipefail
 
 SCRIPT_DIR=$(realpath $(dirname $0))
 
-LOG_FILE="${1}"
-
 # Retrieve all of the needed environment variables from this file
 source $SCRIPT_DIR/simplek3s.env
 # Retrieve the common functions from common.sh
-source $SCRIPT_DIR/common.sh "$LOG_FILE"
+source $SCRIPT_DIR/common.sh
 
 function apt_update() {
     log_info "Kicking off update"
