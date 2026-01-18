@@ -15,23 +15,19 @@ function print_date() {
 
 # Logging functions
 function log_info() {
-    local _fcnname="${FUNCNAME[1]}"
-    echo -e "$(print_date) [INFO] [$_fcnname] $1" 2>&1
+    printf '%s [INFO] [%s] %s\n' "$(print_date)" "${FUNCNAME[1]}" "$1"
 }
 
 function log_okay() {
-    local _fcnname="${FUNCNAME[1]}"
-    echo -e "$(print_date) [OKAY] [$_fcnname] $1" 2>&1
+    printf '%s [OKAY] [%s] %s\n' "$(print_date)" "${FUNCNAME[1]}" "$1"
 }
 
 function log_warn() {
-    local _fcnname="${FUNCNAME[1]}"
-    echo -e "$(print_date) [WARN] [$_fcnname] $1" 2>&1
+    printf '%s [WARN] [%s] %s\n' "$(print_date)" "${FUNCNAME[1]}" "$1"
 }
 
 function log_fail() {
-    local _fcnname="${FUNCNAME[1]}"
-    echo -e "$(print_date) [FAIL] [$_fcnname] $1" 2>&1
+    printf '%s [FAIL] [%s] %s\n' "$(print_date)" "${FUNCNAME[1]}" "$1"
 }
 
 # Install K3s (Controller)
