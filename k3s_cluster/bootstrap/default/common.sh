@@ -4,7 +4,7 @@
 # - Used to abstract away the complexities of how logs are handled
 # - Used to abstract K3s operations (installation, token fetching, etc)
 
-SCRIPT_DIR=$(realpath $(dirname $0))
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # Retrieve all of the needed environment variables from this file
 source "$SCRIPT_DIR/simplek3s.env"
 

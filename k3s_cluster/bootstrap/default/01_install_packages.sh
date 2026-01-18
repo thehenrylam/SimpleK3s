@@ -6,7 +6,7 @@ set -euo pipefail
 # -e            : Exits on ANY command failure 
 # -o pipefail   : Make pipeline fail if any command in them fails 
 
-SCRIPT_DIR=$(realpath $(dirname $0))
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 # Retrieve the common functions from common.sh (Calls upon simplek3s.env file)
 source "$SCRIPT_DIR/common.sh"

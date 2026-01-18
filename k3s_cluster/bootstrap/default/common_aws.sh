@@ -4,7 +4,7 @@
 # - Used to abstract away the complexities of how we interact with AWS
 # NOTE: Separated from common utilities so that switching to different providers is slightly easier
 
-SCRIPT_DIR=$(realpath $(dirname $0))
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # Retrieve all of the needed environment variables from this file
 source "$SCRIPT_DIR/simplek3s.env"
 
