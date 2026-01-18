@@ -4,12 +4,6 @@
 # - Used to abstract away the complexities of how logs are handled
 # - Used to abstract K3s operations (installation, token fetching, etc)
 
-# Set bash flags 
-set -euo pipefail 
-# -u            : Error if an unset variable is referenced 
-# -e            : Exits on ANY command failure 
-# -o pipefail   : Make pipeline fail if any command in them fails 
-
 SCRIPT_DIR=$(realpath $(dirname $0))
 # Retrieve all of the needed environment variables from this file
 source $SCRIPT_DIR/simplek3s.env
