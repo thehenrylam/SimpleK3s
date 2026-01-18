@@ -8,7 +8,7 @@ set -euo pipefail
 
 SCRIPT_DIR=$(realpath $(dirname $0))
 
-NODE_TYPE="$2"
+NODE_TYPE="${1:-}"
 
 # Retrieve all of the needed environment variables from this file
 source $SCRIPT_DIR/simplek3s.env
