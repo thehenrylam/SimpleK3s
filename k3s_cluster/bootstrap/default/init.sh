@@ -33,11 +33,9 @@ source "$SCRIPT_DIR/common_aws.sh"
 # If COUNT_INDEX == 0 then its a controller, 
 # otherwise its a server node part of the HA control-plane)
 COUNT_INDEX="$1"
-if [[ "$COUNT_INDEX" =~ ^[0-9]+$ && "$COUNT_INDEX" -ge 0 ]]; then
-    echo "initializing with index: $COUNT_INDEX"
-else
-    echo "Usage: $(basename $0) <COUNT_INDEX>"
-    echo "    COUNT_INDEX must be greater than or equal to 0"
+if [[ -z "$COUNT_INDEX" || ! "$COUNT_INDEX" =~ ^[0-9]+$ ]]; then
+  echo "Usage: $(basename "$0") <COUNT_INDEX>" >&2
+  exit 2
 fi
 
 # Install the packages
