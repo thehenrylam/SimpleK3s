@@ -16,33 +16,30 @@ source "$SCRIPT_DIR/common.sh"
 source "$SCRIPT_DIR/common_aws.sh"
 
 # Wait for Traefik to be ready (so that we can customize it afterwards)
-function wait_for_traefik_ready() {
-    log_info "Waiting for traefik to be ready..."
+function wait_for_traefik() {
+    log_info "Waiting for traefik to be ready"
 
     log_info "Waiting for traefik helm install job exists..."
-    wait_for_resource "sudo kubectl -n kube-system get job helm-install-traefik" || {
+    wait_for_cmd_3min sudo kubectl -n kube-system get job helm-install-traefik || {
         log_fail "helm-install-traefik job never appeared"
         return 1
     }
 
     log_info "Waiting for traefik helm install job complete..."
-    sudo kubectl -n kube-system wait --for=condition=complete job/helm-install-traefik --timeout=240s || {
+    wait_for_cmd_1min sudo kubectl -n kube-system wait --for=condition=complete job/helm-install-traefik --timeout=10s || {
         log_fail "helm-install-traefik job did not complete"
-        sudo kubectl -n kube-system describe job helm-install-traefik || true
-        sudo kubectl -n kube-system get events --sort-by=.metadata.creationTimestamp | tail -n 50 || true
         return 1
     }
 
     log_info "Waiting for traefik deployment to be present..."
-    wait_for_resource "sudo kubectl -n kube-system get deploy traefik" || {
+    wait_for_cmd_3min sudo kubectl -n kube-system get deploy traefik || {
         log_fail "traefik deployment never appeared"
         return 1
     }
 
     log_info "Waiting for traefik deployment to be ready..."
-    sudo kubectl -n kube-system rollout status deploy/traefik --timeout=240s || {
+    wait_for_cmd_1min sudo kubectl -n kube-system rollout status deploy/traefik --timeout=10s || {
         log_fail "traefik deployment not ready"
-        sudo kubectl -n kube-system get pods -o wide | egrep -i 'traefik|helm-install' || true
         return 1
     }
 
@@ -69,12 +66,16 @@ function apply_traefik() {
 
 log_info "$0: LAUNCHED"
 
-wait_for_kubesystem_ready || {
+wait_for_k3s_api || {
+    log_fail "Unable to confirm that K3s API is ready"
+}
+
+wait_for_kubesystem || {
     log_fail "Unable to confirm that Kubesystem is ready"
     exit 1
 }
 
-wait_for_traefik_ready || {
+wait_for_traefik || {
     log_fail "Unable to confirm that Traefik is ready"
     exit 1
 }

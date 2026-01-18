@@ -75,62 +75,71 @@ function get_k3s_token() {
     return 0
 }
 
-function is_controller_okay() {
-    local controller_host="${1:-$CONTROLLER_HOST}"
-
-    local ETCD_0="down"
-    while [[ "$ETCD_0" == "down" ]]; do 
-        curl --connect-timeout 3 -k https://$controller_host:6443 && ETCD_0=up || ETCD_0=down
-    done
-    if [[ "$ETCD_0" == "up" ]]; then
-        return 0
-    else
-        return 1
-    fi
+# Waiting functions
+function wait_for_cmd_1min() {
+    wait_for_cmd 6 10 "$@"
 }
 
-# Wait for a kubectl resource to be available (for 3 minutes)
-function wait_for_resource() {
-    # usage: wait_for_resource <kubectl args that must succeed>
-    local max_attempts=18
-    local sleep_s=10
+function wait_for_cmd_3min() {
+    wait_for_cmd 18 10 "$@"
+}
+
+function wait_for_cmd_5min() {
+    wait_for_cmd 30 10 "$@"
+}
+
+function wait_for_cmd() {
+    local max_attempts="$1"
+    local sleep_s="$2"
+    shift 2 # Ignore the first 2 arguments for the upcoming $@ command
     for ((i=1; i<=max_attempts; i++)); do
-        if eval "$@" >/dev/null 2>&1; then
-            log_okay "Available!"
+        if "$@" >/dev/null 2>&1; then
             return 0
         fi
-        log_info "Waiting... ($i/$max_attempts)"
+        log_info "Waiting... $($i/$max_attempts)"
         sleep "$sleep_s"
     done
-    log_fail "Resource not available after $(( $max_attempts*$sleep_s ))s"
     return 1
+}
+
+# Wait for the controller to be ready
+function is_controller_okay() {
+    local controller_host="${1:-$CONTROLLER_HOST}"
+    log_info "Waiting for the controller to be reachable"
+
+    wait_for_cmd_3min curl --connect-timeout 3 -k \
+        https://$controller_host:6443/readyz || {
+        log_fail "The controller node cannot be reached in time!"
+        return 1
+    }
+
+    log_okay "The controller node is reachable!"
 }
 
 # Wait for K3s API to be ready
 function wait_for_k3s_api() {
-    log_info "Waiting for K3s API to be ready..."
-    
-    wait_for_resource "sudo kubectl get --raw=/readyz" || {
-        log_fail "K3s API couldn't be reached!"
+    log_info "Waiting for K3s API to be reachable"
+
+    wait_for_cmd_3min sudo kubectl get --raw=/readyz || {
+        log_fail "The K3s API cannot be reached in time!"
         return 1
     }
 
-    log_okay "K3s API is now ready!"
+    log_okay "The K3s API is reachable!"
 }
 
 # Wait for kube-system namespace to be ready
-function wait_for_kubesystem_ready() {
+function wait_for_kubesystem() {
     log_info "Waiting for kube-system to be ready..."
-    wait_for_k3s_api || return 1
 
-    log_info "Waiting for kube-system namespace..."
-    wait_for_resource "sudo kubectl get ns kube-system" || {
+    log_info "Waiting for kube-system namespace"
+    wait_for_cmd_3min sudo kubectl get ns kube-system || {
         log_fail "kube-system namespace missing"
         return 1
     }
 
-    log_info "Waiting for kube-system/kube-root-ca.crt configmap..."
-    wait_for_resource "sudo kubectl -n kube-system get cm kube-root-ca.crt" || {
+    log_info "Waiting for kube-system/kube-root-ca.crt configmap"
+    wait_for_cmd_3min sudo kubectl -n kube-system get cm kube-root-ca.crt || {
         log_fail "kube-root-ca.crt missing in kube-system"
         return 1
     }
