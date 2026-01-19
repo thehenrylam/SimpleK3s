@@ -52,5 +52,5 @@ manifests/jenkins.yaml
 .DS_Store
 
 # CUSTOM: Ignore default bootstrap files that are generated from template files
-k3s_cluster/bootstrap/manifests/traefik-config.yaml
-k3s_cluster/bootstrap/simplek3s.env
+**/bootstrap/**/traefik-config.yaml
+**/bootstrap/**/simplek3s.env
