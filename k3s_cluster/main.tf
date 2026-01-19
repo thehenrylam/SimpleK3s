@@ -152,14 +152,14 @@ locals {
         },
         { # Common Functions
             desc        = "Common Functions",
-            key         = "${local.s3_bstrap_key_root_default}/common.sh",
-            src         = "${path.module}/bootstrap/default/common.sh",
+            key         = "${local.s3_bstrap_key_root_default}/lib/common.sh",
+            src         = "${path.module}/bootstrap/default/lib/common.sh",
             template    = null
         },
         { # Common Functions (AWS)
             desc        = "Common Functions (AWS)",
-            key         = "${local.s3_bstrap_key_root_default}/common_aws.sh",
-            src         = "${path.module}/bootstrap/default/common_aws.sh",
+            key         = "${local.s3_bstrap_key_root_default}/lib/providers/aws.sh",
+            src         = "${path.module}/bootstrap/default/lib/providers/aws.sh",
             template    = null
         },
         {

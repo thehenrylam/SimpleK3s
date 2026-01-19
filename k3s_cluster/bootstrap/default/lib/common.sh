@@ -5,8 +5,9 @@
 # - Used to abstract K3s operations (installation, token fetching, etc)
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$SCRIPT_DIR/../"
 # Retrieve all of the needed environment variables from this file
-source "$SCRIPT_DIR/simplek3s.env"
+source "$BASE_DIR/simplek3s.env"
 
 # Get date
 function print_date() {

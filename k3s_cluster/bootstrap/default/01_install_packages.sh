@@ -9,7 +9,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 # Retrieve the common functions from common.sh (Calls upon simplek3s.env file)
-source "$SCRIPT_DIR/common.sh"
+source "$SCRIPT_DIR/lib/common.sh"
 
 function apt_update() {
     log_info "Kicking off update"

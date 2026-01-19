@@ -11,9 +11,9 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 NODE_TYPE="${1:-}"
 
 # Retrieve the common functions from common.sh (Calls upon simplek3s.env file)
-source "$SCRIPT_DIR/common.sh"
-# Retrieve the common functions from common_aws.sh
-source "$SCRIPT_DIR/common_aws.sh"
+source "$SCRIPT_DIR/lib/common.sh"
+# Retrieve the AWS specific functions from aws.sh
+source "$SCRIPT_DIR/lib/providers/aws.sh"
 
 function upload_k3s_token() {
     local token="${1}"

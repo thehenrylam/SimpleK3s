@@ -25,9 +25,9 @@ echo "LOG_FILE=$LOG_FILE"
 # Retrieve all of the needed environment variables from this file
 source "$SCRIPT_DIR/simplek3s.env"
 # Retrieve the common functions from common.sh
-source "$SCRIPT_DIR/common.sh"
-# Retrieve the common functions from common_aws.sh
-source "$SCRIPT_DIR/common_aws.sh"
+source "$SCRIPT_DIR/lib/common.sh"
+# Retrieve the AWS specific functions from aws.sh
+source "$SCRIPT_DIR/lib/providers/aws.sh"
 
 # The index of the current node 
 # If COUNT_INDEX == 0 then its a controller, 
@@ -41,7 +41,7 @@ fi
 # Install the packages
 "$SCRIPT_DIR/01_install_packages.sh" || exit 1
 
-# Setup the swapfile
+# Setup the swapfile (SWAPFILE_ALLOC_AMT is provided from simplek3s.env file)
 "$SCRIPT_DIR/02_setup_swapfile.sh" "$SWAPFILE_ALLOC_AMT" || exit 1
 
 # Setup the k3s (if COUNT_INDEX == 0 then install as "controller", otherwise install as "server")

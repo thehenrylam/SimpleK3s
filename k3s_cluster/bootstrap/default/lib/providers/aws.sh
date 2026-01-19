@@ -5,9 +5,11 @@
 # NOTE: Separated from common utilities so that switching to different providers is slightly easier
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$SCRIPT_DIR/../../"
 # Retrieve all of the needed environment variables from this file
-source "$SCRIPT_DIR/simplek3s.env"
+source "$BASE_DIR/simplek3s.env"
 
+# Inserts the value into SSM
 function ssm_put() {
     # Required Inputs
     local name="$1"
