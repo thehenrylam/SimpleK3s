@@ -55,9 +55,9 @@ function get_ssm_raw() {
     local output_value
     # Fail (return 1) if the command itself fails
     output_value="$("${args[@]}" 2>/dev/null)" || return 1 
-    # Checks if the variable is not EMPTY, return 1 if it fails the test
+    # Checks if variable is NOT empty and NOT PLACEHOLDER_TOKEN
+    # If checks fail, then consider our output as "not ready" (i.e. return code 1)
     [[ -n "$output_value" ]] || return 1 
-    # Checks if the variable is not PLACEHOLDER_TOKEN, return 1 if it fails the test
     [[ "$output_value" != "$PLACEHOLDER_TOKEN" ]] || return 1
 
     echo "$output_value"
