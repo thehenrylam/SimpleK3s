@@ -103,7 +103,7 @@ function is_controller_okay() {
     local controller_host="${1:-$CONTROLLER_HOST}"
     log_info "Waiting for the controller to be reachable"
 
-    wait_for_cmd_3min curl -fsS --connect-timeout 3 -k \
+    wait_for_cmd_3min curl --connect-timeout 3 -k \
         "https://$controller_host:6443/readyz" || {
         log_fail "The controller node cannot be reached in time!"
         return 1
