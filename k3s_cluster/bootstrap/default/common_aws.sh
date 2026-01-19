@@ -77,7 +77,7 @@ function wait_ssm_raw() {
 
     local output_value
     for ((i=1; i<=max_attempts; i++)); do
-        if output_value="$(get_ssm_param_raw "$ssm_param" "$w_decryption" "$aws_region")"; then
+        if output_value="$(get_ssm_raw "$ssm_param" "$w_decryption" "$aws_region")"; then
             echo "$output_value"
             return 0
         fi
