@@ -54,7 +54,7 @@ function get_ssm_raw() {
 
     local output_value
     output_value="$("${args[@]}" 2>/dev/null)" || return 1
-    [[ -n "$output_value" ]] || return 1
+    [[ -n "$output_value" || "$output_value" == "$PLACEHOLDER_TOKEN" ]] || return 1
 
     echo "$output_value"
 }
