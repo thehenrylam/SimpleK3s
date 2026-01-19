@@ -4,10 +4,10 @@
 # - Used to abstract away the complexities of how we interact with AWS
 # NOTE: Separated from common utilities so that switching to different providers is slightly easier
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-BASE_DIR="$SCRIPT_DIR/../../"
+PROVIDER_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$PROVIDER_DIR/../../"
 # Retrieve all of the needed environment variables from this file
-source "$BASE_DIR/simplek3s.env"
+source "$SCRIPT_DIR/simplek3s.env"
 
 # Inserts the value into SSM
 function ssm_put() {
