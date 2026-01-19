@@ -53,8 +53,12 @@ function get_ssm_raw() {
     [[ -n "$w_decryption" ]] && args+=(--with-decryption)
 
     local output_value
-    output_value="$("${args[@]}" 2>/dev/null)" || return 1
-    [[ -n "$output_value" || "$output_value" == "$PLACEHOLDER_TOKEN" ]] || return 1
+    # Fail (return 1) if the command itself fails
+    output_value="$("${args[@]}" 2>/dev/null)" || return 1 
+    # Checks if the variable is not EMPTY, return 1 if it fails the test
+    [[ -n "$output_value" ]] || return 1 
+    # Checks if the variable is not PLACEHOLDER_TOKEN, return 1 if it fails the test
+    [[ "$output_value" != "$PLACEHOLDER_TOKEN" ]] || return 1
 
     echo "$output_value"
 }
@@ -65,7 +69,7 @@ function get_ssm() {
     local w_decryption="${2:-}"
     local aws_region="${3:-$AWS_REGION}"
 
-    get_ssm_raw "$PARAMSTORE_KEYROOT/$key" "$w_decryption" "$aws_region"
+    get_ssm_raw "$PARAMSTORE_KEYROOT/$key" "$w_decryption" "$aws_region" || return 1
 }
 
 # Wait until the parameter exists (and is non-empty), then print it.
@@ -97,6 +101,6 @@ function wait_ssm() {
     local sleep_s="${5:-2}"
 
     wait_ssm_raw "$PARAMSTORE_KEYROOT/$key" "$w_decryption" "$aws_region" \
-        "$max_attempts" "$sleep_s"
+        "$max_attempts" "$sleep_s" || return 1
 }
 
