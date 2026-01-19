@@ -137,7 +137,6 @@ locals {
                 pstore_key_root         = local.pstore_key_root
                 s3_bucket_name          = local.s3_bstrap_name
                 s3key_simplek3s_env     = "${local.s3_bstrap_key_root_default}/simplek3s.env"
-                s3key_k3s_install       = "${local.s3_bstrap_key_root_default}/K3S_INSTALL.sh"
                 s3key_traefik_cfg_tmpl  = "${local.s3_bstrap_key_root_default}/manifests/traefik-config.yaml"
             }
         },
