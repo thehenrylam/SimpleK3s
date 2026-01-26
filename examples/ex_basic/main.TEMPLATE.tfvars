@@ -7,4 +7,3 @@ sbn_cidr_blocks         = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24", "10.0.4.
 sbn_availability_zones  = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d"]
 dns_basename            = ""    # Configure this! EXAMPLE: yourdomain.com 
 dns_prefix              = "k3s"
-k3s_token               = "your-very-secure-token" # Configure this!

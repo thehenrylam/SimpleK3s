@@ -45,7 +45,6 @@ module "k3s_cluster" {
     admin_ip_list           = var.admin_ip_list              # The list of IPs (in CIDR) to allow for admin SSH connections 
     vpc_id                  = module.vpc_cloud.vpc_id        # The VPC that resources will be put inside of
     subnet_ids              = module.vpc_cloud.subnet_public_ids # The list of subnets that the cluster nodes reside in
-    k3s_token               = var.k3s_token                  # The k3s secret token to initialize new k3s nodes
 }
 
 # Optional variables:

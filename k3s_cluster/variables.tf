@@ -91,11 +91,6 @@ variable "k3s_nodeport_traefik_https" {
     default     = 30443
 }
 
-variable "k3s_token" {
-    description = "The K3s cluster token for node authentication"
-    type        = string
-}
-
 variable "ec2_ami_id" {
     description = "The AMI ID for the EC2 instances"
     type        = string
