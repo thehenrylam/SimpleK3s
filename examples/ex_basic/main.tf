@@ -35,7 +35,6 @@ module "k3s_cluster" {
     admin_ip_list           = var.admin_ip_list 
     vpc_id                  = module.vpc_cloud.vpc_id 
     subnet_ids              = module.vpc_cloud.subnet_public_ids 
-    k3s_token               = var.k3s_token
 }
 
 # Publish the cluster via Route 53
