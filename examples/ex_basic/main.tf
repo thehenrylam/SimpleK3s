@@ -18,6 +18,25 @@ provider "aws" {
     region = var.aws_region
 }
 
+locals {
+    k3s_domain_name="${var.dns_prefix}.${var.dns_basename}"
+}
+
+module "idp" {
+    source = "../modules/idp_cognito"
+    nickname        = "${var.nickname}"
+    callback_urls = [
+        "https://${local.k3s_domain_name}/argocd/auth/callback",
+        "https://${local.k3s_domain_name}/jenkins/securityRealm/finishLogin",
+        "https://${local.k3s_domain_name}/grafana/login/generic_oauth",
+        "https://${local.k3s_domain_name}/oauth2/oauth2/callback",
+    ]
+    logout_urls = [
+        "https://${local.k3s_domain_name}/argocd/",
+        "https://${local.k3s_domain_name}/jenkins/",
+    ]
+}
+
 module "vpc_cloud" {
     source                  = "../modules/vpc_cloud" 
     nickname                = var.nickname 
@@ -46,8 +65,12 @@ data "aws_route53_zone" "r53" {
 # Create CNAME record
 resource "aws_route53_record" "r53_record_k3s" {
     zone_id = data.aws_route53_zone.r53.zone_id
-    name    = "${var.dns_prefix}.${var.dns_basename}"
+    name    = "${local.k3s_domain_name}"
     type    = "CNAME"
     ttl     = 300
     records = [module.k3s_cluster.k3s_cluster_load_balancer.dns_name] 
+}
+
+output "issuer" {
+    value = module.idp.issuer_url
 }
