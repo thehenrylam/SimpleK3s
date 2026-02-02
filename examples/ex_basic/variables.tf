@@ -40,13 +40,10 @@ variable "sbn_availability_zones" {
     default     = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d"]
 }
 
-variable "dns_basename" {
-    description = "The DNS basename that end-users will use to access the cluster (example.com)"
-    type        = string
-}
-
-variable "dns_prefix" {
-    description = "The DNS prefix that to supplement the dns_name (e.g. k3s, to have end-users access it via k3s.example.com)"
-    type        = string
-    default     = "k3s"
+variable "dns" {
+    description = "The DNS data that end-users will use to access the cluster (example.com)"
+    type        = object({
+        basename    = string
+        prefix      = optional(string)
+    })
 }

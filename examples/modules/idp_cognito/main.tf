@@ -14,9 +14,15 @@ terraform {
 }
 
 locals {
+    # General settings
     upl_name = "idp-upl-${var.nickname}"
     upc_name = "idp-upc-${var.nickname}"
-    # aws_cognito_user_pool_client
+    pstore_issuer_name = "idp-pstore-issuer-${var.nickname}" 
+    pstore_client_name = "idp-pstore-client-${var.nickname}" 
+    pstore_secret_name = "idp-pstore-secret-${var.nickname}" 
+
+    # SSM parameters key root
+    ssm_parameters_key_root = "/idp-standalone/${var.nickname}"
 
     tags_default = {
         Nickname = "${var.nickname}"
@@ -64,7 +70,9 @@ resource "aws_cognito_user_pool" "this" {
         }
     }
 
-    tags = merge(var.tags, local.tags_default)
+    tags = merge(var.tags, merge(local.tags_default, {
+        Name = local.upl_name
+    }))
 }
 
 # 2) Hosted UI domain (AWS-managed)

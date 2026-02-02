@@ -1,6 +1,7 @@
 variable "nickname" {
     description = "The nickname of the module"
     type        = string
+    default     = "simplek3s"
 }
 
 variable "aws_region" {
@@ -119,4 +120,13 @@ variable "ec2_ebs_volume_type" {
     description = "The EBS volume type for EC2 instances (default: gp3)"
     type        = string
     default     = "gp3" # gp3 is favored since we are using small volumes while maintaining reliable performance
+}
+
+variable "idp_ssm_param_names" {
+    description = "The IdP SSM parameter names (This is generated from the idp_standalone module (can initialize it within SimpleK3s/examples/ex_idp/)"
+    type        = object({
+        issuer  = string
+        client  = string
+        secret  = string
+    })
 }

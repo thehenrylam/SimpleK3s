@@ -34,3 +34,15 @@ output "token_url" {
 output "userinfo_url" {
     value = "${local.hosted_ui_base}/oauth2/userInfo"
 }
+
+output "pstore_key_issuer" {
+    value = aws_ssm_parameter.idp_issuer.name
+}
+
+output "pstore_key_client" {
+    value = aws_ssm_parameter.idp_client.name
+}
+
+output "pstore_key_secret" {
+    value = aws_ssm_parameter.idp_secret.name
+}

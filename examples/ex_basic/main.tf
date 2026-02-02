@@ -19,22 +19,10 @@ provider "aws" {
 }
 
 locals {
-    k3s_domain_name="${var.dns_prefix}.${var.dns_basename}"
-}
-
-module "idp" {
-    source = "../modules/idp_cognito"
-    nickname        = "${var.nickname}"
-    callback_urls = [
-        "https://${local.k3s_domain_name}/argocd/auth/callback",
-        "https://${local.k3s_domain_name}/jenkins/securityRealm/finishLogin",
-        "https://${local.k3s_domain_name}/grafana/login/generic_oauth",
-        "https://${local.k3s_domain_name}/oauth2/oauth2/callback",
-    ]
-    logout_urls = [
-        "https://${local.k3s_domain_name}/argocd/",
-        "https://${local.k3s_domain_name}/jenkins/",
-    ]
+    # DNS name
+    dns_basename    = var.dns.basename
+    dns_prefix      = coalesce(var.dns.prefix, "k3s")
+    domain_name     = "${local.dns_prefix}.${local.dns_basename}"
 }
 
 module "vpc_cloud" {
@@ -54,23 +42,33 @@ module "k3s_cluster" {
     admin_ip_list           = var.admin_ip_list 
     vpc_id                  = module.vpc_cloud.vpc_id 
     subnet_ids              = module.vpc_cloud.subnet_public_ids 
+
+    # IdP SSM Parameter Names
+    #   What its used for: Used to enable SSO for apps like ArgoCD 
+    #   Required Actions:
+    #       - Go to SimpleK3s/examples/ex_idp/
+    #       - Create the IdP resource (Customize the DNS name)
+    #       - Use the SSM Param Output via `terraform output -json`
+    #           - NOTE: Default values are already provided 
+    #             (Only need to change this if you change the idp-standalone nickname)
+    idp_ssm_param_names = {
+        issuer  = "/idp-standalone/idp-standalone/idp_issuer" 
+        client  = "/idp-standalone/idp-standalone/idp_client" 
+        secret  = "/idp-standalone/idp-standalone/idp_secret" 
+    }
 }
 
 # Publish the cluster via Route 53
 # Retrieve information from the route53 zone
 data "aws_route53_zone" "r53" {
-    name            = var.dns_basename
+    name            = local.dns_basename
     private_zone    = false
 }
 # Create CNAME record
 resource "aws_route53_record" "r53_record_k3s" {
     zone_id = data.aws_route53_zone.r53.zone_id
-    name    = "${local.k3s_domain_name}"
+    name    = "${local.domain_name}"
     type    = "CNAME"
     ttl     = 300
     records = [module.k3s_cluster.k3s_cluster_load_balancer.dns_name] 
-}
-
-output "issuer" {
-    value = module.idp.issuer_url
 }
