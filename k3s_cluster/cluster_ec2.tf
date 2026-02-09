@@ -31,7 +31,10 @@ resource "aws_instance" "ec2_node" {
         bootstrap_dir           = local.bstrap_dir,
         # Assume the first object of local.s3obj_data is the installation script
         s3key_install_script    = local.s3obj_data[0].key,
-        s3key_default           = [ for obj in aws_s3_object.bootstrap_s3_obj_default : obj.key ],
+        s3key_default           = concat(
+            [ for obj in aws_s3_object.bootstrap_s3_obj_default : obj.key ], # Default files
+            try(module.k3s_app_argocd[0].s3obj_list, []) # (Optional) ArgoCD files
+        ),
     })
 
     root_block_device {

@@ -23,6 +23,12 @@ locals {
     dns_basename    = var.dns.basename
     dns_prefix      = coalesce(var.dns.prefix, "k3s")
     domain_name     = "${local.dns_prefix}.${local.dns_basename}"
+
+    idp_ssm_pstore_names = {
+        issuer  = "/idp-standalone/idp-standalone/idp_issuer" 
+        client  = "/idp-standalone/idp-standalone/idp_client" 
+        secret  = "/idp-standalone/idp-standalone/idp_secret" 
+    }
 }
 
 module "vpc_cloud" {
@@ -55,6 +61,13 @@ module "k3s_cluster" {
         issuer  = "/idp-standalone/idp-standalone/idp_issuer" 
         client  = "/idp-standalone/idp-standalone/idp_client" 
         secret  = "/idp-standalone/idp-standalone/idp_secret" 
+    }
+
+    applications = {
+        argocd = { # Deployer: ArgoCD   
+            idp_ssm_pstore_names    = local.idp_ssm_pstore_names
+            domain_name             = local.domain_name
+        }
     }
 }
 

@@ -1,0 +1,144 @@
+# Namespace: creates the dedicated namespace where all Argo CD resources will live
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argocd
+
+---
+# SecretStore: tells External Secrets Operator how to talk to AWS SSM Parameter Store
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  name: parameterstore
+  namespace: argocd
+spec:
+  provider:
+    aws:
+      service: ParameterStore
+      region: us-east-1
+
+---
+# ExternalSecret: pulls 3 SSM SecureString params into a single Kubernetes Secret
+# The label app.kubernetes.io/part-of: argocd is required for Argo CD secret substitution
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: argocd-oidc-into-argocd-secret
+  namespace: argocd
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: parameterstore
+    kind: SecretStore
+  target:
+    name: argocd-secret
+    creationPolicy: Merge
+    template:
+      engineVersion: v2
+      type: Opaque
+  data:
+    - secretKey: oidc.cognito.issuer
+      remoteRef:
+        key: ${idp_ssm_pstore_names.issuer} 
+    - secretKey: oidc.cognito.clientID
+      remoteRef:
+        key: ${idp_ssm_pstore_names.client} 
+    - secretKey: oidc.cognito.clientSecret
+      remoteRef:
+        key: ${idp_ssm_pstore_names.secret} 
+
+---
+# HelmChart (K3s built-in Helm controller): installs/maintains the Argo CD Helm chart automatically
+# This is how Argo CD is actually deployed into the argocd namespace in K3s
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: argocd
+  namespace: kube-system
+spec:
+  repo: https://argoproj.github.io/argo-helm
+  chart: argo-cd
+  # version: "x.y.z" # optional: pin once you're happy
+  targetNamespace: argocd
+  createNamespace: true
+  valuesContent: |-
+    configs:
+      cm:
+        url: "https://${domain_name}/argocd"
+    server:
+      service:
+        type: ClusterIP
+
+---
+# Ingress (Traefik): exposes the Argo CD server UI/API externally at https://${domain_name}/argocd
+# Routes inbound HTTPS traffic to the argocd-server Service on port 80
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd
+  namespace: argocd
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  tls:
+    - hosts:
+        - ${domain_name}
+  rules:
+    - host: ${domain_name}
+      http:
+        paths:
+          - path: /argocd
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 80
+
+---
+# ConfigMap (argocd-cm): Argo CD "main config" — sets the external URL and OIDC SSO settings
+# oidc.config enables Cognito login and references secret values via $oidc.cognito.* substitution
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+  namespace: argocd
+  labels:
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: argocd-cm
+    app.kubernetes.io/part-of: argocd
+  annotations:
+    meta.helm.sh/release-name: argocd
+    meta.helm.sh/release-namespace: argocd
+data:
+  url: "https://${domain_name}/argocd"
+  oidc.config: |
+    name: Cognito
+    issuer: $oidc.cognito.issuer
+    clientID: $oidc.cognito.clientID
+    clientSecret: $oidc.cognito.clientSecret
+    requestedScopes: ["openid", "profile", "email"]
+
+---
+# ConfigMap (argocd-cmd-params-cm): Argo CD server startup flags (command-line parameters)
+# basehref/rootpath make Argo CD work behind a /argocd subpath; insecure=true disables TLS on the pod (TLS is terminated at Traefik via the Ingress)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cmd-params-cm
+  namespace: argocd
+  labels:
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: argocd-cmd-params-cm
+    app.kubernetes.io/part-of: argocd
+  annotations:
+    meta.helm.sh/release-name: argocd
+    meta.helm.sh/release-namespace: argocd
+data:
+  server.basehref: "/argocd"
+  server.rootpath: "/argocd"
+  server.insecure: "true"
+
+

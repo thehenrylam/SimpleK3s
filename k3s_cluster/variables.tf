@@ -130,3 +130,19 @@ variable "idp_ssm_param_names" {
         secret  = string
     })
 }
+
+# Pre-built applications
+variable "applications" {
+    description = "Pre-built applications (For easy setups)"
+    type        = object({
+        argocd  = optional(object({
+            idp_ssm_pstore_names = object({
+                issuer = string 
+                client = string 
+                secret = string 
+            })
+            domain_name = string
+        }))
+    })
+    default     = {}
+}
