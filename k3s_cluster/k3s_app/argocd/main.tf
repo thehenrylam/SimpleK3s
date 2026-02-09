@@ -17,6 +17,25 @@ locals {
     s3obj_data      = var.s3obj_data 
 }
 
+#################################
+#   SSM Parameter : Prechecks   #
+#################################
+data "aws_ssm_parameter" "issuer" {
+    name            = local.idp_ssm_pstore_names.issuer
+    with_decryption = true
+}
+
+data "aws_ssm_parameter" "client" {
+    name            = local.idp_ssm_pstore_names.client
+    with_decryption = true
+}
+
+data "aws_ssm_parameter" "secret" {
+    name            = local.idp_ssm_pstore_names.secret
+    with_decryption = true
+}
+
+
 ###################################
 #    S3 Files : Bootstrapping     #
 ###################################

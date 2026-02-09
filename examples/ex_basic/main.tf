@@ -49,22 +49,16 @@ module "k3s_cluster" {
     vpc_id                  = module.vpc_cloud.vpc_id 
     subnet_ids              = module.vpc_cloud.subnet_public_ids 
 
-    # IdP SSM Parameter Names
-    #   What its used for: Used to enable SSO for apps like ArgoCD 
-    #   Required Actions:
-    #       - Go to SimpleK3s/examples/ex_idp/
-    #       - Create the IdP resource (Customize the DNS name)
-    #       - Use the SSM Param Output via `terraform output -json`
-    #           - NOTE: Default values are already provided 
-    #             (Only need to change this if you change the idp-standalone nickname)
-    idp_ssm_param_names = {
-        issuer  = "/idp-standalone/idp-standalone/idp_issuer" 
-        client  = "/idp-standalone/idp-standalone/idp_client" 
-        secret  = "/idp-standalone/idp-standalone/idp_secret" 
-    }
-
     applications = {
         argocd = { # Deployer: ArgoCD   
+            # IdP SSM Parameter Names
+            #   What its used for: Used to enable SSO for apps like ArgoCD 
+            #   Required Actions:
+            #       - Go to SimpleK3s/examples/ex_idp/
+            #       - Create the IdP resource (Customize the DNS name)
+            #       - Use the SSM Param Output via `terraform output -json`
+            #           - NOTE: Default values are already provided 
+            #             (Only need to change this if you change the idp-standalone nickname)
             idp_ssm_pstore_names    = local.idp_ssm_pstore_names
             domain_name             = local.domain_name
         }
