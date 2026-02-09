@@ -13,7 +13,7 @@ source "$SCRIPT_DIR/lib/common.sh"
 
 function wait_argocd() {
     local NS="argocd"
-    local DEPLOY_NAME="argocd"
+    local DEPLOY_NAME="argocd-server"
 
     log_info "Waiting for namespace '$NS' to be present..."
     wait_for_cmd_3min sudo kubectl get ns "$NS" || {

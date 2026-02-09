@@ -29,7 +29,7 @@ function wait_external_secrets() {
     }
 
     log_info "Waiting for deployment '$DEPLOY_NAME' to be ready..."
-    wait_for_cmd_5min sudo kubectl -n "$NS" rollout status "deploy/$DEPLOY_NAME" --timeout=10s || {
+    wait_for_cmd_3min sudo kubectl -n "$NS" rollout status "deploy/$DEPLOY_NAME" --timeout=10s || {
         log_fail "deployment '$DEPLOY_NAME' not ready"
         sudo kubectl -n "$NS" describe deploy "$DEPLOY_NAME" || true
         sudo kubectl -n "$NS" get pods -o wide || true
