@@ -106,6 +106,7 @@ module "k3s_cluster" {
 * AWS Free Tier allows for 50K Monthly Active Users for AWS Cognito
     * In other words, as long are you don't create and maintain more than 50K users per month, you can use it for free!
 * Example IdP is set as a separate entity from the basic example to prevent the event where you need to constantly spin up and spin down the infra without redoing Cognito setups and eating into your users per month limit
+* It is recommended that you keep the region of IdP and the Basic example the same (i.e. both on "us-east-1")
 
 # Contributing
 Interested in adding more features? Check out the [CONTRIBUTING.md](https://github.com/thehenrylam/SimpleK3s?tab=contributing-ov-file) for code of conduct and a guide on how to make changes ot the project!
