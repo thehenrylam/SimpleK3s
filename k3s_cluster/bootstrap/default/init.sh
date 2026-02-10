@@ -34,8 +34,8 @@ source "$SCRIPT_DIR/lib/providers/aws.sh"
 # otherwise its a server node part of the HA control-plane)
 COUNT_INDEX="$1"
 if [[ -z "$COUNT_INDEX" || ! "$COUNT_INDEX" =~ ^[0-9]+$ ]]; then
-  echo "Usage: $(basename "$0") <COUNT_INDEX>" >&2
-  exit 2
+    echo "Usage: $(basename "$0") <COUNT_INDEX>" >&2
+    exit 2
 fi
 
 # Install the packages
@@ -52,6 +52,14 @@ NODE_TYPE=$([ $COUNT_INDEX -eq 0 ] && echo "controller" || echo "server")
 if [[ "$COUNT_INDEX" -eq 0 ]]; then
     # Apply the configs of Traefik
     "$SCRIPT_DIR/04_apply_traefik.sh" || exit 1
+
+    # Apply External Secrets
+    "$SCRIPT_DIR/05_apply_external-secrets.sh" || exit 1
+
+    # Optional: Apply the ArgoCD application
+    if [ -f "$SCRIPT_DIR/optional_argocd.sh" ]; then
+        "$SCRIPT_DIR/optional_argocd.sh" || exit 1
+    fi 
 fi
 
 

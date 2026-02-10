@@ -10,8 +10,6 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 # Retrieve the common functions from common.sh (Calls upon simplek3s.env file)
 source "$SCRIPT_DIR/lib/common.sh"
-# Retrieve the AWS specific functions from aws.sh
-source "$SCRIPT_DIR/lib/providers/aws.sh"
 
 # Wait for Traefik to be ready (so that we can customize it afterwards)
 function wait_for_traefik() {
@@ -80,6 +78,11 @@ wait_for_traefik || {
 
 apply_traefik || {
     log_fail "Failed to apply Traefik"
+    exit 1
+}
+
+wait_for_traefik || {
+    log_fail "Unable to confirm that Traefik is ready"
     exit 1
 }
 
