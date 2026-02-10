@@ -12,6 +12,7 @@ In addition, it serves as a way to transition nicely into EKS since your apps wo
 | Cost Efficiency 🤑   | ⭐️⭐️⭐️⭐️⭐️   | ⭐️⭐️⭐️             | ⭐️       |
 | Kubernetes-Ready ⚙️  | 🚫          | ✅                | ✅       |
 | High Availability 🦾 | 🚫          | ✅                | ✅       |
+| Prebuilt Deployer 🦑 | 🚫          | ✅                | 🚫       |
 | Auto Scaling 📈      | 🚫          | 🏗️ (**WIP**) 🏗️   | ✅       |
 | Monitoring 👀        | 🚫          | 🏗️ (**WIP**) 🏗️   | ✅       |
 | Security 🔐          | ⭐️          | ⭐️⭐️⭐️            | ⭐️⭐️⭐️⭐️⭐️ |
