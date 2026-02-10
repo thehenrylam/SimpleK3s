@@ -75,14 +75,38 @@ module "k3s_cluster" {
 ```
 
 # Try it out (As an example):
-0. Navigate to `./examples/ex_basic/` (e.g. `cd ./examples/ex_basic/`)
-1. Copy `./main.TEMPLATE.tfvars` file to `./main.tfvars`
-2. Modify the newly created `main.tfvars` file to your satisfaction
-3. Execute the following command(s): 
- - `AWS_PROFILE="your_aws_profile" tofu init -var-file="main.tfvars"` # Initialize the project
- - `AWS_PROFILE="your_aws_profile" tofu plan -var-file="main.tfvars"` # Dry run the infra allocation
- - `AWS_PROFILE="your_aws_profile" tofu apply -var-file="main.tfvars"` # Allocate infra
- - `AWS_PROFILE="your_aws_profile" tofu destroy -var-file="main.tfvars"` # Free allocation of infra 
+1. Initialize IdP
+    - Navigate to `./examples/ex_idp/`
+    - Copy `./terraform.TEMPLATE.tfvars` file to `./terraform.tfvars` 
+    - Modify `./terraform.tfvars` to your satisfaction (Like the DNS name)
+    - Execute the following command(s):
+        - `AWS_PROFILE="your_aws_profile" tofu init`
+        - `AWS_PROFILE="your_aws_profile" tofu plan`
+        - `AWS_PROFILE="your_aws_profile" tofu apply`
+2. Create your user in AWS Cognito
+    - Login to your AWS account
+    - Navigate to AWS `Cognito` (In the AWS search bar, search for `Cognito` and click on it)
+    - Find the relevant user pool (By default, the user pool's name is `idp-upl-idp-standalone`)
+    - Go inside of the user pool menu by clicking on the user pool's name
+    - At the left side, click on `Users` (Found under `User management`)
+    - At the `Users` menu, click on the `Create user` button (around the top right side)
+    - Fill out the form and click on `Create user`
+        - Email Address: Put an email address that you own
+        - Password: You could choose to set or generate a password (Setting a password can be used if the email you are using is invalid)
+3. Initialize example:
+    - Navigate to `./examples/ex_basic/`
+    - Copy `./terraform.TEMPLATE.tfvars` file to `./terraform.tfvars` 
+    - Modify `./terraform.tfvars` to your satisfaction (Like the DNS name)
+    - Execute the following command(s):
+        - `AWS_PROFILE="your_aws_profile" tofu init`
+        - `AWS_PROFILE="your_aws_profile" tofu plan`
+        - `AWS_PROFILE="your_aws_profile" tofu apply`
+
+## Things to keep in mind
+* AWS Free Tier allows for 50K Monthly Active Users for AWS Cognito
+    * In other words, as long are you don't create and maintain more than 50K users per month, you can use it for free!
+* Example IdP is set as a separate entity from the basic example to prevent the event where you need to constantly spin up and spin down the infra without redoing Cognito setups and eating into your users per month limit
+* It is recommended that you keep the region of IdP and the Basic example the same (i.e. both on "us-east-1")
 
 # Contributing
 Interested in adding more features? Check out the [CONTRIBUTING.md](https://github.com/thehenrylam/SimpleK3s?tab=contributing-ov-file) for code of conduct and a guide on how to make changes ot the project!
