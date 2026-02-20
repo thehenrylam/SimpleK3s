@@ -30,3 +30,25 @@ resource "aws_ssm_parameter" "idp_secret" {
         Name = local.pstore_secret_name 
     })
 }
+
+# One SecureString parameter containing all IdP/OIDC settings as JSON
+resource "aws_ssm_parameter" "idp_config" {
+  description = "IdP - OIDC config (issuer, client_id, client_secret, hosted_ui_domain)"
+  type        = "SecureString"
+  name        = "${local.ssm_parameters_key_root}/idp_config"
+
+  value = jsonencode({
+    issuer        = local.issuer_url
+    client_id     = aws_cognito_user_pool_client.this.id
+    client_secret = aws_cognito_user_pool_client.this.client_secret
+
+    # Put the Cognito Hosted UI base domain here, e.g.
+    # https://<your-domain>.auth.us-east-1.amazoncognito.com
+    domain        = local.hosted_ui_base
+  })
+
+  tags = merge(var.tags, local.tags_default, {
+    Name = local.pstore_config_name 
+  })
+}
+
