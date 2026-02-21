@@ -15,7 +15,7 @@ spec:
   provider:
     aws:
       service: ParameterStore
-      region: us-east-1
+      region: ${idp_config_region}
 
 ---
 # ExternalSecret: pulls 3 SSM SecureString params into a single Kubernetes Secret
@@ -39,13 +39,16 @@ spec:
   data:
     - secretKey: oidc.cognito.issuer
       remoteRef:
-        key: ${idp_ssm_pstore_names.issuer} 
-    - secretKey: oidc.cognito.clientID
+        key: ${idp_ssm_pstore_names.idp_config}
+        property: issuer  
+    - secretKey: oidc.cognito.client
       remoteRef:
-        key: ${idp_ssm_pstore_names.client} 
-    - secretKey: oidc.cognito.clientSecret
+        key: ${idp_ssm_pstore_names.idp_config}
+        property: client_id 
+    - secretKey: oidc.cognito.secret
       remoteRef:
-        key: ${idp_ssm_pstore_names.secret} 
+        key: ${idp_ssm_pstore_names.idp_config}
+        property: client_secret 
 
 ---
 # HelmChart (K3s built-in Helm controller): installs/maintains the Argo CD Helm chart automatically
@@ -117,8 +120,8 @@ data:
   oidc.config: |
     name: Cognito
     issuer: $oidc.cognito.issuer
-    clientID: $oidc.cognito.clientID
-    clientSecret: $oidc.cognito.clientSecret
+    clientID: $oidc.cognito.client
+    clientSecret: $oidc.cognito.secret
     requestedScopes: ["openid", "profile", "email"]
 
 ---

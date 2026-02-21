@@ -7,9 +7,7 @@ variable "settings" {
     description = "The settings of the argocd app"
     type        = object({
         idp_ssm_pstore_names    = object({
-            issuer = string 
-            client = string 
-            secret = string 
+            idp_config = string
         })
         domain_name             = string
     })
