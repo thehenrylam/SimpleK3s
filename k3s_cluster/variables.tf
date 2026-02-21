@@ -134,6 +134,12 @@ variable "applications" {
             })
             domain_name = string
         }))
+        monitoring = optional(object({
+            idp_ssm_pstore_names = object({
+                idp_config = string 
+            })
+            domain_name = string
+        }))
     })
     default     = {}
 }

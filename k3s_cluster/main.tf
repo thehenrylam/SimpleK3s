@@ -275,3 +275,43 @@ module "k3s_app_argocd" {
         }
     ]
 }
+
+# IF ENABLED: Check and Set up all of the needed files for Monitoring (Prometheus & Grafana) 
+# Handles:
+#   - S3 object upload
+#   - IAM rights settings (e.g. role name of the EC2 env to allow getting secret settings from the ParameterStore)
+module "k3s_app_monitoring" {
+    count           = var.applications.monitoring != null ? 1 : 0 
+    source          = "./k3s_app/monitoring" 
+    
+    # General settings
+    nickname        = var.nickname 
+    settings        = var.applications.monitoring 
+    
+    # IAM settings
+    iam_role_name   = aws_iam_role.irole_ec2.name 
+    iam_config      = {
+        partition   = data.aws_partition.current.partition
+    }
+
+    # S3 settings
+    s3_bucket_id    = aws_s3_bucket.bootstrap.id
+    s3obj_data      = [
+        {
+            desc        = "Monitoring (Prometheus & Grafana) config all-in-one (HelmChart, Secrets, ConfigMaps, etc)" 
+            key         = "${local.s3_bstrap_key_root_default}/manifests/monitoring.yaml" 
+            src         = "${path.module}/bootstrap/default/manifests/monitoring.yaml" 
+            template    = jsonencode({
+                domain_name             = var.applications.monitoring.domain_name 
+                idp_ssm_pstore_names    = var.applications.monitoring.idp_ssm_pstore_names 
+                # var_gf_oidc_domain      = "$${GF_OIDC_DOMAIN}" # Insert a variable "${...}" into the file to be used at runtime
+            })
+        },
+        {
+            desc        = "Monitoring (Prometheus & Grafana) installation script (to be executed by the Default Init Script)"
+            key         = "${local.s3_bstrap_key_root_default}/optional_monitoring.sh"
+            src         = "${path.module}/bootstrap/default/optional_monitoring.sh"
+            template    = null
+        }
+    ]
+}
