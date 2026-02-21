@@ -14,7 +14,8 @@ In addition, it serves as a way to transition nicely into EKS since your apps wo
 | High Availability 🦾 | 🚫          | ✅                | ✅       |
 | Prebuilt Deployer 🦑 | 🚫          | ✅                | 🚫       |
 | Auto Scaling 📈      | 🚫          | 🏗️ (**WIP**) 🏗️   | ✅       |
-| Monitoring 👀        | 🚫          | 🏗️ (**WIP**) 🏗️   | ✅       |
+| Monitoring 👀        | 🚫          | ✅                | ✅       |
+| Deployer 🏗️          | 🚫          | ✅                | ✅       |
 | Security 🔐          | ⭐️          | ⭐️⭐️⭐️            | ⭐️⭐️⭐️⭐️⭐️ |
 | Operational Ease 🛠️  | ⭐️          | ⭐️⭐️⭐️            | ⭐️⭐️⭐️⭐️⭐️ |
 | Best For... 🫥       | Small Projects | Scalable MVPs | Full Production |
@@ -39,6 +40,21 @@ In addition, it serves as a way to transition nicely into EKS since your apps wo
 This is used as a Terraform module for your AWS IaC Projects.
 In your Terraform configuration, add the following module to create the k3s cluster:
 ``` Terraform
+locals {
+    # IdP SSM Parameter Names
+    # idp_config's should have a JSON string the following format:
+    # {
+    #     issuer        = __IDP_ISSUER_URL__
+    #     client_id     = __IDP_CLIENT_ID__
+    #     client_secret = __IDP_CLIENT_SECRET__
+    #     domain        = __IDP_HOSTED_UI_BASE_DOMAIN__
+    # }
+    # Use the module within ../modules/idp_cognito to create this config
+    idp_ssm_pstore_names = {
+        idp_config  = "<SSM_PARAMETER_NAME_FOR_IDP_CONFIG>"
+    }
+}
+
 module "k3s_cluster" {
     source                  = "<PATH_TO_MODULE>/k3s_cluster" # Path to the k3s cluster
     nickname                = var.nickname                   # Nickname that resources will use (e.g. Name, Tags, etc)
@@ -46,6 +62,18 @@ module "k3s_cluster" {
     admin_ip_list           = var.admin_ip_list              # The list of IPs (in CIDR) to allow for admin SSH connections 
     vpc_id                  = module.vpc_cloud.vpc_id        # The VPC that resources will be put inside of
     subnet_ids              = module.vpc_cloud.subnet_public_ids # The list of subnets that the cluster nodes reside in
+
+    # Optional, but highly recommended: Built-in Apps
+    applications = {
+        argocd = {
+            idp_ssm_pstore_names    = local.idp_ssm_pstore_names
+            domain_name             = local.domain_name
+        }
+        monitoring = {
+            idp_ssm_pstore_names    = local.idp_ssm_pstore_names
+            domain_name             = local.domain_name
+        }
+    }
 }
 
 # Optional variables:
