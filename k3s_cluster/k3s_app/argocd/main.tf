@@ -11,6 +11,8 @@ locals {
     ipolicy_idp_pstore_arn_root = "arn:${local.iam_config.partition}:ssm:${local.iam_config.region}:${local.iam_config.account_id}:parameter"
 
     idp_ssm_pstore_names    = var.settings.idp_ssm_pstore_names
+    idp_config              = local.idp_ssm_pstore_names.idp_config
+
     domain_name             = var.settings.domain_name
 
     s3_bucket_id    = var.s3_bucket_id 
@@ -20,21 +22,16 @@ locals {
 #################################
 #   SSM Parameter : Prechecks   #
 #################################
-data "aws_ssm_parameter" "issuer" {
-    name            = local.idp_ssm_pstore_names.issuer
+data "aws_ssm_parameter" "idp_config" {
+    name            = local.idp_config
     with_decryption = true
 }
 
-data "aws_ssm_parameter" "client" {
-    name            = local.idp_ssm_pstore_names.client
-    with_decryption = true
+locals {
+    extra_vars = {
+        idp_config_region = data.aws_ssm_parameter.idp_config.region
+    }
 }
-
-data "aws_ssm_parameter" "secret" {
-    name            = local.idp_ssm_pstore_names.secret
-    with_decryption = true
-}
-
 
 ###################################
 #    S3 Files : Bootstrapping     #
@@ -50,7 +47,7 @@ resource "terraform_data" "s3obj_check" {
         # IF template IS null       : Check if file exists
         # IF template ISN'T null    : Check if file can be templated
         sha_check = (
-            each.value == null ? filesha256( each.key ) : sha256( templatefile( "${each.key}.tmpl", jsondecode(each.value) ) )
+            each.value == null ? filesha256( each.key ) : sha256( templatefile( "${each.key}.tmpl", merge( jsondecode(each.value), local.extra_vars ) ) )
         )
     }
 }
@@ -69,7 +66,7 @@ resource "aws_s3_object" "s3obj" {
 }
 resource "local_file" "s3obj_tmpl" {
     for_each    = { for obj in local.s3obj_data : obj.src => obj.template if obj.template != null }
-    content     = templatefile("${each.key}.tmpl", jsondecode(each.value))
+    content     = templatefile("${each.key}.tmpl", merge( jsondecode(each.value), local.extra_vars ))
     filename    = each.key
 }
 
@@ -96,9 +93,7 @@ data "aws_iam_policy_document" "idp_pstore" {
             "kms:Decrypt"
         ]
         resources = [
-            "${local.ipolicy_idp_pstore_arn_root}/${local.idp_ssm_pstore_names.issuer}",
-            "${local.ipolicy_idp_pstore_arn_root}/${local.idp_ssm_pstore_names.client}",
-            "${local.ipolicy_idp_pstore_arn_root}/${local.idp_ssm_pstore_names.secret}",
+            "${local.ipolicy_idp_pstore_arn_root}/${local.idp_config}"
         ]
     }
 }

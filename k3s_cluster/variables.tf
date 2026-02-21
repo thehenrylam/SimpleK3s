@@ -128,9 +128,7 @@ variable "applications" {
     type        = object({
         argocd  = optional(object({
             idp_ssm_pstore_names = object({
-                issuer = string 
-                client = string 
-                secret = string 
+                idp_config = string 
             })
             domain_name = string
         }))

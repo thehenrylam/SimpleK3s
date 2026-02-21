@@ -25,9 +25,6 @@ locals {
     domain_name     = "${local.dns_prefix}.${local.dns_basename}"
 
     idp_ssm_pstore_names = {
-        issuer  = "/idp-standalone/idp-standalone/idp_issuer" 
-        client  = "/idp-standalone/idp-standalone/idp_client" 
-        secret  = "/idp-standalone/idp-standalone/idp_secret" 
         # IdP SSM Parameter Names
         #   What its used for: Used to enable SSO for apps
         #   Required Actions:
@@ -68,14 +65,6 @@ module "k3s_cluster" {
 
     applications = {
         argocd = { # Deployer: ArgoCD   
-            # IdP SSM Parameter Names
-            #   What its used for: Used to enable SSO for apps like ArgoCD 
-            #   Required Actions:
-            #       - Go to SimpleK3s/examples/ex_idp/
-            #       - Create the IdP resource (Customize the DNS name)
-            #       - Use the SSM Param Output via `terraform output -json`
-            #           - NOTE: Default values are already provided 
-            #             (Only need to change this if you change the idp-standalone nickname)
             idp_ssm_pstore_names    = local.idp_ssm_pstore_names
             domain_name             = local.domain_name
         }
