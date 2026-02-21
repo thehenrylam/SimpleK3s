@@ -55,6 +55,9 @@ function apply_argocd() {
     # Wait for ArgoCD to be ready
     wait_argocd || return 1
 
+    # Additional wait time to 15 seconds
+    sleep 15
+
     # Re-roll the rollout of the ArgoCD module 
     # Why: 
     #   - This is to help work around a weird issue with the argocd.yaml file
