@@ -60,6 +60,11 @@ if [[ "$COUNT_INDEX" -eq 0 ]]; then
     if [ -f "$SCRIPT_DIR/optional_argocd.sh" ]; then
         "$SCRIPT_DIR/optional_argocd.sh" || exit 1
     fi 
+
+    # Optional: Apply the Monitoring application
+    if [ -f "$SCRIPT_DIR/optional_monitoring.sh" ]; then
+        "$SCRIPT_DIR/optional_monitoring.sh" || exit 1
+    fi 
 fi
 
 

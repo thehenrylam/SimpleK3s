@@ -20,6 +20,7 @@ locals {
     pstore_issuer_name = "idp-pstore-issuer-${var.nickname}" 
     pstore_client_name = "idp-pstore-client-${var.nickname}" 
     pstore_secret_name = "idp-pstore-secret-${var.nickname}" 
+    pstore_config_name = "idp-pstore-config-${var.nickname}"
 
     # SSM parameters key root
     ssm_parameters_key_root = "/idp-standalone/${var.nickname}"

@@ -28,6 +28,23 @@ locals {
         issuer  = "/idp-standalone/idp-standalone/idp_issuer" 
         client  = "/idp-standalone/idp-standalone/idp_client" 
         secret  = "/idp-standalone/idp-standalone/idp_secret" 
+        # IdP SSM Parameter Names
+        #   What its used for: Used to enable SSO for apps
+        #   Required Actions:
+        #       - Go to SimpleK3s/examples/ex_idp/
+        #       - Create the IdP resource (Customize the DNS name)
+        #       - Use the SSM Param Output via `terraform output -json`
+        #           - NOTE: Default values are already provided 
+        #             (Only need to change this if you change the idp-standalone nickname)
+        # idp_config's should have a JSON string the following format:
+        # {
+        #     issuer        = __IDP_ISSUER_URL__
+        #     client_id     = __IDP_CLIENT_ID__
+        #     client_secret = __IDP_CLIENT_SECRET__
+        #     domain        = __IDP_HOSTED_UI_BASE_DOMAIN__
+        # }
+        # Use the module within ../modules/idp_cognito to create this config
+        idp_config  = "/idp-standalone/idp-standalone/idp_config"
     }
 }
 
@@ -59,6 +76,10 @@ module "k3s_cluster" {
             #       - Use the SSM Param Output via `terraform output -json`
             #           - NOTE: Default values are already provided 
             #             (Only need to change this if you change the idp-standalone nickname)
+            idp_ssm_pstore_names    = local.idp_ssm_pstore_names
+            domain_name             = local.domain_name
+        }
+        monitoring = { # Monitoring: Prometheus & Grafana
             idp_ssm_pstore_names    = local.idp_ssm_pstore_names
             domain_name             = local.domain_name
         }

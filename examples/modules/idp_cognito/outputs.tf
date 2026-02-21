@@ -35,6 +35,10 @@ output "userinfo_url" {
     value = "${local.hosted_ui_base}/oauth2/userInfo"
 }
 
+output "pstore_key_config" {
+    value = aws_ssm_parameter.idp_config.name
+}
+
 output "pstore_key_issuer" {
     value = aws_ssm_parameter.idp_issuer.name
 }

@@ -33,7 +33,8 @@ resource "aws_instance" "ec2_node" {
         s3key_install_script    = local.s3obj_data[0].key,
         s3key_default           = concat(
             [ for obj in aws_s3_object.bootstrap_s3_obj_default : obj.key ], # Default files
-            try(module.k3s_app_argocd[0].s3obj_list, []) # (Optional) ArgoCD files
+            try(module.k3s_app_argocd[0].s3obj_list, []), # (Optional) ArgoCD files
+            try(module.k3s_app_monitoring[0].s3obj_list, []) # (Optional) Monitoring file
         ),
     })
 

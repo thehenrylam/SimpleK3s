@@ -1,0 +1,182 @@
+# Namespace (optional; HelmChart can create it too, but having it here is fine)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+
+---
+# SecretStore: AWS SSM Parameter Store for monitoring namespace
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  name: parameterstore
+  namespace: monitoring
+spec:
+  provider:
+    aws:
+      service: ParameterStore
+      region: ${idp_config_region}
+
+---
+# ExternalSecret: pulls issuer/client/secret into a Secret named grafana-sso
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: grafana-oidc-into-secret
+  namespace: monitoring
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: parameterstore
+    kind: SecretStore
+  target:
+    name: grafana-sso
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      type: Opaque
+  data:
+    - secretKey: oidc.cognito.domain
+      remoteRef:
+        key: ${idp_ssm_pstore_names.idp_config}
+        property: domain
+    - secretKey: oidc.cognito.client
+      remoteRef:
+        key: ${idp_ssm_pstore_names.idp_config}
+        property: client_id
+    - secretKey: oidc.cognito.secret
+      remoteRef:
+        key: ${idp_ssm_pstore_names.idp_config}
+        property: client_secret
+
+
+---
+# HelmChart: installs your wrapper chart from GitHub Pages
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: prometheus
+  namespace: kube-system
+spec:
+  repo: "https://thehenrylam.github.io/EasyHelmChart-Prometheus/"
+  chart: "prometheus"
+  version: "0.1.0-alpha.0"
+  targetNamespace: "monitoring"
+  createNamespace: true
+
+  # Keep this minimal; put most config in HelmChartConfig
+  valuesContent: |-
+    kube-prometheus-stack:
+      grafana:
+        enabled: true
+
+---
+# HelmChartConfig: configures the already-installed HelmChart release ("prometheus")
+# (name+namespace MUST match the HelmChart above)
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: prometheus
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    kube-prometheus-stack:
+      grafana:
+        grafana.ini:
+          server:
+            root_url: "https://${domain_name}/grafana"
+            serve_from_sub_path: true
+
+          users:
+            auto_assign_org_role: Viewer
+
+          auth:
+            disable_login_form: false
+            oauth_auto_login: false
+
+          auth.generic_oauth:
+            enabled: true
+            name: Cognito
+            allow_sign_up: true
+            scopes: "openid profile email"
+            # These endpoints depend on your IdP; for Cognito they're typically:
+            # TEMPLATING ON TERRAFORM: Using two $ chars allows Terraform to 'ignore' that var from templating
+            auth_url: "$${GF_OIDC_DOMAIN}/oauth2/authorize"
+            token_url: "$${GF_OIDC_DOMAIN}/oauth2/token"
+            api_url: "$${GF_OIDC_DOMAIN}/oauth2/userInfo"
+
+        # Inject env vars from the grafana-sso Secret created by External Secrets
+        envValueFrom:
+          GF_OIDC_DOMAIN:
+            secretKeyRef:
+              name: grafana-sso
+              key: oidc.cognito.domain
+          # Same as setting auth.generic_oauth.client_id
+          GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
+            secretKeyRef:
+              name: grafana-sso
+              key: oidc.cognito.client
+          # Same as setting auth.generic_oauth.client_secret
+          GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET: 
+            secretKeyRef:
+              name: grafana-sso
+              key: oidc.cognito.secret
+
+      prometheus:
+        prometheusSpec:
+          routePrefix: /prometheus
+          externalUrl: https://${domain_name}/prometheus
+
+---
+# Ingress: Prometheus UI at https://${domain_name}/prometheus/
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: prometheus-ui
+  namespace: monitoring
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  tls:
+    - hosts:
+        - disabled.${domain_name} # Disabled to prevent unauthorized access, to allow access, use: ${domain_name}
+  rules:
+    - host: disabled.${domain_name} # Disabled to prevent unauthorized access, to allow access, use: ${domain_name}
+      http:
+        paths:
+          - path: /prometheus
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus-kube-prometheus-prometheus
+                port:
+                  number: 9090
+
+---
+# Ingress: Grafana UI at https://${domain_name}/grafana/
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana-ui
+  namespace: monitoring
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  tls:
+    - hosts:
+        - ${domain_name}
+  rules:
+    - host: ${domain_name}
+      http:
+        paths:
+          - path: /grafana
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus-grafana
+                port:
+                  number: 80
