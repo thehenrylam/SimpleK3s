@@ -55,4 +55,5 @@ manifests/jenkins.yaml
 **/bootstrap/**/argocd.yaml
 **/bootstrap/**/monitoring.yaml
 **/bootstrap/**/traefik-config.yaml
+**/bootstrap/**/traefik-middleware.yaml
 **/bootstrap/**/simplek3s.env

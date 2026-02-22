@@ -147,6 +147,14 @@ locals {
                 nodeport_https  = var.k3s_nodeport_traefik_https
             }
         },
+        { # Traefik Middleware (Reroute Network Traffic from HTTP to HTTPs)
+            desc        = "Traefik Middleware",
+            key         = "${local.s3_bstrap_key_root_default}/manifests/traefik-middleware.yaml",
+            src         = "${path.module}/bootstrap/default/manifests/traefik-middleware.yaml",
+            template    = {
+                ingress_http_port   = 80
+            }
+        },
         { # External Secrets Manifests
             desc        = "External Secrets Manifests",
             key         = "${local.s3_bstrap_key_root_default}/manifests/external-secrets.yaml",

@@ -42,7 +42,25 @@ function wait_for_traefik() {
     log_okay "traefik is ready!"
 }
 
-function apply_traefik() {
+function wait_for_traefik_middleware() {
+    log_info "Waiting for traefik middleware to be ready"
+
+    log_info "Waiting for traefik middleware to be ready"
+    wait_for_cmd_3min sudo kubectl -n kube-system get middleware https-redirect || {
+        log_fail "traefik middleware never appeared"
+        return 1
+    }
+
+    log_info "Waiting for traefik ingressroute to be ready"
+    wait_for_cmd_3min sudo kubectl -n kube-system get ingressroute web-http-catchall-redirect || {
+        log_fail "traefik ingressroute never appeared"
+        return 1
+    }
+
+    log_info "traefik middleware is ready!"
+}
+
+function apply_traefik_config() {
     log_info "Writing Traefik HelmChartConfig manifest"
 
     # Make sure the manifests directory exists
@@ -58,6 +76,24 @@ function apply_traefik() {
     log_okay "Traefik HelmChartConfig written to $TRAEFIK_MANIFEST_FILEPATH"
 
     log_okay "Wrote Traefik HelmChartConfig manifest"
+}
+
+function apply_traefik_middleware() {
+    log_info "Writing Traefik Middleware manifest"
+
+    # Make sure the manifests directory exists
+    log_info "Make sure that '$K3S_MANIFEST_DIR/' is initialized"
+    sudo mkdir -p "$K3S_MANIFEST_DIR/" || return 1
+    log_okay "Confirmed that '$K3S_MANIFEST_DIR/' has been initialized"
+
+    # Transfer the Traefik manifest file to the /var/lib/rancher/k3s/server/manifests/ folder
+    TRAEFIK_PENDING_FILEPATH="$SCRIPT_DIR/manifests/traefik-middleware.yaml"
+    TRAEFIK_MANIFEST_FILEPATH="$K3S_MANIFEST_DIR/traefik-middleware.yaml"
+    log_info "Apply Traefik Middleware to $TRAEFIK_MANIFEST_FILEPATH"
+    sudo cp "$TRAEFIK_PENDING_FILEPATH" "$TRAEFIK_MANIFEST_FILEPATH" || return 1
+    log_okay "Traefik Middleware written to $TRAEFIK_MANIFEST_FILEPATH"
+
+    log_okay "Wrote Traefik Middleware manifest"
 }
 
 log_info "$0: LAUNCHED"
@@ -76,13 +112,23 @@ wait_for_traefik || {
     exit 1
 }
 
-apply_traefik || {
+apply_traefik_config || {
     log_fail "Failed to apply Traefik"
+    exit 1
+}
+
+apply_traefik_middleware || {
+    log_fail "Failed to apply Traefik (Middleware)"
     exit 1
 }
 
 wait_for_traefik || {
     log_fail "Unable to confirm that Traefik is ready"
+    exit 1
+}
+
+wait_for_traefik_middleware || {
+    log_fail "Unable to confirm that Traefik (Middleware) is ready"
     exit 1
 }
 
