@@ -51,7 +51,7 @@ function wait_prometheus_operator() {
 
 function wait_prometheus_metrics() {
     local NS="monitoring"
-    local DEPLOY_NAME="prometheus-kube-prometheus-metrics"
+    local DEPLOY_NAME="prometheus-kube-state-metrics"
     wait_generic "${NS}" "${DEPLOY_NAME}" || return 1
 }
 
