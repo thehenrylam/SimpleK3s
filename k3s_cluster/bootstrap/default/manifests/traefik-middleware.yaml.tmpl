@@ -1,0 +1,32 @@
+# Set up a middleware service to redirect HTTP to HTTPs
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: https-redirect
+  namespace: kube-system
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: web-http-catchall-redirect
+  namespace: kube-system
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: PathPrefix(`/`)
+      kind: Rule
+      priority: 1
+      middlewares:
+        - name: https-redirect
+          namespace: kube-system
+      services:
+        # service is required; won't be used because redirect happens first
+        - name: traefik
+          namespace: kube-system
+          port: ${ingress_http_port}
