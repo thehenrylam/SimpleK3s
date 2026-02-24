@@ -155,6 +155,28 @@ locals {
                 ingress_http_port   = 80
             }
         },
+        { # Kyverno Manifests
+            desc        = "Kyverno Manifests",
+            key         = "${local.s3_bstrap_key_root_default}/manifests/kyverno.yaml",
+            src         = "${path.module}/bootstrap/default/manifests/kyverno.yaml",
+            template    = {
+                kyverno_chart_version       = "3.7.1"
+                kyverno_replica_count       = 1
+                kyverno_cpu_request         = "100m"
+                kyverno_mem_request         = "256Mi"
+                kyverno_cpu_limit           = "500m"
+                kyverno_mem_limit           = "768Mi"
+                kyverno_schedule_on_control_plane = true
+            }
+        },
+        { # Kyverno (baseline-policies) Manifests
+            desc        = "Kyverno (baseline-policies) Manifests",
+            key         = "${local.s3_bstrap_key_root_default}/manifests/kyverno-baseline-policies.yaml",
+            src         = "${path.module}/bootstrap/default/manifests/kyverno-baseline-policies.yaml",
+            template    = {
+                control_plane_toleration_namespace_list = join("\n", [for ns in ["kube-system", "kyverno", "external-secrets", "argocd", "monitoring", "jenkins"] : "                - ${ns}"])
+            }
+        },
         { # External Secrets Manifests
             desc        = "External Secrets Manifests",
             key         = "${local.s3_bstrap_key_root_default}/manifests/external-secrets.yaml",
@@ -195,6 +217,12 @@ locals {
             desc        = "Init Script (Apply Traefik)",
             key         = "${local.s3_bstrap_key_root_default}/04_apply_traefik.sh",
             src         = "${path.module}/bootstrap/default/04_apply_traefik.sh",
+            template    = null
+        },
+        {
+            desc        = "Init Script (Apply Kyverno)",
+            key         = "${local.s3_bstrap_key_root_default}/05_apply_kyverno.sh",
+            src         = "${path.module}/bootstrap/default/05_apply_kyverno.sh",
             template    = null
         },
         {

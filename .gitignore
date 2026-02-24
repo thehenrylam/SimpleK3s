@@ -56,4 +56,6 @@ manifests/jenkins.yaml
 **/bootstrap/**/monitoring.yaml
 **/bootstrap/**/traefik-config.yaml
 **/bootstrap/**/traefik-middleware.yaml
+**/bootstrap/**/kyverno.yaml
+**/bootstrap/**/kyverno-baseline-policies.yaml
 **/bootstrap/**/simplek3s.env

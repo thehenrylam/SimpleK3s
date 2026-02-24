@@ -1,0 +1,30 @@
+# DEFAULT ADD-ON: Kyverno (Baseline Policies)
+# Allow support-type namespaces to be run on control plane nodes
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: default-avoid-control-plane
+spec:
+  background: false
+  rules:
+    - name: add-node-affinity-avoid-control-plane
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+${control_plane_toleration_namespace_list}
+      mutate:
+        patchStrategicMerge:
+          spec:
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: node-role.kubernetes.io/control-plane
+                          operator: DoesNotExist

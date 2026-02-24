@@ -47,12 +47,14 @@ fi
 # Setup the k3s (if COUNT_INDEX == 0 then install as "controller", otherwise install as "server")
 NODE_TYPE=$([ $COUNT_INDEX -eq 0 ] && echo "controller" || echo "server")
 "$SCRIPT_DIR/03_install_k3s.sh" "$NODE_TYPE" || exit 1
-"$SCRIPT_DIR/03a_configure_k3s.sh" "$NODE_TYPE" || exit 1
 
 # Execute additional scripts for the controller
 if [[ "$COUNT_INDEX" -eq 0 ]]; then
     # Apply the configs of Traefik
     "$SCRIPT_DIR/04_apply_traefik.sh" || exit 1
+
+    # # Apply Kyverno (MUST be first Add-On to be applied)
+    "$SCRIPT_DIR/05_apply_kyverno.sh" || exit 1
 
     # Apply External Secrets
     "$SCRIPT_DIR/05_apply_external-secrets.sh" || exit 1
