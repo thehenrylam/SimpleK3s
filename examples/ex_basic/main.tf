@@ -59,6 +59,7 @@ module "k3s_cluster" {
     nickname                = var.nickname 
     aws_region              = var.aws_region
     node_count              = var.node_count 
+    ec2_instance_type       = "t4g.medium"
     admin_ip_list           = var.admin_ip_list 
     vpc_id                  = module.vpc_cloud.vpc_id 
     subnet_ids              = module.vpc_cloud.subnet_public_ids 
