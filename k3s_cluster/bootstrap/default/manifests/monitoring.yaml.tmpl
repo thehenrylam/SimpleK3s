@@ -82,6 +82,13 @@ spec:
   valuesContent: |-
     kube-prometheus-stack:
       grafana:
+        resources:
+          requests:
+            cpu: 50m
+            memory: 256Mi
+          limits:
+            cpu: 300m
+            memory: 512Mi
         grafana.ini:
           server:
             root_url: "https://${domain_name}/grafana"
@@ -126,6 +133,50 @@ spec:
         prometheusSpec:
           routePrefix: /prometheus
           externalUrl: https://${domain_name}/prometheus
+          resources:
+            requests:
+              cpu: 200m
+              memory: 1Gi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+
+      alertmanager:
+        alertmanagerSpec:
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+
+      prometheusOperator:
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+
+      kube-state-metrics:
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+
+      prometheus-node-exporter:
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
 
 ---
 # Ingress: Prometheus UI at https://${domain_name}/prometheus/
