@@ -28,3 +28,41 @@ ${control_plane_toleration_namespace_list}
                     - matchExpressions:
                         - key: node-role.kubernetes.io/control-plane
                           operator: DoesNotExist
+---
+# Baseline guardrail: require CPU/memory requests + limits for pods (audit first, enforce later)
+# Notes:
+# - This only affects namespaces NOT listed below (we exclude core/system + support namespaces)
+# - Requests help scheduling decisions; limits prevent runaway containers.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-requests-limits
+spec:
+  validationFailureAction: Audit # $${kyverno_validation_action} # Audit | Enforce
+  background: true
+  rules:
+    - name: require-requests-limits
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kyverno
+      # $${control_plane_toleration_namespace_list}
+      validate:
+        message: "Set CPU/memory requests and limits for each container."
+        pattern:
+          spec:
+            containers:
+              - resources:
+                  requests:
+                    cpu: "?*"
+                    memory: "?*"
+                  limits:
+                    cpu: "?*"
+                    memory: "?*"
