@@ -15,7 +15,7 @@ spec:
   provider:
     aws:
       service: ParameterStore
-      region: ${idp_config_region}
+      region: ${region_idp_config}
 
 ---
 # ExternalSecret: pulls 3 SSM SecureString params into a single Kubernetes Secret
@@ -39,15 +39,15 @@ spec:
   data:
     - secretKey: oidc.cognito.issuer
       remoteRef:
-        key: ${idp_ssm_pstore_names.idp_config}
+        key: ${pstore_idp_config}
         property: issuer  
     - secretKey: oidc.cognito.client
       remoteRef:
-        key: ${idp_ssm_pstore_names.idp_config}
+        key: ${pstore_idp_config}
         property: client_id 
     - secretKey: oidc.cognito.secret
       remoteRef:
-        key: ${idp_ssm_pstore_names.idp_config}
+        key: ${pstore_idp_config}
         property: client_secret 
 
 ---
@@ -74,66 +74,66 @@ spec:
     controller:
       resources:
         requests:
-          cpu: 100m
-          memory: 256Mi
+          cpu: ${cfg.controller.resources.req.cpu} # 100m
+          memory: ${cfg.controller.resources.req.mem} # 256Mi
         limits:
-          cpu: 500m
-          memory: 512Mi
+          cpu: ${cfg.controller.resources.lmt.cpu} # 500m
+          memory: ${cfg.controller.resources.lmt.mem} # 512Mi
 
     repoServer:
       resources:
         requests:
-          cpu: 100m
-          memory: 256Mi
+          cpu: ${cfg.repoServer.resources.req.cpu} # 100m
+          memory: ${cfg.repoServer.resources.req.mem} # 256Mi
         limits:
-          cpu: 500m
-          memory: 512Mi
+          cpu: ${cfg.repoServer.resources.lmt.cpu} # 500m
+          memory: ${cfg.repoServer.resources.lmt.mem} # 512Mi
 
     applicationSet:
       resources:
         requests:
-          cpu: 50m
-          memory: 128Mi
+          cpu: ${cfg.applicationSet.resources.req.cpu} # 50m
+          memory: ${cfg.applicationSet.resources.req.mem} # 128Mi
         limits:
-          cpu: 200m
-          memory: 256Mi
+          cpu: ${cfg.applicationSet.resources.lmt.cpu} # 200m
+          memory: ${cfg.applicationSet.resources.lmt.mem} # 256Mi
 
     dex:
       resources:
         requests:
-          cpu: 25m
-          memory: 64Mi
+          cpu: ${cfg.dex.resources.req.cpu} # 25m
+          memory: ${cfg.dex.resources.req.mem} # 64Mi
         limits:
-          cpu: 100m
-          memory: 128Mi
+          cpu: ${cfg.dex.resources.lmt.cpu} # 100m
+          memory: ${cfg.dex.resources.lmt.mem} # 128Mi
 
     redis:
       resources:
         requests:
-          cpu: 25m
-          memory: 64Mi
+          cpu: ${cfg.redis.resources.req.cpu} # 25m
+          memory: ${cfg.redis.resources.req.mem} # 64Mi
         limits:
-          cpu: 200m
-          memory: 256Mi
+          cpu: ${cfg.redis.resources.lmt.cpu} # 200m
+          memory: ${cfg.redis.resources.lmt.mem} # 256Mi
 
     notifications:
       resources:
         requests:
-          cpu: 25m
-          memory: 64Mi
+          cpu: ${cfg.notifications.resources.req.cpu} # 25m
+          memory: ${cfg.notifications.resources.req.mem} # 64Mi
         limits:
-          cpu: 200m
-          memory: 256Mi
+          cpu: ${cfg.notifications.resources.lmt.cpu} # 200m
+          memory: ${cfg.notifications.resources.lmt.mem} # 256Mi
     server:
       service:
         type: ClusterIP
       resources:
         requests:
-          cpu: 50m
-          memory: 128Mi
+          cpu: ${cfg.server.resources.req.cpu} # 50m
+          memory: ${cfg.server.resources.req.mem} # 128Mi
         limits:
-          cpu: 250m
-          memory: 256Mi
+          cpu: ${cfg.server.resources.lmt.cpu} # 250m
+          memory: ${cfg.server.resources.lmt.mem} # 256Mi
 
 ---
 # Ingress (Traefik): exposes the Argo CD server UI/API externally at https://${domain_name}/argocd
@@ -206,5 +206,3 @@ data:
   server.basehref: "/argocd"
   server.rootpath: "/argocd"
   server.insecure: "true"
-
-

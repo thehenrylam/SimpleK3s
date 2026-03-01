@@ -24,6 +24,23 @@ locals {
     dns_prefix      = coalesce(var.dns.prefix, "k3s")
     domain_name     = "${local.dns_prefix}.${local.dns_basename}"
 
+    # IdP SSM Parameter Names
+    #   What its used for: Used to enable SSO for apps
+    #   Required Actions:
+    #       - Go to SimpleK3s/examples/ex_idp/
+    #       - Create the IdP resource (Customize the DNS name)
+    #       - Use the SSM Param Output via `terraform output -json`
+    #           - NOTE: Default values are already provided 
+    #             (Only need to change this if you change the idp-standalone nickname)
+    # idp_config's should have a JSON string the following format:
+    # {
+    #     issuer        = __IDP_ISSUER_URL__
+    #     client_id     = __IDP_CLIENT_ID__
+    #     client_secret = __IDP_CLIENT_SECRET__
+    #     domain        = __IDP_HOSTED_UI_BASE_DOMAIN__
+    # }
+    # Use the module within ../modules/idp_cognito to create this config
+    pstore_idp_config   = "/idp-standalone/idp-standalone/idp_config"
     idp_ssm_pstore_names = {
         # IdP SSM Parameter Names
         #   What its used for: Used to enable SSO for apps
@@ -41,7 +58,7 @@ locals {
         #     domain        = __IDP_HOSTED_UI_BASE_DOMAIN__
         # }
         # Use the module within ../modules/idp_cognito to create this config
-        idp_config  = "/idp-standalone/idp-standalone/idp_config"
+        idp_config  = local.pstore_idp_config
     }
 }
 
@@ -66,7 +83,7 @@ module "k3s_cluster" {
 
     applications = {
         argocd = { # Deployer: ArgoCD   
-            idp_ssm_pstore_names    = local.idp_ssm_pstore_names
+            pstore_idp_config       = local.pstore_idp_config
             domain_name             = local.domain_name
         }
         monitoring = { # Monitoring: Prometheus & Grafana

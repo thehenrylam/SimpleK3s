@@ -127,9 +127,7 @@ variable "applications" {
     description = "Pre-built applications (For easy setups)"
     type        = object({
         argocd  = optional(object({
-            idp_ssm_pstore_names = object({
-                idp_config = string 
-            })
+            pstore_idp_config = string
             domain_name = string
         }))
         monitoring = optional(object({

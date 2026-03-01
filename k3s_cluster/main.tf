@@ -331,31 +331,17 @@ module "cluster_app_argocd" {
     nickname        = var.nickname 
     settings        = var.applications.argocd 
     
-    # IAM settings
-    iam_role_name   = aws_iam_role.irole_ec2.name 
-    iam_config      = {
-        partition   = data.aws_partition.current.partition
+    # S3 settings
+    s3_config = {
+        id      = aws_s3_bucket.bootstrap.id
+        keyroot = local.s3_bstrap_key_root_default
     }
 
-    # S3 settings
-    s3_bucket_id    = aws_s3_bucket.bootstrap.id
-    s3obj_data      = [
-        {
-            desc        = "ArgoCD config all-in-one (HelmChart, Secrets, ConfigMaps, etc)" 
-            key         = "${local.s3_bstrap_key_root_default}/manifests/argocd.yaml" 
-            src         = "${path.module}/bootstrap/default/manifests/argocd.yaml" 
-            template    = jsonencode({
-                domain_name             = var.applications.argocd.domain_name 
-                idp_ssm_pstore_names    = var.applications.argocd.idp_ssm_pstore_names 
-            })
-        },
-        {
-            desc        = "ArgoCD installation script (to be executed by the Default Init Script)"
-            key         = "${local.s3_bstrap_key_root_default}/optional_argocd.sh"
-            src         = "${path.module}/bootstrap/default/optional_argocd.sh"
-            template    = null
-        }
-    ]
+    # IAM settings 
+    iam_config      = {
+        role_name   = aws_iam_role.irole_ec2.name
+        partition   = data.aws_partition.current.partition
+    }
 }
 
 # IF ENABLED: Check and Set up all of the needed files for Monitoring (Prometheus & Grafana) 
