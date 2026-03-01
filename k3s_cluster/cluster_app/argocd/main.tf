@@ -93,7 +93,7 @@ module "aws_s3obj" {
                 domain_name         = var.settings.domain_name 
                 pstore_idp_config   = var.settings.pstore_idp_config
                 region_idp_config   = module.aws_pstore.processed_pstores[var.settings.pstore_idp_config].region
-                cfg = local.performance_profile["standard"] # merge({}, local.performance_profile["standard"])
+                cfg = merge({}, local.performance_profile["standard"])
             })
         },
         {
