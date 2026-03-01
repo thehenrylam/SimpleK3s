@@ -15,7 +15,7 @@ spec:
   provider:
     aws:
       service: ParameterStore
-      region: ${idp_config_region}
+      region: ${region_idp_config}
 
 ---
 # ExternalSecret: pulls issuer/client/secret into a Secret named grafana-sso
@@ -38,15 +38,15 @@ spec:
   data:
     - secretKey: oidc.cognito.domain
       remoteRef:
-        key: ${idp_ssm_pstore_names.idp_config}
+        key: ${pstore_idp_config}
         property: domain
     - secretKey: oidc.cognito.client
       remoteRef:
-        key: ${idp_ssm_pstore_names.idp_config}
+        key: ${pstore_idp_config}
         property: client_id
     - secretKey: oidc.cognito.secret
       remoteRef:
-        key: ${idp_ssm_pstore_names.idp_config}
+        key: ${pstore_idp_config}
         property: client_secret
 
 
@@ -60,7 +60,7 @@ metadata:
 spec:
   repo: "https://thehenrylam.github.io/EasyHelmChart-Prometheus/"
   chart: "prometheus"
-  version: "0.1.0-alpha.0"
+  version: "${version}"
   targetNamespace: "monitoring"
   createNamespace: true
 
@@ -84,11 +84,11 @@ spec:
       grafana:
         resources:
           requests:
-            cpu: 50m
-            memory: 256Mi
+            cpu: ${cfg.grafana.resources.req.cpu} # 50m
+            memory: ${cfg.grafana.resources.req.mem} # 256Mi
           limits:
-            cpu: 300m
-            memory: 512Mi
+            cpu: ${cfg.grafana.resources.lmt.cpu} # 300m
+            memory: ${cfg.grafana.resources.lmt.mem} # 512Mi
         grafana.ini:
           server:
             root_url: "https://${domain_name}/grafana"
@@ -135,48 +135,48 @@ spec:
           externalUrl: https://${domain_name}/prometheus
           resources:
             requests:
-              cpu: 200m
-              memory: 1Gi
+              cpu: ${cfg.prometheus.resources.req.cpu} # 200m
+              memory: ${cfg.prometheus.resources.req.mem} # 1Gi
             limits:
-              cpu: 1000m
-              memory: 2Gi
+              cpu: ${cfg.prometheus.resources.lmt.cpu} # 1000m
+              memory: ${cfg.prometheus.resources.lmt.mem} # 2Gi
 
       alertmanager:
         alertmanagerSpec:
           resources:
             requests:
-              cpu: 50m
-              memory: 128Mi
+              cpu: ${cfg.alertmanager.resources.req.cpu} # 50m
+              memory: ${cfg.alertmanager.resources.req.mem} # 128Mi
             limits:
-              cpu: 200m
-              memory: 256Mi
+              cpu: ${cfg.alertmanager.resources.lmt.cpu} # 200m
+              memory: ${cfg.alertmanager.resources.lmt.mem} # 256Mi
 
       prometheusOperator:
         resources:
           requests:
-            cpu: 100m
-            memory: 256Mi
+            cpu: ${cfg.prometheusOperator.resources.req.cpu} # 100m
+            memory: ${cfg.prometheusOperator.resources.req.mem} # 256Mi
           limits:
-            cpu: 500m
-            memory: 512Mi
+            cpu: ${cfg.prometheusOperator.resources.lmt.cpu} # 500m
+            memory: ${cfg.prometheusOperator.resources.lmt.mem} # 512Mi
 
       kube-state-metrics:
         resources:
           requests:
-            cpu: 50m
-            memory: 128Mi
+            cpu: ${cfg.kube-state-metrics.resources.req.cpu} # 50m
+            memory: ${cfg.kube-state-metrics.resources.req.mem} # 128Mi
           limits:
-            cpu: 200m
-            memory: 256Mi
+            cpu: ${cfg.kube-state-metrics.resources.lmt.cpu} # 200m
+            memory: ${cfg.kube-state-metrics.resources.lmt.mem} # 256Mi
 
       prometheus-node-exporter:
         resources:
           requests:
-            cpu: 25m
-            memory: 64Mi
+            cpu: ${cfg.prometheus-node-exporter.resources.req.cpu} # 25m
+            memory: ${cfg.prometheus-node-exporter.resources.req.mem} # 64Mi
           limits:
-            cpu: 100m
-            memory: 128Mi
+            cpu: ${cfg.prometheus-node-exporter.resources.lmt.cpu} # 100m
+            memory: ${cfg.prometheus-node-exporter.resources.lmt.mem} # 128Mi
 
 ---
 # Ingress: Prometheus UI at https://${domain_name}/prometheus/

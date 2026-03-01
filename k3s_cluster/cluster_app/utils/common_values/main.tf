@@ -25,5 +25,17 @@ output "resource_presets" {
             cpu = "500m"
             mem = "512Mi"
         }
+        ult = {
+            cpu = "1000m"
+            mem = "1Gi"
+        }
+        xu = {
+            cpu = "2000m"
+            mem = "2Gi"
+        }
+        xxu = {
+            cpu = "4000m"
+            mem = "4Gi"
+        }
     }
 }

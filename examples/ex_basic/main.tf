@@ -87,7 +87,7 @@ module "k3s_cluster" {
             domain_name             = local.domain_name
         }
         monitoring = { # Monitoring: Prometheus & Grafana
-            idp_ssm_pstore_names    = local.idp_ssm_pstore_names
+            pstore_idp_config       = local.pstore_idp_config
             domain_name             = local.domain_name
         }
     }
