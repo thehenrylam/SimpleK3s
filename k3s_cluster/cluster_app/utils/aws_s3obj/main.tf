@@ -1,7 +1,4 @@
 locals {
-    # ...
-    extra_vars = {}
-
     tags_default = {
         Nickname    = var.nickname
         Module      = var.module_name
@@ -22,7 +19,7 @@ resource "terraform_data" "s3obj_check" {
         # IF template IS null       : Check if file exists
         # IF template ISN'T null    : Check if file can be templated
         sha_check = (
-            each.value == null ? filesha256( each.key ) : sha256( templatefile( "${each.key}.tmpl", merge( jsondecode(each.value), local.extra_vars ) ) )
+            each.value == null ? filesha256( each.key ) : sha256( templatefile( "${each.key}.tmpl", jsondecode(each.value) ) )
         )
     }
 }
@@ -47,6 +44,6 @@ resource "aws_s3_object" "s3obj" {
 # Template the data files (if applicable)
 resource "local_file" "s3obj_tmpl" {
     for_each    = { for obj in var.s3obj_data : obj.src => obj.template if obj.template != null }
-    content     = templatefile("${each.key}.tmpl", merge( jsondecode(each.value), local.extra_vars ))
+    content     = templatefile("${each.key}.tmpl", jsondecode(each.value))
     filename    = each.key
 }
