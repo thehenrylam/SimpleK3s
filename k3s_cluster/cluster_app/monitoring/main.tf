@@ -1,5 +1,5 @@
 locals {
-    module_name = "k3s_app_monitoring"
+    module_name = "cluster_app_monitoring"
 
     iam_config = {
         partition   = coalesce(var.iam_config.partition, "*")

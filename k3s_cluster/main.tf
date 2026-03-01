@@ -325,7 +325,7 @@ locals {
 #   - IAM rights settings (e.g. role name of the EC2 env to allow getting secret settings from the ParameterStore)
 module "k3s_app_argocd" {
     count           = var.applications.argocd != null ? 1 : 0 
-    source          = "./k3s_app/argocd" 
+    source          = "./cluster_app/argocd" 
     
     # General settings
     nickname        = var.nickname 
@@ -364,7 +364,7 @@ module "k3s_app_argocd" {
 #   - IAM rights settings (e.g. role name of the EC2 env to allow getting secret settings from the ParameterStore)
 module "k3s_app_monitoring" {
     count           = var.applications.monitoring != null ? 1 : 0 
-    source          = "./k3s_app/monitoring" 
+    source          = "./cluster_app/monitoring" 
     
     # General settings
     nickname        = var.nickname 
