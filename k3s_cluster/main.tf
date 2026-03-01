@@ -323,7 +323,7 @@ locals {
 # Handles:
 #   - S3 object upload
 #   - IAM rights settings (e.g. role name of the EC2 env to allow getting secret settings from the ParameterStore)
-module "k3s_app_argocd" {
+module "cluster_app_argocd" {
     count           = var.applications.argocd != null ? 1 : 0 
     source          = "./cluster_app/argocd" 
     
@@ -362,7 +362,7 @@ module "k3s_app_argocd" {
 # Handles:
 #   - S3 object upload
 #   - IAM rights settings (e.g. role name of the EC2 env to allow getting secret settings from the ParameterStore)
-module "k3s_app_monitoring" {
+module "cluster_app_monitoring" {
     count           = var.applications.monitoring != null ? 1 : 0 
     source          = "./cluster_app/monitoring" 
     

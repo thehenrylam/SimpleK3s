@@ -1,5 +1,5 @@
 locals {
-    module_name = "k3s_app_argocd"
+    module_name = "cluster_app_argocd"
 
     iam_config = {
         partition   = coalesce(var.iam_config.partition, "*")
