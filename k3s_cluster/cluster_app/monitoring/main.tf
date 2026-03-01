@@ -9,56 +9,6 @@ locals {
 
     # Resource presets (to put into performance profiles)
     resource_presets = module.common.resource_presets
-
-    performance_profile = {
-        standard = {
-            grafana = {
-                resources = {
-                    req = {
-                        cpu = local.resource_presets.sml.cpu
-                        mem = local.resource_presets.med.mem
-                    }
-                    lmt = local.resource_presets.xxl
-                }
-            }
-            prometheus = {
-                resources = {
-                    req = {
-                        cpu = local.resource_presets.lrg.cpu
-                        mem = local.resource_presets.ult.mem
-                    }
-                    lmt = {
-                        cpu = local.resource_presets.ult.cpu
-                        mem = local.resource_presets.xu.mem
-                    }
-                }
-            }
-            alertmanager = {
-                resources = {
-                    req = local.resource_presets.sml
-                    lmt = local.resource_presets.lrg
-                }
-            }
-            prometheusOperator = {
-                resources = {
-                    req = local.resource_presets.med
-                    lmt = local.resource_presets.xxl
-                }
-            }
-            kube-state-metrics = {
-                resources = {
-                    req = local.resource_presets.sml
-                    lmt = local.resource_presets.lrg
-                }
-            }
-            prometheus-node-exporter = {
-                resources = {
-                    req = local.resource_presets.tny
-                    lmt = local.resource_presets.lrg
-                }
-            }
-        }
-    }
 }
 
 # Get common values (i.e. resource_presents)
@@ -69,12 +19,12 @@ module "common" {
 # Set up the aws pstore
 module "aws_pstore" {
     source      = "../utils/aws_pstore"
-
+    # General variables
     nickname    = var.nickname
     module_name = local.module_name
-
+    # IAM config
     iam_config      = var.iam_config
-
+    # Parameter store data
     pstore_data = [
         {
             alias       = "ip_config"
@@ -87,10 +37,10 @@ module "aws_pstore" {
 # Set up the aws s3obj
 module "aws_s3obj" {
     source      = "../utils/aws_s3obj"
-
+    # General variables
     nickname    = var.nickname
     module_name = local.module_name
-
+    # S3 settings
     s3_bucket_id    = var.s3_config.id 
     s3obj_data      = [
         {
