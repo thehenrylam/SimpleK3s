@@ -145,6 +145,11 @@ locals {
             template    = {
                 nodeport_http   = var.k3s_nodeport_traefik_http 
                 nodeport_https  = var.k3s_nodeport_traefik_https
+                replica_count   = 2
+                req_cpu         = "50m" 
+                req_mem         = "128Mi" 
+                lmt_cpu         = "200m" 
+                lmt_mem         = "256Mi" 
             }
         },
         { # Traefik Middleware (Reroute Network Traffic from HTTP to HTTPs)
@@ -155,11 +160,68 @@ locals {
                 ingress_http_port   = 80
             }
         },
+        { # Kyverno Manifests
+            desc        = "Kyverno Manifests",
+            key         = "${local.s3_bstrap_key_root_default}/manifests/kyverno.yaml",
+            src         = "${path.module}/bootstrap/default/manifests/kyverno.yaml",
+            template    = {
+                chart_version   = "3.7.1"
+                replica_count   = 2
+                req_cpu         = "100m"
+                req_mem         = "256Mi"
+                lmt_cpu         = "500m"
+                lmt_mem         = "768Mi"
+                schedule_on_control_plane = true
+            }
+        },
+        { # Kyverno (baseline-policies) Manifests
+            desc        = "Kyverno (baseline-policies) Manifests",
+            key         = "${local.s3_bstrap_key_root_default}/manifests/kyverno-baseline-policies.yaml",
+            src         = "${path.module}/bootstrap/default/manifests/kyverno-baseline-policies.yaml",
+            template    = {
+                control_plane_toleration_namespace_list = join("\n", [for ns in ["kube-system", "kyverno", "external-secrets", "argocd", "monitoring", "jenkins"] : "                - ${ns}"])
+            }
+        },
         { # External Secrets Manifests
             desc        = "External Secrets Manifests",
             key         = "${local.s3_bstrap_key_root_default}/manifests/external-secrets.yaml",
             src         = "${path.module}/bootstrap/default/manifests/external-secrets.yaml",
-            template    = null
+            template    = {
+                replica_count   = 2
+                generic = {
+                    req_cpu = "50m"
+                    req_mem = "128Mi"
+                    lmt_cpu = "100m"
+                    lmt_mem = "256Mi"                    
+                }
+                webhook = {
+                    req_cpu = "50m"
+                    req_mem = "128Mi"
+                    lmt_cpu = "100m"
+                    lmt_mem = "256Mi"
+                }
+                certcontroller = {
+                    req_cpu = "25m"
+                    req_mem = "64Mi"
+                    lmt_cpu = "50m"
+                    lmt_mem = "128Mi"
+                }
+            }
+        },
+        { # Descheduler Manifests
+            desc        = "Descheduler Manifests",
+            key         = "${local.s3_bstrap_key_root_default}/manifests/descheduler.yaml",
+            src         = "${path.module}/bootstrap/default/manifests/descheduler.yaml",
+            template    = {
+                schedule                    = "*/5 * * * *"
+                evict_local_storage_pods    = false
+                ignore_pvc_pods             = true # false (ignoring PVC (persistent volume claim) pods can make it less likely for disruptions to occur)
+                evict_system_critical_pods  = false
+                lo_bound_cpu = "30"
+                lo_bound_mem = "40"
+                hi_bound_cpu = "60"
+                hi_bound_mem = "70"
+            }
         },
         { # Common Functions
             desc        = "Common Functions",
@@ -198,9 +260,21 @@ locals {
             template    = null
         },
         {
+            desc        = "Init Script (Apply Kyverno)",
+            key         = "${local.s3_bstrap_key_root_default}/05_apply_kyverno.sh",
+            src         = "${path.module}/bootstrap/default/05_apply_kyverno.sh",
+            template    = null
+        },
+        {
             desc        = "Init Script (Apply External Secrets)",
             key         = "${local.s3_bstrap_key_root_default}/05_apply_external-secrets.sh",
             src         = "${path.module}/bootstrap/default/05_apply_external-secrets.sh",
+            template    = null
+        },
+        {
+            desc        = "Init Script (Apply Descheduler)",
+            key         = "${local.s3_bstrap_key_root_default}/05_apply_descheduler.sh",
+            src         = "${path.module}/bootstrap/default/05_apply_descheduler.sh",
             template    = null
         }
     ]

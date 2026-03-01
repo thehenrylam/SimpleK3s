@@ -53,8 +53,14 @@ if [[ "$COUNT_INDEX" -eq 0 ]]; then
     # Apply the configs of Traefik
     "$SCRIPT_DIR/04_apply_traefik.sh" || exit 1
 
+    # # Apply Kyverno (MUST be first Add-On to be applied)
+    "$SCRIPT_DIR/05_apply_kyverno.sh" || exit 1
+
     # Apply External Secrets
     "$SCRIPT_DIR/05_apply_external-secrets.sh" || exit 1
+
+    # Apply Descheduler
+    "$SCRIPT_DIR/05_apply_descheduler.sh" || exit 1
 
     # Optional: Apply the ArgoCD application
     if [ -f "$SCRIPT_DIR/optional_argocd.sh" ]; then

@@ -100,6 +100,7 @@ log_info "$0: LAUNCHED"
 
 wait_for_k3s_api || {
     log_fail "Unable to confirm that K3s API is ready"
+    exit 1
 }
 
 wait_for_kubesystem || {
