@@ -1,6 +1,12 @@
 locals {
     module_name = "cluster_app_argocd"
 
+    settings = {
+        version             = coalesce(try(var.settings.version, null), "9.4.5")
+        pstore_idp_config   = var.settings.pstore_idp_config
+        domain_name         = var.settings.domain_name
+    }
+
     # Resource presets (to put into performance profiles)
     resource_presets = module.common.resource_presets
 
@@ -70,7 +76,7 @@ module "aws_pstore" {
     pstore_data = [
         {
             alias       = "ip_config"
-            name        = var.settings.pstore_idp_config
+            name        = local.settings.pstore_idp_config
             encrypted   = true
         }
     ]
@@ -90,9 +96,9 @@ module "aws_s3obj" {
             key         = "${var.s3_config.keyroot}/manifests/argocd.yaml" 
             src         = "${path.module}/data/argocd.yaml" 
             template    = jsonencode({
-                domain_name         = var.settings.domain_name 
-                pstore_idp_config   = var.settings.pstore_idp_config
-                region_idp_config   = module.aws_pstore.processed_pstores[var.settings.pstore_idp_config].region
+                domain_name         = local.settings.domain_name 
+                pstore_idp_config   = local.settings.pstore_idp_config
+                region_idp_config   = module.aws_pstore.processed_pstores[local.settings.pstore_idp_config].region
                 cfg = merge({}, local.performance_profile["standard"])
             })
         },
