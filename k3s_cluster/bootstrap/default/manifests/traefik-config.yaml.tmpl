@@ -12,11 +12,18 @@ spec:
       websecure:
         nodePort: ${nodeport_https}
 
+    # HA: run multiple Traefik replicas
+    deployment:
+      replicas: ${replica_count}
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 1
+
     # Resource sizing (baseline)
     resources:
       requests:
-        cpu: 50m
-        memory: 128Mi
+        cpu: ${req_cpu}
+        memory: ${req_mem}
       limits:
-        cpu: 200m
-        memory: 256Mi
+        cpu: ${lmt_cpu}
+        memory: ${lmt_mem}

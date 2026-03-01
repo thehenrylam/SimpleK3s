@@ -8,7 +8,7 @@ metadata:
 spec:
   repo: https://kyverno.github.io/kyverno/
   chart: kyverno
-  version: "${kyverno_chart_version}"   # e.g. "3.7.1"
+  version: "${chart_version}"   # e.g. "3.7.1"
   targetNamespace: kyverno
   createNamespace: true
 
@@ -18,30 +18,74 @@ spec:
       operator: "Equal"
       value: "true"
       effect: "NoSchedule"
-
   valuesContent: |-
-    # Keep it light for hobbyist clusters
-    replicaCount: ${kyverno_replica_count}
-%{ if kyverno_schedule_on_control_plane }
+    # HA profile: run Kyverno controllers with >1 replica and allow safe evictions (PDB)
+    admissionController:
+      replicas: ${replica_count}
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 1
+      container:
+        resources:
+          requests:
+            cpu: ${req_cpu}
+            memory: ${req_mem}
+          limits:
+            cpu: ${lmt_cpu}
+            memory: ${lmt_mem}
+
+    backgroundController:
+      replicas: ${replica_count}
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 1
+      resources:
+        requests:
+          cpu: ${req_cpu}
+          memory: ${req_mem}
+        limits:
+          cpu: ${lmt_cpu}
+          memory: ${lmt_mem}
+
+    cleanupController:
+      replicas: ${replica_count}
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 1
+      resources:
+        requests:
+          cpu: ${req_cpu}
+          memory: ${req_mem}
+        limits:
+          cpu: ${lmt_cpu}
+          memory: ${lmt_mem}
+
+    reportsController:
+      replicas: ${replica_count}
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 1
+      resources:
+        requests:
+          cpu: ${req_cpu}
+          memory: ${req_mem}
+        limits:
+          cpu: ${lmt_cpu}
+          memory: ${lmt_mem}
+
+%{ if schedule_on_control_plane }
+    # Allow Kyverno to run on tainted control-plane nodes, and *prefer* them
     tolerations:
       - key: "node-role.kubernetes.io/control-plane"
         operator: "Equal"
         value: "true"
         effect: "NoSchedule"
 
-    affinity:
-      nodeAffinity:
-        preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            preference:
-              matchExpressions:
-                - key: node-role.kubernetes.io/control-plane
-                  operator: Exists
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/control-plane
+                operator: Exists
 %{ endif }
-    resources:
-      requests:
-        cpu: ${kyverno_cpu_request}
-        memory: ${kyverno_mem_request}
-      limits:
-        cpu: ${kyverno_cpu_limit}
-        memory: ${kyverno_mem_limit}

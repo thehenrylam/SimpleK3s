@@ -59,6 +59,9 @@ if [[ "$COUNT_INDEX" -eq 0 ]]; then
     # Apply External Secrets
     "$SCRIPT_DIR/05_apply_external-secrets.sh" || exit 1
 
+    # Apply Descheduler
+    "$SCRIPT_DIR/05_apply_descheduler.sh" || exit 1
+
     # Optional: Apply the ArgoCD application
     if [ -f "$SCRIPT_DIR/optional_argocd.sh" ]; then
         "$SCRIPT_DIR/optional_argocd.sh" || exit 1

@@ -53,6 +53,8 @@ manifests/jenkins.yaml
 
 # CUSTOM: Ignore default bootstrap files that are generated from template files
 **/bootstrap/**/argocd.yaml
+**/bootstrap/**/descheduler.yaml
+**/bootstrap/**/external-secrets.yaml
 **/bootstrap/**/monitoring.yaml
 **/bootstrap/**/traefik-config.yaml
 **/bootstrap/**/traefik-middleware.yaml
