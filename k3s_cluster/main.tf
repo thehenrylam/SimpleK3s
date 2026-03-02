@@ -138,28 +138,6 @@ locals {
                 s3_bucket_name          = local.s3_bstrap_name
             }
         },
-        { # Traefik Config (Template)
-            desc        = "Traefik Config",
-            key         = "${local.s3_bstrap_key_root_default}/manifests/traefik-config.yaml",
-            src         = "${path.module}/bootstrap/default/manifests/traefik-config.yaml",
-            template    = {
-                nodeport_http   = var.k3s_nodeport_traefik_http 
-                nodeport_https  = var.k3s_nodeport_traefik_https
-                replica_count   = 2
-                req_cpu         = "50m" 
-                req_mem         = "128Mi" 
-                lmt_cpu         = "200m" 
-                lmt_mem         = "256Mi" 
-            }
-        },
-        { # Traefik Middleware (Reroute Network Traffic from HTTP to HTTPs)
-            desc        = "Traefik Middleware",
-            key         = "${local.s3_bstrap_key_root_default}/manifests/traefik-middleware.yaml",
-            src         = "${path.module}/bootstrap/default/manifests/traefik-middleware.yaml",
-            template    = {
-                ingress_http_port   = 80
-            }
-        },
         { # Kyverno Manifests
             desc        = "Kyverno Manifests",
             key         = "${local.s3_bstrap_key_root_default}/manifests/kyverno.yaml",
@@ -254,12 +232,6 @@ locals {
             template    = null
         },
         {
-            desc        = "Init Script (Apply Traefik)",
-            key         = "${local.s3_bstrap_key_root_default}/04_apply_traefik.sh",
-            src         = "${path.module}/bootstrap/default/04_apply_traefik.sh",
-            template    = null
-        },
-        {
             desc        = "Init Script (Apply Kyverno)",
             key         = "${local.s3_bstrap_key_root_default}/05_apply_kyverno.sh",
             src         = "${path.module}/bootstrap/default/05_apply_kyverno.sh",
@@ -317,54 +289,4 @@ locals {
 
     # KeyPair Variables
     keypair_name        = "kp-${local.module_name}-node"
-}
-
-# IF ENABLED: Check and Set up all of the needed files for ArgoCD 
-# Handles:
-#   - S3 object upload
-#   - IAM rights settings (e.g. role name of the EC2 env to allow getting secret settings from the ParameterStore)
-module "cluster_app_argocd" {
-    count           = var.applications.argocd != null ? 1 : 0 
-    source          = "./cluster_app/argocd" 
-    
-    # General settings
-    nickname        = var.nickname 
-    settings        = var.applications.argocd 
-    
-    # S3 settings
-    s3_config = {
-        id      = aws_s3_bucket.bootstrap.id
-        keyroot = local.s3_bstrap_key_root_default
-    }
-
-    # IAM settings 
-    iam_config      = {
-        role_name   = aws_iam_role.irole_ec2.name
-        partition   = data.aws_partition.current.partition
-    }
-}
-
-# IF ENABLED: Check and Set up all of the needed files for Monitoring (Prometheus & Grafana) 
-# Handles:
-#   - S3 object upload
-#   - IAM rights settings (e.g. role name of the EC2 env to allow getting secret settings from the ParameterStore)
-module "cluster_app_monitoring" {
-    count           = var.applications.monitoring != null ? 1 : 0 
-    source          = "./cluster_app/monitoring" 
-    
-    # General settings
-    nickname        = var.nickname 
-    settings        = var.applications.monitoring 
-    
-    # S3 settings
-    s3_config = {
-        id      = aws_s3_bucket.bootstrap.id
-        keyroot = local.s3_bstrap_key_root_default
-    }
-
-    # IAM settings 
-    iam_config      = {
-        role_name   = aws_iam_role.irole_ec2.name
-        partition   = data.aws_partition.current.partition
-    }
 }

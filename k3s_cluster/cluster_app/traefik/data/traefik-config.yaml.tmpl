@@ -8,22 +8,22 @@ spec:
   valuesContent: |-
     ports:
       web:
-        nodePort: ${nodeport_http}
+        nodePort: ${network.traefik.nodeport_http}
       websecure:
-        nodePort: ${nodeport_https}
+        nodePort: ${network.traefik.nodeport_https}
 
     # HA: run multiple Traefik replicas
     deployment:
-      replicas: ${replica_count}
+      replicas: ${resources.traefik.replicas.target} # 2
       podDisruptionBudget:
         enabled: true
-        minAvailable: 1
+        minAvailable: ${resources.traefik.replicas.minimum} # 1
 
     # Resource sizing (baseline)
     resources:
       requests:
-        cpu: ${req_cpu}
-        memory: ${req_mem}
+        cpu: ${resources.traefik.req.cpu} # 50m
+        memory: ${resources.traefik.req.mem} # 128Mi
       limits:
-        cpu: ${lmt_cpu}
-        memory: ${lmt_mem}
+        cpu: ${resources.traefik.lmt.cpu} # 200m
+        memory: ${resources.traefik.lmt.mem} # 256Mi

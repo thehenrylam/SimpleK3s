@@ -29,4 +29,4 @@ spec:
         # service is required; won't be used because redirect happens first
         - name: traefik
           namespace: kube-system
-          port: ${ingress_http_port}
+          port: ${network.traefik.ingress_http} # 80
