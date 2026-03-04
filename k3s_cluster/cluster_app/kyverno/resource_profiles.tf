@@ -2,20 +2,6 @@ locals {
     resource_profile = {
         # standard resource profiles
         standard = {
-            kyverno = {
-                replicas = {
-                    target  = 2
-                    minimum = 1
-                }
-                req = local.resource_presets.med
-                lmt = {
-                    cpu = local.resource_presets.lrg.cpu,
-                    mem = local.resource_presets.xxl.mem
-                }
-            }
-
-            # ---
-
             admissionController = {
                 replicas = {
                     target  = 2
