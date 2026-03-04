@@ -183,10 +183,11 @@ locals {
     module_name         = "${local.module}-${var.nickname}"
 
     # IAM Variables
-    irole_name              = "irole-${local.module_name}_ssm-for-ec2"
-    iprofile_name           = "iprofile-${local.module_name}_ssm-for-ec2"
-    ipolicy_k3s_pstore_name = "ipolicy-${local.module_name}_k3s-paramstore"
-    ipolicy_s3_bstrap_name  = "ipolicy-${local.module_name}_s3-bootstrap"
+    irole_name                  = "irole-${local.module_name}_ssm-for-ec2"
+    iprofile_name               = "iprofile-${local.module_name}_ssm-for-ec2"
+    ipolicy_k3s_pstore_name     = "ipolicy-${local.module_name}_k3s-paramstore"
+    ipolicy_s3_bstrap_obj_name  = "ipolicy-${local.module_name}_s3-bootstrap-obj"
+    ipolicy_s3_bstrap_bkt_name  = "ipolicy-${local.module_name}_s3-bootstrap-bkt"
 
     # EC2 (Related) Variables
     ec2_name            = "ec2-${local.module_name}"

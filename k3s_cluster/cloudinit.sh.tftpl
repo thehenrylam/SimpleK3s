@@ -15,8 +15,8 @@ chmod 0644 "$LOG_FILE"
 #  - cloud-init output log (via console)
 #  - syslog (tagged)
 exec > >(awk '{ print strftime("[%Y-%m-%d %H:%M:%S]"), $0 }' \
-  | tee -a "$LOG_FILE" \
-  | logger -t simplek3s-cloudinit) 2>&1
+    | tee -a "$LOG_FILE" \
+    | logger -t simplek3s-cloudinit) 2>&1
 echo "=== SimpleK3s cloud-init starting ==="
 echo "User: $(id)"
 echo "Hostname: $(hostname)"
@@ -39,20 +39,13 @@ echo "Initialize directory: $BOOTSTRAP_DIR"
 mkdir -p $BOOTSTRAP_DIR
 cd $BOOTSTRAP_DIR
 
-function download_from_s3() {
-    S3KEY_VALUE="$1"
-    # GLOBAL VALUES:
-    #   - BOOTSTRAP_BUCKET
-    #   - BOOTSTRAP_DIR
-    aws s3 cp "s3://$BOOTSTRAP_BUCKET/$S3KEY_VALUE" \
-        "$BOOTSTRAP_DIR/$S3KEY_VALUE"
+function s3_sync_boostrap() {
+    # Download everything from the S3 bucket into the bootstrap directory
+    aws s3 sync "s3://$BOOTSTRAP_BUCKET/" "$BOOTSTRAP_DIR/" --only-show-errors
 }
 
-
 echo "Download S3 objects (default)"
-%{ for s3key in s3key_default ~}
-download_from_s3 "${s3key}"
-%{ endfor ~}
+s3_sync_boostrap
 
 # Enable execution rights to *.sh scripts
 echo "Enable execution rights to *.sh scripts"
