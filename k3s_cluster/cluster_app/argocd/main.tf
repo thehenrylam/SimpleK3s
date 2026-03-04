@@ -1,5 +1,5 @@
 locals {
-    module_name = "cluster_app_argocd"
+    module_name = "cluster_app_${basename(path.module)}"
 
     settings = {
         version             = coalesce(try(var.settings.version, null), "9.4.5")

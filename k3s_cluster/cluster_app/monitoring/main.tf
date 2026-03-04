@@ -1,5 +1,5 @@
 locals {
-    module_name = "cluster_app_monitoring"
+    module_name = "cluster_app_${basename(path.module)}"
 
     settings = {
         version             = coalesce(try(var.settings.version, null), "0.1.0-alpha.0")

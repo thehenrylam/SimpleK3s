@@ -1,5 +1,5 @@
 locals {
-    module_name = "cluster_app_traefik"
+    module_name = "cluster_app_${basename(path.module)}"
 
     default_settings = {
         version = "???"
