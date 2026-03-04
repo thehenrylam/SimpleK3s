@@ -7,6 +7,8 @@ variable "settings" {
     description = "The settings of the argocd app"
     type        = object({
         version             = optional(string)
+        control_plane_only  = optional(bool)
+        control_plane_toleration_ns_list = optional(list(string))
     })
 }
 
