@@ -138,28 +138,6 @@ locals {
                 s3_bucket_name          = local.s3_bstrap_name
             }
         },
-        { # Kyverno Manifests
-            desc        = "Kyverno Manifests",
-            key         = "${local.s3_bstrap_key_root_default}/manifests/kyverno.yaml",
-            src         = "${path.module}/bootstrap/default/manifests/kyverno.yaml",
-            template    = {
-                chart_version   = "3.7.1"
-                replica_count   = 2
-                req_cpu         = "100m"
-                req_mem         = "256Mi"
-                lmt_cpu         = "500m"
-                lmt_mem         = "768Mi"
-                schedule_on_control_plane = true
-            }
-        },
-        { # Kyverno (baseline-policies) Manifests
-            desc        = "Kyverno (baseline-policies) Manifests",
-            key         = "${local.s3_bstrap_key_root_default}/manifests/kyverno-baseline-policies.yaml",
-            src         = "${path.module}/bootstrap/default/manifests/kyverno-baseline-policies.yaml",
-            template    = {
-                control_plane_toleration_namespace_list = join("\n", [for ns in ["kube-system", "kyverno", "external-secrets", "argocd", "monitoring", "jenkins"] : "                - ${ns}"])
-            }
-        },
         { # External Secrets Manifests
             desc        = "External Secrets Manifests",
             key         = "${local.s3_bstrap_key_root_default}/manifests/external-secrets.yaml",
@@ -229,12 +207,6 @@ locals {
             desc        = "Init Script (Install K3s)",
             key         = "${local.s3_bstrap_key_root_default}/03_install_k3s.sh",
             src         = "${path.module}/bootstrap/default/03_install_k3s.sh",
-            template    = null
-        },
-        {
-            desc        = "Init Script (Apply Kyverno)",
-            key         = "${local.s3_bstrap_key_root_default}/05_apply_kyverno.sh",
-            src         = "${path.module}/bootstrap/default/05_apply_kyverno.sh",
             template    = null
         },
         {

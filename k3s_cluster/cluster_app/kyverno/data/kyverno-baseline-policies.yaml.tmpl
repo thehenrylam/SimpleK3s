@@ -17,6 +17,8 @@ spec:
         any:
           - resources:
               namespaces:
+                - kube-system # MANDATORY (Allows critical processes to ensure proper cluster operations)
+                - kyverno     # MANDATORY (Ensures kyverno can operate and not cause blockers if running on a control-plane only setup)
 ${control_plane_toleration_namespace_list}
       mutate:
         patchStrategicMerge:

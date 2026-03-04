@@ -26,10 +26,10 @@ locals {
 locals {
     s3keys_default_subsystems = concat(
         try(module.cluster_app_traefik.processed_s3obj, []), # Traefik files
+        try(module.cluster_app_kyverno.processed_s3obj, []), # Kyverno files
         [] # Default empty list (in case no submodules are initalized or commented out)
     )
 }
-
 
 module "cluster_app_traefik" {
     source      = "./cluster_app/traefik" 
@@ -42,16 +42,16 @@ module "cluster_app_traefik" {
     iam_config  = local.iam_config_subsystems
 }
 
-# module "cluster_app_kyverno" {
-#     source      = "./cluster_app/kyverno" 
-#     # General settings
-#     nickname    = var.nickname 
-#     settings    = var.subsystems.kyverno 
-#     # S3 settings
-#     s3_config   = local.s3_config_subsystems
-#     # IAM settings 
-#     iam_config  = local.iam_config_subsystems
-# }
+module "cluster_app_kyverno" {
+    source      = "./cluster_app/kyverno" 
+    # General settings
+    nickname    = var.nickname 
+    settings    = local.subsystems.kyverno 
+    # S3 settings
+    s3_config   = local.s3_config_subsystems
+    # IAM settings 
+    iam_config  = local.iam_config_subsystems
+}
 
 # module "cluster_app_external-secrets" {
 #     source      = "./cluster_app/external-secrets" 
