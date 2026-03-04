@@ -21,17 +21,17 @@ spec:
           pluginConfig:
             - name: "DefaultEvictor"
               args:
-                evictLocalStoragePods: ${evict_local_storage_pods} 
-                ignorePvcPods: ${ignore_pvc_pods} 
-                evictSystemCriticalPods: ${evict_system_critical_pods} 
+                evictLocalStoragePods: ${policies.evict_local_storage_pods} 
+                ignorePvcPods: ${policies.ignore_pvc_pods} 
+                evictSystemCriticalPods: ${policies.evict_system_critical_pods} 
             - name: "LowNodeUtilization"
               args:
                 thresholds:
-                  cpu: ${lo_bound_cpu} 
-                  memory: ${lo_bound_mem} 
+                  cpu: ${thresholds.under_utilization_cpu} 
+                  memory: ${thresholds.under_utilization_mem} 
                 targetThresholds:
-                  cpu: ${hi_bound_cpu} 
-                  memory: ${hi_bound_mem} 
+                  cpu: ${thresholds.target_utilization_cpu} 
+                  memory: ${thresholds.target_utilization_mem} 
           plugins:
             balance:
               enabled:

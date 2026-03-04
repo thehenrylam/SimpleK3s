@@ -138,21 +138,6 @@ locals {
                 s3_bucket_name          = local.s3_bstrap_name
             }
         },
-        { # Descheduler Manifests
-            desc        = "Descheduler Manifests",
-            key         = "${local.s3_bstrap_key_root_default}/manifests/descheduler.yaml",
-            src         = "${path.module}/bootstrap/default/manifests/descheduler.yaml",
-            template    = {
-                schedule                    = "*/5 * * * *"
-                evict_local_storage_pods    = false
-                ignore_pvc_pods             = true # false (ignoring PVC (persistent volume claim) pods can make it less likely for disruptions to occur)
-                evict_system_critical_pods  = false
-                lo_bound_cpu = "30"
-                lo_bound_mem = "40"
-                hi_bound_cpu = "60"
-                hi_bound_mem = "70"
-            }
-        },
         { # Common Functions
             desc        = "Common Functions",
             key         = "${local.s3_bstrap_key_root_default}/lib/common.sh",
@@ -181,12 +166,6 @@ locals {
             desc        = "Init Script (Install K3s)",
             key         = "${local.s3_bstrap_key_root_default}/03_install_k3s.sh",
             src         = "${path.module}/bootstrap/default/03_install_k3s.sh",
-            template    = null
-        },
-        {
-            desc        = "Init Script (Apply Descheduler)",
-            key         = "${local.s3_bstrap_key_root_default}/05_apply_descheduler.sh",
-            src         = "${path.module}/bootstrap/default/05_apply_descheduler.sh",
             template    = null
         }
     ]
