@@ -6,8 +6,9 @@ variable "nickname" {
 variable "settings" {
     description = "The settings of the argocd app"
     type        = object({
-        pstore_idp_config = string
-        domain_name = string
+        version             = optional(string)
+        pstore_idp_config   = string
+        domain_name         = string
     })
 }
 
