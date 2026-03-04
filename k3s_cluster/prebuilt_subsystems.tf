@@ -27,6 +27,7 @@ locals {
     s3keys_default_subsystems = concat(
         try(module.cluster_app_traefik.processed_s3obj, []), # Traefik files
         try(module.cluster_app_kyverno.processed_s3obj, []), # Kyverno files
+        try(module.cluster_app_external-secrets.processed_s3obj, []), # External Secret files
         [] # Default empty list (in case no submodules are initalized or commented out)
     )
 }
@@ -53,16 +54,16 @@ module "cluster_app_kyverno" {
     iam_config  = local.iam_config_subsystems
 }
 
-# module "cluster_app_external-secrets" {
-#     source      = "./cluster_app/external-secrets" 
-#     # General settings
-#     nickname    = var.nickname 
-#     settings    = var.subsystems.external-secrets 
-#     # S3 settings
-#     s3_config   = local.s3_config_subsystems
-#     # IAM settings 
-#     iam_config  = local.iam_config_subsystems
-# }
+module "cluster_app_external-secrets" {
+    source      = "./cluster_app/external-secrets" 
+    # General settings
+    nickname    = var.nickname 
+    settings    = local.subsystems.external-secrets 
+    # S3 settings
+    s3_config   = local.s3_config_subsystems
+    # IAM settings 
+    iam_config  = local.iam_config_subsystems
+}
 
 # module "cluster_app_descheduler" {
 #     source      = "./cluster_app/descheduler" 

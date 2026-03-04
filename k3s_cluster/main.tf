@@ -138,32 +138,6 @@ locals {
                 s3_bucket_name          = local.s3_bstrap_name
             }
         },
-        { # External Secrets Manifests
-            desc        = "External Secrets Manifests",
-            key         = "${local.s3_bstrap_key_root_default}/manifests/external-secrets.yaml",
-            src         = "${path.module}/bootstrap/default/manifests/external-secrets.yaml",
-            template    = {
-                replica_count   = 2
-                generic = {
-                    req_cpu = "50m"
-                    req_mem = "128Mi"
-                    lmt_cpu = "100m"
-                    lmt_mem = "256Mi"                    
-                }
-                webhook = {
-                    req_cpu = "50m"
-                    req_mem = "128Mi"
-                    lmt_cpu = "100m"
-                    lmt_mem = "256Mi"
-                }
-                certcontroller = {
-                    req_cpu = "25m"
-                    req_mem = "64Mi"
-                    lmt_cpu = "50m"
-                    lmt_mem = "128Mi"
-                }
-            }
-        },
         { # Descheduler Manifests
             desc        = "Descheduler Manifests",
             key         = "${local.s3_bstrap_key_root_default}/manifests/descheduler.yaml",
@@ -207,12 +181,6 @@ locals {
             desc        = "Init Script (Install K3s)",
             key         = "${local.s3_bstrap_key_root_default}/03_install_k3s.sh",
             src         = "${path.module}/bootstrap/default/03_install_k3s.sh",
-            template    = null
-        },
-        {
-            desc        = "Init Script (Apply External Secrets)",
-            key         = "${local.s3_bstrap_key_root_default}/05_apply_external-secrets.sh",
-            src         = "${path.module}/bootstrap/default/05_apply_external-secrets.sh",
             template    = null
         },
         {
