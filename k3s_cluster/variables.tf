@@ -139,7 +139,7 @@ variable "subsystems" {
             version = optional(string)
         }))
     })
-    default = null
+    default = {}
 }
 
 # Pre-built applications
