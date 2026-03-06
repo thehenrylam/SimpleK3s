@@ -24,29 +24,19 @@ echo "=== $(basename $0) starting ==="
 
 # Execute additional scripts for the controller
 if [[ "$COUNT_INDEX" -eq 0 ]]; then
-    log_info "Initializing subsystems"
-    # Apply the configs of Traefik
-    if [ -f "$SCRIPT_DIR/04_apply_traefik.sh" ]; then
-        "$SCRIPT_DIR/04_apply_traefik.sh" || exit 1
-    fi
+    log_info "Initializing applications"
+    # Optional: Apply the ArgoCD application
+    if [ -f "$SCRIPT_DIR/optional_argocd.sh" ]; then
+        "$SCRIPT_DIR/optional_argocd.sh" || exit 1
+    fi 
 
-    # Apply Kyverno (MUST be first Add-On to be applied)
-    if [ -f "$SCRIPT_DIR/05_apply_kyverno.sh" ]; then
-        "$SCRIPT_DIR/05_apply_kyverno.sh" || exit 1
+    # Optional: Apply the Monitoring application
+    if [ -f "$SCRIPT_DIR/optional_monitoring.sh" ]; then
+        "$SCRIPT_DIR/optional_monitoring.sh" || exit 1
     fi
-
-    # Apply External Secrets
-    if [ -f "$SCRIPT_DIR/05_apply_external-secrets.sh" ]; then
-        "$SCRIPT_DIR/05_apply_external-secrets.sh" || exit 1
-    fi
-
-    # Apply Descheduler
-    if [ -f "$SCRIPT_DIR/05_apply_descheduler.sh" ]; then
-        "$SCRIPT_DIR/05_apply_descheduler.sh" || exit 1
-    fi
-    log_okay "Initialized subsystems"
+    log_okay "Initialized applications"
 else
-    log_info "COUNT_INDEX is NOT 0; Skipping initialization of subsystems"
+    log_info "COUNT_INDEX is NOT 0; Skipping initialization of applications"
 fi
 
 echo "=== $(basename $0) completed ==="

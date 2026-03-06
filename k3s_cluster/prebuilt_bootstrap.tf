@@ -38,8 +38,6 @@ module "cluster_app_bootstrap" {
             aws_region          = var.aws_region
             controller_host     = local.controller_host
             swapfile_alloc_amt  = var.ec2_swapfile_size
-            nodeport_http       = var.k3s_nodeport_traefik_http
-            nodeport_https      = var.k3s_nodeport_traefik_https
             pstore_key_root     = local.pstore_key_root
             s3_bucket_name      = local.s3_bstrap_name
         })

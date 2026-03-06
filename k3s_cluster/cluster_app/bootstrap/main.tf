@@ -92,6 +92,18 @@ module "aws_s3obj" {
             key         = "${var.s3_config.keyroot}/03_install_k3s.sh",
             src         = "${path.module}/data/03_install_k3s.sh",
             template    = null
+        },
+        {
+            desc        = "Init Script (Install Subsystems)",
+            key         = "${var.s3_config.keyroot}/init_subsystems.sh",
+            src         = "${path.module}/data/init_subsystems.sh",
+            template    = null
+        },
+        {
+            desc        = "Init Script (Install Applications)",
+            key         = "${var.s3_config.keyroot}/init_applications.sh",
+            src         = "${path.module}/data/init_applications.sh",
+            template    = null
         }
     ]
 }
