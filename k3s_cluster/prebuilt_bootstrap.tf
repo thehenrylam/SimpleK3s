@@ -26,23 +26,6 @@ locals {
     )
 }
 
-####################################
-#  LOCALS : S3 Bootstrap : Params  #
-####################################
-locals {
-    # List of param-store data
-    pstore_key_root = "/simplek3s/${var.nickname}"
-    # pstore_data = [
-    #     {
-    #         name    = "pstore-${local.module_name}_k3s-token"
-    #         desc    = "The K3s token - This is set on runtime"
-    #         type    = "SecureString"
-    #         key     = "${local.pstore_key_root}/k3s-token"
-    #         val   = local.uninitialized
-    #     }
-    # ]
-}
-
 module "cluster_app_bootstrap" {
     source      = "./cluster_app/bootstrap" 
     # General settings

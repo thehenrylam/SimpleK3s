@@ -85,9 +85,9 @@ locals {
     account_id              = coalesce(var.account_id, data.aws_caller_identity.current.account_id)
 }
 
-####################################
-#  LOCALS : S3 Bootstrap : Files   #
-####################################
+##########################################################
+#  LOCALS : General Bootstrap Config : S3, PSTORE, etc   #
+##########################################################
 locals {
     # Bootstrapping : Data
     # Key bootstrapping values
@@ -96,6 +96,9 @@ locals {
     s3_bstrap_key_root          = "bootstrap" # This is used as part of a key
     s3_bstrap_key_root_default  = "${local.s3_bstrap_key_root}/default"
     s3_bstrap_key_root_custom   = "${local.s3_bstrap_key_root}/custom"
+
+    # List of param-store data
+    pstore_key_root = "/simplek3s/${var.nickname}"
 }
 
 ####################################
