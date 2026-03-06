@@ -28,7 +28,7 @@ module "common" {
     source      = "../utils/common_values"
 }
 
-# Set up the aws pstore
+# # Set up the aws pstore
 # module "aws_pstore" {
 #     source      = "../utils/aws_pstore"
 #     # General variables
@@ -41,7 +41,9 @@ module "common" {
 #         {
 #             alias       = "ip_config"
 #             name        = local.settings.pstore_idp_config
+#             desc        = "The IDP Config - Enables SSO for the underling app"
 #             encrypted   = true
+#             create      = false # Set to false: SSM ParamStore provided by an outside source
 #         }
 #     ]
 # }

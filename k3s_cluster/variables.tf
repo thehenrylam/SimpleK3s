@@ -122,6 +122,7 @@ variable "ec2_ebs_volume_type" {
     default     = "gp3" # gp3 is favored since we are using small volumes while maintaining reliable performance
 }
 
+# Pre-built subsystems
 variable "subsystems" {
     description = "Pre-built subsystems (Modify underlying cluster behavior)"
     type        = object({

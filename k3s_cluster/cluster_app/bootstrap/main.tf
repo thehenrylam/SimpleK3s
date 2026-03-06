@@ -3,16 +3,14 @@ locals {
 
     default_settings = {
         version         = "???"
-        nodeport_http   = 30080
-        nodeport_https  = 30443
-        ingress_http    = 80
+        env_vars        = jsonencode({})
+        pstore_key_root = "/simplek3s/${var.nickname}"
     }
 
     settings = {
-        version         = coalesce(try(var.settings.version,null),          local.default_settings.version)
-        nodeport_http   = coalesce(try(var.settings.nodeport_http,null),    local.default_settings.nodeport_http)
-        nodeport_https  = coalesce(try(var.settings.nodeport_https,null),   local.default_settings.nodeport_https)
-        ingress_http    = coalesce(try(var.settings.ingress_http,null),     local.default_settings.ingress_http)
+        version         = coalesce(try(var.settings.version,null), local.default_settings.version)
+        env_vars        = coalesce(try(var.settings.env_vars,null), local.default_settings.env_vars)
+        pstore_key_root = coalesce(try(var.settings.pstore_key_root,null), local.default_settings.pstore_key_root)
     }
 
     # Resource presets (to put into performance profiles)
@@ -25,22 +23,24 @@ module "common" {
 }
 
 # Set up the aws pstore
-# module "aws_pstore" {
-#     source      = "../utils/aws_pstore"
-#     # General variables
-#     nickname    = var.nickname
-#     module_name = local.module_name
-#     # IAM config
-#     iam_config      = var.iam_config
-#     # Parameter store data
-#     pstore_data = [
-#         {
-#             alias       = "ip_config"
-#             name        = local.settings.pstore_idp_config
-#             encrypted   = true
-#         }
-#     ]
-# }
+module "aws_pstore" {
+    source      = "../utils/aws_pstore"
+    # General variables
+    nickname    = var.nickname
+    module_name = local.module_name
+    # IAM config
+    iam_config      = var.iam_config
+    # Parameter store data
+    pstore_data = [
+        {
+            alias       = "k3s_token"
+            name        = "${local.settings.pstore_key_root}/k3s-token"
+            desc        = "The K3s token - This is set on runtime"
+            encrypted   = true
+            create      = true
+        }
+    ]
+}
 
 # Set up the aws s3obj
 module "aws_s3obj" {
@@ -54,53 +54,43 @@ module "aws_s3obj" {
         { # Default Installation (Main installation script)
             desc        = "Default Init Script",
             key         = "${var.s3_config.keyroot}/init.sh",
-            src         = "${path.module}/bootstrap/default/init.sh",
+            src         = "${path.module}/data/init.sh",
             template    = null
         },
         { # SimpleK3s Env Vars
             desc        = "SimpleK3s Env Vars",
             key         = "${var.s3_config.keyroot}/simplek3s.env",
-            src         = "${path.module}/bootstrap/default/simplek3s.env", 
-            template    = {
-                bootstrap_dir           = local.bstrap_dir
-                nickname                = var.nickname
-                aws_region              = var.aws_region
-                controller_host         = local.controller_host
-                swapfile_alloc_amt      = var.ec2_swapfile_size
-                nodeport_http           = var.k3s_nodeport_traefik_http
-                nodeport_https          = var.k3s_nodeport_traefik_https
-                pstore_key_root         = local.pstore_key_root
-                s3_bucket_name          = local.s3_bstrap_name
-            }
+            src         = "${path.module}/data/simplek3s.env", 
+            template    = local.settings.env_vars
         },
         { # Common Functions
             desc        = "Common Functions",
             key         = "${var.s3_config.keyroot}/lib/common.sh",
-            src         = "${path.module}/bootstrap/default/lib/common.sh",
+            src         = "${path.module}/data/lib/common.sh",
             template    = null
         },
         { # Common Functions (AWS)
             desc        = "Common Functions (AWS)",
             key         = "${var.s3_config.keyroot}/lib/providers/aws.sh",
-            src         = "${path.module}/bootstrap/default/lib/providers/aws.sh",
+            src         = "${path.module}/data/lib/providers/aws.sh",
             template    = null
         },
         {
             desc        = "Init Script (Install Packages)",
             key         = "${var.s3_config.keyroot}/01_install_packages.sh",
-            src         = "${path.module}/bootstrap/default/01_install_packages.sh",
+            src         = "${path.module}/data/01_install_packages.sh",
             template    = null
         },
         {
             desc        = "Init Script (Setup Swapfile)",
             key         = "${var.s3_config.keyroot}/02_setup_swapfile.sh",
-            src         = "${path.module}/bootstrap/default/02_setup_swapfile.sh",
+            src         = "${path.module}/data/02_setup_swapfile.sh",
             template    = null
         },
         {
             desc        = "Init Script (Install K3s)",
             key         = "${var.s3_config.keyroot}/03_install_k3s.sh",
-            src         = "${path.module}/bootstrap/default/03_install_k3s.sh",
+            src         = "${path.module}/data/03_install_k3s.sh",
             template    = null
         }
     ]

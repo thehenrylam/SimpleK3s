@@ -29,7 +29,9 @@ module "aws_pstore" {
         {
             alias       = "ip_config"
             name        = local.settings.pstore_idp_config
+            desc        = "The IDP Config - Enables SSO for the underling app"
             encrypted   = true
+            create      = false # Set to false: SSM ParamStore provided by an outside source
         }
     ]
 }

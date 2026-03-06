@@ -7,9 +7,8 @@ variable "settings" {
     description = "The settings of the argocd app"
     type        = object({
         version             = optional(string)
-        nodeport_http       = optional(number)
-        nodeport_https      = optional(number)
-        ingress_http        = optional(number)
+        env_vars            = optional(string)
+        pstore_key_root     = optional(string)
     })
 }
 

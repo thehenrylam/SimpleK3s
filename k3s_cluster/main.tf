@@ -86,23 +86,6 @@ locals {
 }
 
 ####################################
-#  LOCALS : S3 Bootstrap : Params  #
-####################################
-locals {
-    # List of param-store data
-    pstore_key_root = "/simplek3s/${var.nickname}"
-    pstore_data = [
-        {
-            name    = "pstore-${local.module_name}_k3s-token"
-            desc    = "The K3s token - This is set on runtime"
-            type    = "SecureString"
-            key     = "${local.pstore_key_root}/k3s-token"
-            val   = local.uninitialized
-        },
-    ]
-}
-
-####################################
 #  LOCALS : S3 Bootstrap : Files   #
 ####################################
 locals {
@@ -113,62 +96,6 @@ locals {
     s3_bstrap_key_root          = "bootstrap" # This is used as part of a key
     s3_bstrap_key_root_default  = "${local.s3_bstrap_key_root}/default"
     s3_bstrap_key_root_custom   = "${local.s3_bstrap_key_root}/custom"
-
-    # IMPORTANT: Main installation script (i.e. what we use to kick off node installation) MUST be the FIRST item
-    s3obj_data   = [
-        { # Default Installation (Main installation script)
-            desc        = "Default Init Script",
-            key         = "${local.s3_bstrap_key_root_default}/init.sh",
-            src         = "${path.module}/bootstrap/default/init.sh",
-            template    = null
-        },
-        { # SimpleK3s Env Vars
-            desc        = "SimpleK3s Env Vars",
-            key         = "${local.s3_bstrap_key_root_default}/simplek3s.env",
-            src         = "${path.module}/bootstrap/default/simplek3s.env", 
-            template    = {
-                bootstrap_dir           = local.bstrap_dir
-                nickname                = var.nickname
-                aws_region              = var.aws_region
-                controller_host         = local.controller_host
-                swapfile_alloc_amt      = var.ec2_swapfile_size
-                nodeport_http           = var.k3s_nodeport_traefik_http
-                nodeport_https          = var.k3s_nodeport_traefik_https
-                pstore_key_root         = local.pstore_key_root
-                s3_bucket_name          = local.s3_bstrap_name
-            }
-        },
-        { # Common Functions
-            desc        = "Common Functions",
-            key         = "${local.s3_bstrap_key_root_default}/lib/common.sh",
-            src         = "${path.module}/bootstrap/default/lib/common.sh",
-            template    = null
-        },
-        { # Common Functions (AWS)
-            desc        = "Common Functions (AWS)",
-            key         = "${local.s3_bstrap_key_root_default}/lib/providers/aws.sh",
-            src         = "${path.module}/bootstrap/default/lib/providers/aws.sh",
-            template    = null
-        },
-        {
-            desc        = "Init Script (Install Packages)",
-            key         = "${local.s3_bstrap_key_root_default}/01_install_packages.sh",
-            src         = "${path.module}/bootstrap/default/01_install_packages.sh",
-            template    = null
-        },
-        {
-            desc        = "Init Script (Setup Swapfile)",
-            key         = "${local.s3_bstrap_key_root_default}/02_setup_swapfile.sh",
-            src         = "${path.module}/bootstrap/default/02_setup_swapfile.sh",
-            template    = null
-        },
-        {
-            desc        = "Init Script (Install K3s)",
-            key         = "${local.s3_bstrap_key_root_default}/03_install_k3s.sh",
-            src         = "${path.module}/bootstrap/default/03_install_k3s.sh",
-            template    = null
-        }
-    ]
 }
 
 ####################################

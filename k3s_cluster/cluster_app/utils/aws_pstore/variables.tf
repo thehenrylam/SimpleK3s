@@ -10,13 +10,22 @@ variable "module_name" {
     type        = string
 }
 
+variable "uninitialized" {
+    description = "The uninitialized value in case "
+    type        = string
+    default     = "__UNINITIALIZED__"
+}
+
 # The list of pstores that the root module will use
 variable "pstore_data" {
     description = "The list of pstore data"
     type        = list(object({
         alias       = string
         name        = string
+        desc        = string
+        value       = optional(string)
         encrypted   = bool
+        create      = bool
     }))
 }
 
