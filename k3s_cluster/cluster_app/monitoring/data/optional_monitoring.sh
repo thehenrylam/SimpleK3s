@@ -64,11 +64,11 @@ function apply_monitoring() {
     log_okay "Confirmed that '$K3S_MANIFEST_DIR/' has been initialized"
 
     # Transfer the Monitoring manifest file to the manifests folder
-    TRAEFIK_PENDING_FILEPATH="$SCRIPT_DIR/manifests/monitoring.yaml"
-    TRAEFIK_MANIFEST_FILEPATH="$K3S_MANIFEST_DIR/monitoring.yaml"
-    log_info "Apply Monitoring module to $TRAEFIK_MANIFEST_FILEPATH"
-    sudo cp "$TRAEFIK_PENDING_FILEPATH" "$TRAEFIK_MANIFEST_FILEPATH" || return 1
-    log_okay "Monitoring module written to $TRAEFIK_MANIFEST_FILEPATH"
+    local PENDING_FILEPATH="$SCRIPT_DIR/manifests/monitoring.yaml"
+    local MANIFEST_FILEPATH="$K3S_MANIFEST_DIR/monitoring.yaml"
+    log_info "Apply Monitoring module to $MANIFEST_FILEPATH"
+    sudo cp "$PENDING_FILEPATH" "$MANIFEST_FILEPATH" || return 1
+    log_okay "Monitoring module written to $MANIFEST_FILEPATH"
 
     log_okay "Applied Monitoring module"
 }

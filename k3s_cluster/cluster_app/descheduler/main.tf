@@ -2,7 +2,7 @@ locals {
     module_name = "cluster_app_${basename(path.module)}"
 
     default_settings = {
-        version = "???"
+        version = "0.35.0"
         schedule    = "*/5 * * * *"
         policies    = {
             evict_local_storage_pods    = false
@@ -76,6 +76,7 @@ module "aws_s3obj" {
             key         = "${var.s3_config.keyroot}/manifests/descheduler.yaml",
             src         = "${path.module}/data/descheduler.yaml",
             template    = jsonencode({
+                version     = local.settings.version
                 schedule    = local.settings.schedule
                 policies    = local.settings.policies
                 thresholds  = local.settings.thresholds

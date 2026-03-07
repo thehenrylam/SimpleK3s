@@ -60,11 +60,11 @@ function apply_descheduler() {
     log_okay "Confirmed that '$K3S_MANIFEST_DIR/' has been initialized"
 
     # Transfer the Descheduler file to the /var/lib/rancher/k3s/server/manifests/ folder
-    DESCHEDULER_PENDING_FILEPATH="$SCRIPT_DIR/manifests/descheduler.yaml"
-    DESCHEDULER_MANIFEST_FILEPATH="$K3S_MANIFEST_DIR/descheduler.yaml"
-    log_info "Apply Descheduler to $DESCHEDULER_MANIFEST_FILEPATH"
-    sudo cp "$DESCHEDULER_PENDING_FILEPATH" "$DESCHEDULER_MANIFEST_FILEPATH" || return 1
-    log_okay "Descheduler written to $DESCHEDULER_MANIFEST_FILEPATH"
+    local PENDING_FILEPATH="$SCRIPT_DIR/manifests/descheduler.yaml"
+    local MANIFEST_FILEPATH="$K3S_MANIFEST_DIR/descheduler.yaml"
+    log_info "Apply Descheduler to $MANIFEST_FILEPATH"
+    sudo cp "$PENDING_FILEPATH" "$MANIFEST_FILEPATH" || return 1
+    log_okay "Descheduler written to $MANIFEST_FILEPATH"
 
     log_okay "Wrote Descheduler manifest"
 }

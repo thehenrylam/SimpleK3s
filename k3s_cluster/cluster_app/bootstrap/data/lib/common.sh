@@ -39,8 +39,9 @@ function install_k3s_controller() {
 
     local controller_host="${1:-$CONTROLLER_HOST}"
 
-    curl -sfL "$K3S_INSTALL_URL" | sh -s - server \
+    curl -sfL "$K3S_INSTALL_URL" | INSTALL_K3S_VERSION="$K3S_VERSION" sh -s - server \
         --cluster-init \
+        --disable=traefik \
         --tls-san="$controller_host" 2>&1
 }
 # Install K3s (Server)
@@ -52,8 +53,9 @@ function install_k3s_server() {
     local token="${1}"
     local controller_host="${2:-$CONTROLLER_HOST}"
 
-    curl -sfL "$K3S_INSTALL_URL" | K3S_TOKEN="$token" sh -s - server \
+    curl -sfL "$K3S_INSTALL_URL" | INSTALL_K3S_VERSION="$K3S_VERSION" K3S_TOKEN="$token" sh -s - server \
         --server "https://$controller_host:6443" \
+        --disable=traefik \
         --tls-san="$controller_host" 2>&1 
 }
 

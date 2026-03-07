@@ -65,11 +65,11 @@ function apply_kyverno() {
     log_okay "Confirmed that '$K3S_MANIFEST_DIR/' has been initialized"
 
     # Transfer the Kyverno file to the /var/lib/rancher/k3s/server/manifests/ folder
-    KYVERNO_PENDING_FILEPATH="$SCRIPT_DIR/manifests/kyverno.yaml"
-    KYVERNO_MANIFEST_FILEPATH="$K3S_MANIFEST_DIR/kyverno.yaml"
-    log_info "Apply Kyverno to $KYVERNO_MANIFEST_FILEPATH"
-    sudo cp "$KYVERNO_PENDING_FILEPATH" "$KYVERNO_MANIFEST_FILEPATH" || return 1
-    log_okay "Kyverno written to $KYVERNO_MANIFEST_FILEPATH"
+    local PENDING_FILEPATH="$SCRIPT_DIR/manifests/kyverno.yaml"
+    local MANIFEST_FILEPATH="$K3S_MANIFEST_DIR/kyverno.yaml"
+    log_info "Apply Kyverno to $MANIFEST_FILEPATH"
+    sudo cp "$PENDING_FILEPATH" "$MANIFEST_FILEPATH" || return 1
+    log_okay "Kyverno written to $MANIFEST_FILEPATH"
 
     log_okay "Wrote Kyverno manifest"
 }
@@ -83,11 +83,11 @@ function apply_kyverno_policies() {
     log_okay "Confirmed that '$K3S_MANIFEST_DIR/' has been initialized"
 
     # Transfer the Kyverno (baseline-policies) file to the /var/lib/rancher/k3s/server/manifests/ folder
-    KYVERNO_PENDING_FILEPATH="$SCRIPT_DIR/manifests/kyverno-baseline-policies.yaml"
-    KYVERNO_MANIFEST_FILEPATH="$K3S_MANIFEST_DIR/kyverno-baseline-policies.yaml"
-    log_info "Apply Kyverno (baseline-policies) to $KYVERNO_MANIFEST_FILEPATH"
-    sudo cp "$KYVERNO_PENDING_FILEPATH" "$KYVERNO_MANIFEST_FILEPATH" || return 1
-    log_okay "Kyverno (baseline-policies) written to $KYVERNO_MANIFEST_FILEPATH"
+    local PENDING_FILEPATH="$SCRIPT_DIR/manifests/kyverno-baseline-policies.yaml"
+    local MANIFEST_FILEPATH="$K3S_MANIFEST_DIR/kyverno-baseline-policies.yaml"
+    log_info "Apply Kyverno (baseline-policies) to $MANIFEST_FILEPATH"
+    sudo cp "$PENDING_FILEPATH" "$MANIFEST_FILEPATH" || return 1
+    log_okay "Kyverno (baseline-policies) written to $MANIFEST_FILEPATH"
 
     log_okay "Wrote Kyverno (baseline-policies) manifest"
 }
