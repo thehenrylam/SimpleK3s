@@ -39,14 +39,14 @@ if [[ -z "$COUNT_INDEX" || ! "$COUNT_INDEX" =~ ^[0-9]+$ ]]; then
 fi
 
 # Install the packages
-"$SCRIPT_DIR/01_install_packages.sh" || exit 1
+"$SCRIPT_DIR/bts_01_install_packages.sh" || exit 1
 
 # Setup the swapfile (SWAPFILE_ALLOC_AMT is provided from simplek3s.env file)
-"$SCRIPT_DIR/02_setup_swapfile.sh" "$SWAPFILE_ALLOC_AMT" || exit 1
+"$SCRIPT_DIR/bts_02_setup_swapfile.sh" "$SWAPFILE_ALLOC_AMT" || exit 1
 
 # Setup the k3s (if COUNT_INDEX == 0 then install as "controller", otherwise install as "server")
 NODE_TYPE=$([ $COUNT_INDEX -eq 0 ] && echo "controller" || echo "server")
-"$SCRIPT_DIR/03_install_k3s.sh" "$NODE_TYPE" || exit 1
+"$SCRIPT_DIR/bts_03_install_k3s.sh" "$NODE_TYPE" || exit 1
 
 "$SCRIPT_DIR/init_subsystems.sh" "$COUNT_INDEX" || exit 1
 

@@ -26,13 +26,13 @@ echo "=== $(basename $0) starting ==="
 if [[ "$COUNT_INDEX" -eq 0 ]]; then
     log_info "Initializing applications"
     # Optional: Apply the ArgoCD application
-    if [ -f "$SCRIPT_DIR/optional_argocd.sh" ]; then
-        "$SCRIPT_DIR/optional_argocd.sh" || exit 1
+    if [ -f "$SCRIPT_DIR/app_argocd.sh" ]; then
+        "$SCRIPT_DIR/app_argocd.sh" || exit 1
     fi 
 
     # Optional: Apply the Monitoring application
-    if [ -f "$SCRIPT_DIR/optional_monitoring.sh" ]; then
-        "$SCRIPT_DIR/optional_monitoring.sh" || exit 1
+    if [ -f "$SCRIPT_DIR/app_monitoring.sh" ]; then
+        "$SCRIPT_DIR/app_monitoring.sh" || exit 1
     fi
     log_okay "Initialized applications"
 else

@@ -58,8 +58,8 @@ module "aws_s3obj" {
         },
         {
             desc        = "ArgoCD installation script (to be executed by the Default Init Script)"
-            key         = "${var.s3_config.keyroot}/optional_argocd.sh"
-            src         = "${path.module}/data/optional_argocd.sh"
+            key         = "${var.s3_config.keyroot}/app_argocd.sh"
+            src         = "${path.module}/data/app_argocd.sh"
             template    = null
         }
     ]

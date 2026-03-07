@@ -59,8 +59,8 @@ module "aws_s3obj" {
         },
         {
             desc        = "Monitoring (Prometheus & Grafana) installation script (to be executed by the Default Init Script)"
-            key         = "${var.s3_config.keyroot}/optional_monitoring.sh"
-            src         = "${path.module}/data/optional_monitoring.sh"
+            key         = "${var.s3_config.keyroot}/app_monitoring.sh"
+            src         = "${path.module}/data/app_monitoring.sh"
             template    = null
         }
     ]

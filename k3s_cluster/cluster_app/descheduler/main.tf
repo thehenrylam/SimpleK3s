@@ -84,8 +84,8 @@ module "aws_s3obj" {
         },
         {
             desc        = "Init Script (Apply Descheduler)",
-            key         = "${var.s3_config.keyroot}/05_apply_descheduler.sh",
-            src         = "${path.module}/data/05_apply_descheduler.sh",
+            key         = "${var.s3_config.keyroot}/sub_apply_descheduler.sh",
+            src         = "${path.module}/data/sub_apply_descheduler.sh",
             template    = null
         }
     ]
