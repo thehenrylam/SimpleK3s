@@ -84,7 +84,7 @@ resource "aws_iam_role_policy_attachment" "bootstrap_read" {
 
 # Establish IAM Policy using document
 resource "aws_iam_policy" "bootstrap_read" {
-    name   = local.ipolicy_s3_bstrap_name
+    name   = local.ipolicy_s3_bstrap_obj_name
     policy = data.aws_iam_policy_document.bootstrap_read.json
 }
 
@@ -94,7 +94,30 @@ data "aws_iam_policy_document" "bootstrap_read" {
         effect  = "Allow"
         actions = ["s3:GetObject"]
         resources = [
-            "arn:${data.aws_partition.current.partition}:s3:::${local.s3_bstrap_name}/bootstrap/*"
+            "arn:${data.aws_partition.current.partition}:s3:::${local.s3_bstrap_name}/*"
+        ]
+    }
+}
+
+# Attach permission policy (least-privilege policy for S3 bootstrap reads)
+resource "aws_iam_role_policy_attachment" "bootstrap_listbucket" {
+    role       = aws_iam_role.irole_ec2.name
+    policy_arn = aws_iam_policy.bootstrap_listbucket.arn
+}
+
+# Establish IAM Policy using document
+resource "aws_iam_policy" "bootstrap_listbucket" {
+    name   = local.ipolicy_s3_bstrap_bkt_name
+    policy = data.aws_iam_policy_document.bootstrap_listbucket.json
+}
+
+# Setup policy document
+data "aws_iam_policy_document" "bootstrap_listbucket" {
+    statement {
+        effect  = "Allow"
+        actions = ["s3:ListBucket"]
+        resources = [
+            "arn:${data.aws_partition.current.partition}:s3:::${local.s3_bstrap_name}"
         ]
     }
 }

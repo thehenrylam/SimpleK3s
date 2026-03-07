@@ -61,3 +61,4 @@ manifests/jenkins.yaml
 **/bootstrap/**/kyverno.yaml
 **/bootstrap/**/kyverno-baseline-policies.yaml
 **/bootstrap/**/simplek3s.env
+**/cluster_app/**/data/*.yaml

@@ -1,0 +1,29 @@
+# Force nodePort to be set to a static values (easier to expose ports to the outside world)  
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    ports:
+      web:
+        nodePort: ${network.traefik.nodeport_http}
+      websecure:
+        nodePort: ${network.traefik.nodeport_https}
+
+    # HA: run multiple Traefik replicas
+    deployment:
+      replicas: ${resources.traefik.replicas.target} # 2
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: ${resources.traefik.replicas.minimum} # 1
+
+    # Resource sizing (baseline)
+    resources:
+      requests:
+        cpu: ${resources.traefik.req.cpu} # 50m
+        memory: ${resources.traefik.req.mem} # 128Mi
+      limits:
+        cpu: ${resources.traefik.lmt.cpu} # 200m
+        memory: ${resources.traefik.lmt.mem} # 256Mi

@@ -1,0 +1,87 @@
+# DEFAULT ADD-ON: Kyverno
+# Helps centralize Kubernetes rules + defaults in one place
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: kyverno
+  namespace: kube-system
+spec:
+  repo: https://kyverno.github.io/kyverno/
+  chart: kyverno
+  version: "${chart_version}"   # e.g. "3.7.1"
+  targetNamespace: kyverno
+  createNamespace: true
+
+  # This affects the helm-install-* Job pod
+  tolerations:
+    - key: "node-role.kubernetes.io/control-plane"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+  valuesContent: |-
+    # HA profile: run Kyverno controllers with >1 replica and allow safe evictions (PDB)
+    admissionController:
+      replicas: ${resources.admissionController.replicas.target}
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: ${resources.admissionController.replicas.minimum}
+      container:
+        resources:
+          requests:
+            cpu: ${resources.admissionController.req.cpu} # 100m
+            memory: ${resources.admissionController.req.mem} # 128Mi
+          limits: # NO CPU LIMITS AS PER https://kyverno.io/docs/installation/scaling/?utm_source=chatgpt.com#vertical-scale
+            memory: ${resources.admissionController.lmt.mem} # 384Mi
+
+    backgroundController:
+      replicas: ${resources.backgroundController.replicas.target}
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: ${resources.backgroundController.replicas.minimum}
+      resources:
+        requests:
+          cpu: ${resources.backgroundController.req.cpu} # 100m
+          memory: ${resources.backgroundController.req.mem} # 64Mi
+        limits: # NO CPU LIMITS (as per admissionController.container.resources.limits.cpu)
+          memory: ${resources.backgroundController.lmt.mem} # 128Mi
+
+    cleanupController:
+      replicas: ${resources.cleanupController.replicas.target}
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: ${resources.cleanupController.replicas.minimum}
+      resources:
+        requests:
+          cpu: ${resources.cleanupController.req.cpu} # 100m
+          memory: ${resources.cleanupController.req.mem} # 64Mi
+        limits: # NO CPU LIMITS (as per admissionController.container.resources.limits.cpu)
+          memory: ${resources.cleanupController.lmt.mem} # 128Mi
+
+    reportsController:
+      replicas: ${resources.reportsController.replicas.target}
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: ${resources.reportsController.replicas.minimum}
+      resources:
+        requests:
+          cpu: ${resources.reportsController.req.cpu} # 100m
+          memory: ${resources.reportsController.req.mem} # 64Mi
+        limits: # NO CPU LIMITS (as per admissionController.container.resources.limits.cpu)
+          memory: ${resources.reportsController.lmt.mem} # 128Mi
+
+%{ if control_plane_only }
+    # Allow Kyverno to run on tainted control-plane nodes, and *prefer* them
+    tolerations:
+      - key: "node-role.kubernetes.io/control-plane"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/control-plane
+                operator: Exists
+%{ endif }

@@ -122,20 +122,38 @@ variable "ec2_ebs_volume_type" {
     default     = "gp3" # gp3 is favored since we are using small volumes while maintaining reliable performance
 }
 
+# Pre-built subsystems
+variable "subsystems" {
+    description = "Pre-built subsystems (Modify underlying cluster behavior)"
+    type        = object({
+        traefik = optional(object({
+            version = optional(string)
+        }))
+        kyverno = optional(object({
+            version = optional(string)
+        }))
+        external-secrets = optional(object({
+            version = optional(string)
+        }))
+        descheduler = optional(object({
+            version = optional(string)
+        }))
+    })
+    default = {}
+}
+
 # Pre-built applications
 variable "applications" {
     description = "Pre-built applications (For easy setups)"
     type        = object({
         argocd  = optional(object({
-            idp_ssm_pstore_names = object({
-                idp_config = string 
-            })
+            version = optional(string)
+            pstore_idp_config = string
             domain_name = string
         }))
         monitoring = optional(object({
-            idp_ssm_pstore_names = object({
-                idp_config = string 
-            })
+            version = optional(string)
+            pstore_idp_config = string
             domain_name = string
         }))
     })
