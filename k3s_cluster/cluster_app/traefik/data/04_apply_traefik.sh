@@ -69,14 +69,17 @@ function apply_traefik() {
     log_okay "Confirmed that '$K3S_MANIFEST_DIR/' has been initialized"
 
     # Transfer the Traefik file to the /var/lib/rancher/k3s/server/manifests/ folder
-    TRAEFIK_PENDING_FILEPATH="$SCRIPT_DIR/manifests/traefik.yaml"
-    TRAEFIK_MANIFEST_FILEPATH="$K3S_MANIFEST_DIR/traefik.yaml"
-    log_info "Apply Traefik to $TRAEFIK_MANIFEST_FILEPATH"
-    sudo cp "$TRAEFIK_PENDING_FILEPATH" "$TRAEFIK_MANIFEST_FILEPATH" || return 1
-    log_okay "Traefik written to $TRAEFIK_MANIFEST_FILEPATH"
+    local PENDING_FILEPATH="$SCRIPT_DIR/manifests/traefik-helmchart.yaml"
+    # We need to set MANIFEST_FILEPATH to traefik-helmchart.yaml to allow K3s to recognize it (traefik.yaml is ignored in K3s if its disabled)
+    local MANIFEST_FILEPATH="$K3S_MANIFEST_DIR/traefik-helmchart.yaml"
+    log_info "Apply Traefik to $MANIFEST_FILEPATH"
+    sudo cp "$PENDING_FILEPATH" "$MANIFEST_FILEPATH" || return 1
+    log_okay "Traefik written to $MANIFEST_FILEPATH"
 
     log_okay "Wrote Traefik manifest"
 }
+
+# sudo cp /opt/simplek3s/bootstrap/default/lib/..//manifests/traefik.yaml /var/lib/rancher/k3s/server/manifests/traefik.yaml
 
 function apply_traefik_middleware() {
     log_info "Writing Traefik Middleware manifest"
@@ -87,11 +90,11 @@ function apply_traefik_middleware() {
     log_okay "Confirmed that '$K3S_MANIFEST_DIR/' has been initialized"
 
     # Transfer the Traefik manifest file to the /var/lib/rancher/k3s/server/manifests/ folder
-    TRAEFIK_PENDING_FILEPATH="$SCRIPT_DIR/manifests/traefik-middleware.yaml"
-    TRAEFIK_MANIFEST_FILEPATH="$K3S_MANIFEST_DIR/traefik-middleware.yaml"
-    log_info "Apply Traefik Middleware to $TRAEFIK_MANIFEST_FILEPATH"
-    sudo cp "$TRAEFIK_PENDING_FILEPATH" "$TRAEFIK_MANIFEST_FILEPATH" || return 1
-    log_okay "Traefik Middleware written to $TRAEFIK_MANIFEST_FILEPATH"
+    local PENDING_FILEPATH="$SCRIPT_DIR/manifests/traefik-middleware.yaml"
+    local MANIFEST_FILEPATH="$K3S_MANIFEST_DIR/traefik-middleware.yaml"
+    log_info "Apply Traefik Middleware to $MANIFEST_FILEPATH"
+    sudo cp "$PENDING_FILEPATH" "$MANIFEST_FILEPATH" || return 1
+    log_okay "Traefik Middleware written to $MANIFEST_FILEPATH"
 
     log_okay "Wrote Traefik Middleware manifest"
 }
@@ -105,11 +108,6 @@ wait_for_k3s_api || {
 
 wait_for_kubesystem || {
     log_fail "Unable to confirm that Kubesystem is ready"
-    exit 1
-}
-
-wait_for_traefik || {
-    log_fail "Unable to confirm that Traefik is ready"
     exit 1
 }
 

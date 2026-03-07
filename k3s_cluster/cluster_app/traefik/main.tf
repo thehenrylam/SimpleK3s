@@ -55,8 +55,8 @@ module "aws_s3obj" {
     s3obj_data      = [
         { # Traefik Manifests
             desc        = "Traefik Manifests",
-            key         = "${var.s3_config.keyroot}/manifests/traefik.yaml",
-            src         = "${path.module}/data/traefik.yaml",
+            key         = "${var.s3_config.keyroot}/manifests/traefik-helmchart.yaml",
+            src         = "${path.module}/data/traefik-helmchart.yaml",
             template    = jsonencode({
                 version         = local.settings.version
                 network         = {

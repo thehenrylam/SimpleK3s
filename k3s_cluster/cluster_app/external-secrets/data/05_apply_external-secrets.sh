@@ -65,11 +65,11 @@ function apply_external_secrets() {
     log_okay "Confirmed that '$K3S_MANIFEST_DIR/' has been initialized"
 
     # Transfer the External Secrets file to the /var/lib/rancher/k3s/server/manifests/ folder
-    TRAEFIK_PENDING_FILEPATH="$SCRIPT_DIR/manifests/external-secrets.yaml"
-    TRAEFIK_MANIFEST_FILEPATH="$K3S_MANIFEST_DIR/external-secrets.yaml"
-    log_info "Apply External Secrets to $TRAEFIK_MANIFEST_FILEPATH"
-    sudo cp "$TRAEFIK_PENDING_FILEPATH" "$TRAEFIK_MANIFEST_FILEPATH" || return 1
-    log_okay "External Secrets written to $TRAEFIK_MANIFEST_FILEPATH"
+    local PENDING_FILEPATH="$SCRIPT_DIR/manifests/external-secrets.yaml"
+    local MANIFEST_FILEPATH="$K3S_MANIFEST_DIR/external-secrets.yaml"
+    log_info "Apply External Secrets to $MANIFEST_FILEPATH"
+    sudo cp "$PENDING_FILEPATH" "$MANIFEST_FILEPATH" || return 1
+    log_okay "External Secrets written to $MANIFEST_FILEPATH"
 
     log_okay "Wrote External Secrets manifest"
 }

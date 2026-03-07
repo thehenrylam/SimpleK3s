@@ -46,11 +46,11 @@ function apply_argocd() {
     log_okay "Confirmed that '$K3S_MANIFEST_DIR/' has been initialized"
 
     # Transfer the ArgoCD manifest file to the manifests folder
-    TRAEFIK_PENDING_FILEPATH="$SCRIPT_DIR/manifests/argocd.yaml"
-    TRAEFIK_MANIFEST_FILEPATH="$K3S_MANIFEST_DIR/argocd.yaml"
-    log_info "Apply ArgoCD module to $TRAEFIK_MANIFEST_FILEPATH"
-    sudo cp "$TRAEFIK_PENDING_FILEPATH" "$TRAEFIK_MANIFEST_FILEPATH" || return 1
-    log_okay "ArgoCD module written to $TRAEFIK_MANIFEST_FILEPATH"
+    local PENDING_FILEPATH="$SCRIPT_DIR/manifests/argocd.yaml"
+    local MANIFEST_FILEPATH="$K3S_MANIFEST_DIR/argocd.yaml"
+    log_info "Apply ArgoCD module to $MANIFEST_FILEPATH"
+    sudo cp "$PENDING_FILEPATH" "$MANIFEST_FILEPATH" || return 1
+    log_okay "ArgoCD module written to $MANIFEST_FILEPATH"
 
     # Wait for ArgoCD to be ready
     wait_argocd || return 1
