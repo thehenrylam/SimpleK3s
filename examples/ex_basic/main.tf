@@ -41,25 +41,6 @@ locals {
     # }
     # Use the module within ../modules/idp_cognito to create this config
     pstore_idp_config   = "/idp-standalone/idp-standalone/idp_config"
-    idp_ssm_pstore_names = {
-        # IdP SSM Parameter Names
-        #   What its used for: Used to enable SSO for apps
-        #   Required Actions:
-        #       - Go to SimpleK3s/examples/ex_idp/
-        #       - Create the IdP resource (Customize the DNS name)
-        #       - Use the SSM Param Output via `terraform output -json`
-        #           - NOTE: Default values are already provided 
-        #             (Only need to change this if you change the idp-standalone nickname)
-        # idp_config's should have a JSON string the following format:
-        # {
-        #     issuer        = __IDP_ISSUER_URL__
-        #     client_id     = __IDP_CLIENT_ID__
-        #     client_secret = __IDP_CLIENT_SECRET__
-        #     domain        = __IDP_HOSTED_UI_BASE_DOMAIN__
-        # }
-        # Use the module within ../modules/idp_cognito to create this config
-        idp_config  = local.pstore_idp_config
-    }
 }
 
 module "vpc_cloud" {
