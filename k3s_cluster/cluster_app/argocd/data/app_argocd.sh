@@ -29,10 +29,19 @@ function wait_argocd() {
     }
 
     log_info "Waiting for deployment '$DEPLOY_NAME' to be ready..."
-    wait_for_cmd_3min sudo kubectl -n "$NS" rollout status "deploy/$DEPLOY_NAME" --timeout=10s || {
+    wait_for_cmd_3min sudo kubectl -n "$NS" rollout status deployment --timeout=10s || {
         log_fail "deployment '$DEPLOY_NAME' not ready"
         sudo kubectl -n "$NS" describe deploy "$DEPLOY_NAME" || true
         sudo kubectl -n "$NS" get pods -o wide || true
+        return 1
+    }
+
+    ESO_FULLNAME="externalsecret/argocd-oidc-into-argocd-secret"
+
+    log_info "Waiting for secret manager '$ESO_FULLNAME' to be present..."
+    wait_for_cmd_3min sudo kubectl -n "$NS" wait "$ESO_FULLNAME" --for=condition=Ready=True --timeout=10s || {
+        log_fail "secret manager '$ESO_FULLNAME' never appeared in namespace '$NS'"
+        sudo kubectl -n "$NS" get all || true
         return 1
     }
 }
@@ -55,16 +64,14 @@ function apply_argocd() {
     # Wait for ArgoCD to be ready
     wait_argocd || return 1
 
-    # Additional wait time to 15 seconds
-    sleep 15
-
     # Re-roll the rollout of the ArgoCD module 
     # Why: 
     #   - This is to help work around a weird issue with the argocd.yaml file
     #   - The weird issue is where the SecretStore variables won't properly template unless it rolls out a second time
     #   - Likely due to an ordering issue; Multiple attempts to order the installation didn't solve it (We'll check back on it at a later date)
     log_info "Restarting rollout of the ArgoCD module"
-    sudo kubectl -n argocd rollout restart deploy/argocd-server
+    sudo kubectl -n argocd rollout restart deployment   # Restart all pods in ArgoCD (except for Redis)
+    sudo kubectl -n argocd rollout restart statefulset  # Restart Redis in ArgoCD (a statefulset)
     log_okay "Completed rollout of the ArgoCD module"
 
     log_okay "Applied ArgoCD module"
