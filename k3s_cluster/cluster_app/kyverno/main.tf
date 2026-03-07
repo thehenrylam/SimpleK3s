@@ -77,8 +77,8 @@ module "aws_s3obj" {
         },
         {
             desc        = "Init Script (Apply Kyverno)",
-            key         = "${var.s3_config.keyroot}/05_apply_kyverno.sh",
-            src         = "${path.module}/data/05_apply_kyverno.sh",
+            key         = "${var.s3_config.keyroot}/sub_apply_kyverno.sh",
+            src         = "${path.module}/data/sub_apply_kyverno.sh",
             template    = null
         }
     ]

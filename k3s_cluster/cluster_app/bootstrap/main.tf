@@ -77,20 +77,20 @@ module "aws_s3obj" {
         },
         {
             desc        = "Init Script (Install Packages)",
-            key         = "${var.s3_config.keyroot}/01_install_packages.sh",
-            src         = "${path.module}/data/01_install_packages.sh",
+            key         = "${var.s3_config.keyroot}/bts_01_install_packages.sh",
+            src         = "${path.module}/data/bts_01_install_packages.sh",
             template    = null
         },
         {
             desc        = "Init Script (Setup Swapfile)",
-            key         = "${var.s3_config.keyroot}/02_setup_swapfile.sh",
-            src         = "${path.module}/data/02_setup_swapfile.sh",
+            key         = "${var.s3_config.keyroot}/bts_02_setup_swapfile.sh",
+            src         = "${path.module}/data/bts_02_setup_swapfile.sh",
             template    = null
         },
         {
             desc        = "Init Script (Install K3s)",
-            key         = "${var.s3_config.keyroot}/03_install_k3s.sh",
-            src         = "${path.module}/data/03_install_k3s.sh",
+            key         = "${var.s3_config.keyroot}/bts_03_install_k3s.sh",
+            src         = "${path.module}/data/bts_03_install_k3s.sh",
             template    = null
         },
         {

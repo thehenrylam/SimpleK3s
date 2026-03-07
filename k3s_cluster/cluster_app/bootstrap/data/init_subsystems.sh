@@ -26,23 +26,23 @@ echo "=== $(basename $0) starting ==="
 if [[ "$COUNT_INDEX" -eq 0 ]]; then
     log_info "Initializing subsystems"
     # Apply the configs of Traefik
-    if [ -f "$SCRIPT_DIR/04_apply_traefik.sh" ]; then
-        "$SCRIPT_DIR/04_apply_traefik.sh" || exit 1
+    if [ -f "$SCRIPT_DIR/sub_apply_traefik.sh" ]; then
+        "$SCRIPT_DIR/sub_apply_traefik.sh" || exit 1
     fi
 
     # Apply Kyverno (MUST be first Add-On to be applied)
-    if [ -f "$SCRIPT_DIR/05_apply_kyverno.sh" ]; then
-        "$SCRIPT_DIR/05_apply_kyverno.sh" || exit 1
+    if [ -f "$SCRIPT_DIR/sub_apply_kyverno.sh" ]; then
+        "$SCRIPT_DIR/sub_apply_kyverno.sh" || exit 1
     fi
 
     # Apply External Secrets
-    if [ -f "$SCRIPT_DIR/05_apply_external-secrets.sh" ]; then
-        "$SCRIPT_DIR/05_apply_external-secrets.sh" || exit 1
+    if [ -f "$SCRIPT_DIR/sub_apply_external-secrets.sh" ]; then
+        "$SCRIPT_DIR/sub_apply_external-secrets.sh" || exit 1
     fi
 
     # Apply Descheduler
-    if [ -f "$SCRIPT_DIR/05_apply_descheduler.sh" ]; then
-        "$SCRIPT_DIR/05_apply_descheduler.sh" || exit 1
+    if [ -f "$SCRIPT_DIR/sub_apply_descheduler.sh" ]; then
+        "$SCRIPT_DIR/sub_apply_descheduler.sh" || exit 1
     fi
     log_okay "Initialized subsystems"
 else
