@@ -2,7 +2,7 @@ locals {
     module_name = "cluster_app_${basename(path.module)}"
 
     default_settings = {
-        version         = "???"
+        version         = "37.1.0"
         nodeport_http   = 30080
         nodeport_https  = 30443
         ingress_http    = 80
@@ -53,10 +53,10 @@ module "aws_s3obj" {
     # S3 settings
     s3_bucket_id    = var.s3_config.id 
     s3obj_data      = [
-        { # Traefik Config (Template)
-            desc        = "Traefik Config",
-            key         = "${var.s3_config.keyroot}/manifests/traefik-config.yaml",
-            src         = "${path.module}/data/traefik-config.yaml",
+        { # Traefik Manifests
+            desc        = "Traefik Manifests",
+            key         = "${var.s3_config.keyroot}/manifests/traefik.yaml",
+            src         = "${path.module}/data/traefik.yaml",
             template    = jsonencode({
                 version         = local.settings.version
                 network         = {

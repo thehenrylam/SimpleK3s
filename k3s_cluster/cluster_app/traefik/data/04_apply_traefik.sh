@@ -60,22 +60,22 @@ function wait_for_traefik_middleware() {
     log_info "traefik middleware is ready!"
 }
 
-function apply_traefik_config() {
-    log_info "Writing Traefik HelmChartConfig manifest"
+function apply_traefik() {
+    log_info "Writing Traefik manifest"
 
     # Make sure the manifests directory exists
     log_info "Make sure that '$K3S_MANIFEST_DIR/' is initialized"
     sudo mkdir -p "$K3S_MANIFEST_DIR/" || return 1
     log_okay "Confirmed that '$K3S_MANIFEST_DIR/' has been initialized"
 
-    # Transfer the Traefik manifest file to the /var/lib/rancher/k3s/server/manifests/ folder
-    TRAEFIK_PENDING_FILEPATH="$SCRIPT_DIR/manifests/traefik-config.yaml"
-    TRAEFIK_MANIFEST_FILEPATH="$K3S_MANIFEST_DIR/traefik-config.yaml"
-    log_info "Apply Traefik HelmChartConfig to $TRAEFIK_MANIFEST_FILEPATH"
+    # Transfer the Traefik file to the /var/lib/rancher/k3s/server/manifests/ folder
+    TRAEFIK_PENDING_FILEPATH="$SCRIPT_DIR/manifests/traefik.yaml"
+    TRAEFIK_MANIFEST_FILEPATH="$K3S_MANIFEST_DIR/traefik.yaml"
+    log_info "Apply Traefik to $TRAEFIK_MANIFEST_FILEPATH"
     sudo cp "$TRAEFIK_PENDING_FILEPATH" "$TRAEFIK_MANIFEST_FILEPATH" || return 1
-    log_okay "Traefik HelmChartConfig written to $TRAEFIK_MANIFEST_FILEPATH"
+    log_okay "Traefik written to $TRAEFIK_MANIFEST_FILEPATH"
 
-    log_okay "Wrote Traefik HelmChartConfig manifest"
+    log_okay "Wrote Traefik manifest"
 }
 
 function apply_traefik_middleware() {
@@ -113,7 +113,7 @@ wait_for_traefik || {
     exit 1
 }
 
-apply_traefik_config || {
+apply_traefik || {
     log_fail "Failed to apply Traefik"
     exit 1
 }
