@@ -2,7 +2,7 @@ locals {
     module_name = "cluster_app_${basename(path.module)}"
 
     default_settings = {
-        version = "???"
+        version = "2.0.1"
     }
 
     settings = {
@@ -52,7 +52,7 @@ module "aws_s3obj" {
             key         = "${var.s3_config.keyroot}/manifests/external-secrets.yaml",
             src         = "${path.module}/data/external-secrets.yaml",
             template    = jsonencode({
-                chart_version   = local.settings.version
+                version   = local.settings.version
                 resources       = local.resource_profile["standard"]
             })
         },

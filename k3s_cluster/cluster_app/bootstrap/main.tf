@@ -2,7 +2,7 @@ locals {
     module_name = "cluster_app_${basename(path.module)}"
 
     default_settings = {
-        version         = "???"
+        version         = "v1.35.1+k3s1"
         env_vars        = jsonencode({})
         pstore_key_root = "/simplek3s/${var.nickname}"
     }
@@ -61,7 +61,7 @@ module "aws_s3obj" {
             desc        = "SimpleK3s Env Vars",
             key         = "${var.s3_config.keyroot}/simplek3s.env",
             src         = "${path.module}/data/simplek3s.env", 
-            template    = local.settings.env_vars
+            template    = jsonencode(merge(jsondecode(local.settings.env_vars), { k3s_version = local.settings.version }))
         },
         { # Common Functions
             desc        = "Common Functions",
