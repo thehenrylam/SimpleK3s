@@ -29,27 +29,78 @@ source "$SCRIPT_DIR/lib/common.sh"
 # Retrieve the AWS specific functions from aws.sh
 source "$SCRIPT_DIR/lib/providers/aws.sh"
 
+
+# Display usage
+function usage() {
+    echo "Usage: $(basename "$0") <COUNT_INDEX> <CLUSTER_TYPE>" >&2
+    exit 2
+}
+
+# Setup control plane
+function setup_control_plane() {
+    local COUNT_INDEX="$1"
+
+    # Install the packages
+    "$SCRIPT_DIR/bts_01_install_packages.sh" || exit 1
+
+    # Setup the swapfile (SWAPFILE_ALLOC_AMT is provided from simplek3s.env file)
+    "$SCRIPT_DIR/bts_02_setup_swapfile.sh" "$SWAPFILE_ALLOC_AMT" || exit 1
+
+    # Setup the k3s (if COUNT_INDEX == 0 then install as "controller", otherwise install as "server")
+    local NODE_TYPE=$([ $COUNT_INDEX -eq 0 ] && echo "controller" || echo "server")
+    "$SCRIPT_DIR/bts_03_install_k3s.sh" "$NODE_TYPE" || exit 1
+
+    "$SCRIPT_DIR/init_subsystems.sh" "$COUNT_INDEX" || exit 1
+
+    "$SCRIPT_DIR/init_applications.sh" "$COUNT_INDEX" || exit 1
+}
+
+# Setup agent
+function setup_agent_plane() {
+    local COUNT_INDEX="$1"
+
+    # Install the packages
+    "$SCRIPT_DIR/bts_01_install_packages.sh" || exit 1
+
+    # Setup the swapfile (SWAPFILE_ALLOC_AMT is provided from simplek3s.env file)
+    "$SCRIPT_DIR/bts_02_setup_swapfile.sh" "$SWAPFILE_ALLOC_AMT" || exit 1
+
+    # Setup the k3s (agent)
+    local NODE_TYPE="agent"
+    "$SCRIPT_DIR/bts_03_install_k3s.sh" "$NODE_TYPE" || exit 1
+}
+
+
 # The index of the current node 
 # If COUNT_INDEX == 0 then its a controller, 
-# otherwise its a server node part of the HA control-plane)
+# otherwise its a server node part of the HA control plane)
 COUNT_INDEX="$1"
+CLUSTER_TYPE="$2"
 if [[ -z "$COUNT_INDEX" || ! "$COUNT_INDEX" =~ ^[0-9]+$ ]]; then
-    echo "Usage: $(basename "$0") <COUNT_INDEX>" >&2
-    exit 2
+    usage # Display the usage
 fi
 
-# Install the packages
-"$SCRIPT_DIR/bts_01_install_packages.sh" || exit 1
-
-# Setup the swapfile (SWAPFILE_ALLOC_AMT is provided from simplek3s.env file)
-"$SCRIPT_DIR/bts_02_setup_swapfile.sh" "$SWAPFILE_ALLOC_AMT" || exit 1
-
-# Setup the k3s (if COUNT_INDEX == 0 then install as "controller", otherwise install as "server")
-NODE_TYPE=$([ $COUNT_INDEX -eq 0 ] && echo "controller" || echo "server")
-"$SCRIPT_DIR/bts_03_install_k3s.sh" "$NODE_TYPE" || exit 1
-
-"$SCRIPT_DIR/init_subsystems.sh" "$COUNT_INDEX" || exit 1
-
-"$SCRIPT_DIR/init_applications.sh" "$COUNT_INDEX" || exit 1
+# Perform node type
+case "$CLUSTER_TYPE" in
+    controlplane) 
+        log_info "Install K3s: Control Plane"
+        setup_control_plane "$COUNT_INDEX" || {
+            log_fail "Failed to set up K3s: Control Plane"
+            exit 1
+        }
+        log_okay "Install K3s: Control Plane - COMPLETED"
+        ;;
+    agentplane)
+        log_info "Install K3s: Agent Plane"
+        setup_agent_plane "$COUNT_INDEX" || {
+            log_fail "Failed to set up K3s: Agent Plane"
+            exit 1
+        }
+        log_okay "Install K3s: Agent Plane - COMPLETED"
+        ;;
+    *) 
+        usage # Display the usage
+        ;;
+esac
 
 echo "=== $(basename $0) completed ==="

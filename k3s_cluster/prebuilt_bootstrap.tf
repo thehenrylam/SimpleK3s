@@ -36,8 +36,8 @@ module "cluster_app_bootstrap" {
             bootstrap_dir       = local.bstrap_dir
             nickname            = var.nickname
             aws_region          = var.aws_region
-            controller_host     = local.controller_host
-            swapfile_alloc_amt  = var.ec2_swapfile_size
+            controller_host     = local.controller_private_ip # local.controller_host
+            swapfile_alloc_amt  = local.controlplane.ec2_swapfile_size # var.ec2_swapfile_size
             pstore_key_root     = local.pstore_key_root
             s3_bucket_name      = local.s3_bstrap_name
         })

@@ -7,7 +7,7 @@ resource "aws_lb" "elb_main" {
     internal           = false
     load_balancer_type = "network"
     security_groups    = [aws_security_group.sg_elb.id]
-    subnets            = [for subnet_id in var.subnet_ids : subnet_id ] # <-- Connect this up
+    subnets            = [for subnet_id in local.controlplane.subnet_ids : subnet_id ] # <-- Connect this up
 
     tags = {
         Name        = "${local.elb_name}"
@@ -16,7 +16,7 @@ resource "aws_lb" "elb_main" {
 
     # Wait for EC2 node to be set up before we start setting up ELB
     depends_on = [
-        aws_instance.ec2_node 
+        aws_instance.controlplane_ec2_node # aws_instance.ec2_node 
     ]
 }
 
@@ -28,7 +28,7 @@ module "k3s_tgl_http" {
     nickname            = var.nickname
     vpc_id              = var.vpc_id
     load_balancer_arn   = aws_lb.elb_main.arn
-    target_ids          = [for instance in aws_instance.ec2_node : instance.id ]
+    target_ids          = [ for instance in aws_instance.controlplane_ec2_node : instance.id ] # [for instance in aws_instance.ec2_node : instance.id ]
     target_group_port   = var.k3s_nodeport_traefik_http # Traefik port that represents port 80
     listener_port       = 80
 }
@@ -41,7 +41,7 @@ module "k3s_tgl_https" {
     nickname            = var.nickname
     vpc_id              = var.vpc_id
     load_balancer_arn   = aws_lb.elb_main.arn
-    target_ids          = [for instance in aws_instance.ec2_node : instance.id ]
+    target_ids          = [ for instance in aws_instance.controlplane_ec2_node : instance.id ] # [for instance in aws_instance.ec2_node : instance.id ]
     target_group_port   = var.k3s_nodeport_traefik_https # Traefik port that represents port 443
     listener_port       = 443
 }
