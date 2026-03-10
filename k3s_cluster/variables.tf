@@ -40,6 +40,16 @@ variable "k3s_nodeport_traefik_https" {
     default     = 30443
 }
 
+variable "subnet_ids" {
+    description = "The subnet ids that EC2 instance will use"
+    type        = list(string)
+
+    validation {
+        condition     = length(var.subnet_ids) > 0
+        error_message = "The subnet ids must contain at least 1 subnet id"
+    }
+}
+
 variable "controlplane" {
     description = "The control plane settings"
     type        = object({
@@ -49,9 +59,9 @@ variable "controlplane" {
         ec2_swapfile_size   = optional(string)
         ebs_volume_size     = optional(number)
         ebs_volume_type     = optional(string)
-        subnet_ids          = list(string)
         controller_private_ip_override = optional(string)
     })
+    default     = {}
 }
 
 variable "agentplane" {
@@ -63,8 +73,8 @@ variable "agentplane" {
         ec2_swapfile_size   = optional(string)
         ebs_volume_size     = optional(number)
         ebs_volume_type     = optional(string)
-        subnet_ids          = list(string)
     })
+    default     = {}
 }
 
 # Pre-built subsystems

@@ -58,13 +58,14 @@ module "k3s_cluster" {
     aws_region              = var.aws_region
     admin_ip_list           = var.admin_ip_list 
     vpc_id                  = module.vpc_cloud.vpc_id 
+    subnet_ids              = module.vpc_cloud.subnet_public_ids
 
     controlplane = {
-        subnet_ids              = module.vpc_cloud.subnet_public_ids
+        node_count = 3
     }
 
     agentplane = {
-        subnet_ids              = module.vpc_cloud.subnet_public_ids
+        node_count = 3
     }
 
     applications = {

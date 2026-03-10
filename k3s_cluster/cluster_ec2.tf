@@ -4,7 +4,7 @@ locals {
     #########################################
     # Controller node networking (node 0)
     # If the controller_subnet_id is not set, default to the FIRST subnet in subnet_ids
-    controller_subnet_id            = var.controlplane.subnet_ids[0]
+    controller_subnet_id            = var.subnet_ids[0]
     controller_subnet_cidr          = data.aws_subnet.controller.cidr_block
     controller_private_ip_hostnum   = 100 # Default value to set the host number for the controller ip (XXX.XXX.XXX.100, where XXX.XXX.XXX.--- is the controller's subnet CIDR)
     # If the controller_private_ip is not set, compute it via cidrhost()
@@ -41,8 +41,7 @@ locals {
         ebs_volume_size     = coalesce(try(var.controlplane.ec2_volume_size, null), local.default_controlplane.ebs_volume_size)
         ebs_volume_type     = coalesce(try(var.controlplane.ec2_volume_type, null), local.default_controlplane.ebs_volume_type)
 
-        # Networking
-        subnet_ids          = var.controlplane.subnet_ids
+        # Custom (Overrides)
         controller_private_ip_override = local.controller_private_ip
     }
 
@@ -58,9 +57,6 @@ locals {
         # EBS
         ebs_volume_size     = coalesce(try(var.agentplane.ec2_volume_size, null), local.default_agentplane.ebs_volume_size)
         ebs_volume_type     = coalesce(try(var.agentplane.ec2_volume_type, null), local.default_agentplane.ebs_volume_type)
-
-        # Networking
-        subnet_ids          = var.agentplane.subnet_ids
     }
 }
 
@@ -75,8 +71,8 @@ locals {
 #           Subnet lookup (for CIDRs)           #
 #################################################
 data "aws_subnet" "selected" {
-    count = length(var.controlplane.subnet_ids)
-    id    = var.controlplane.subnet_ids[count.index]
+    count = length(var.subnet_ids)
+    id    = var.subnet_ids[count.index]
 }
 data "aws_subnet" "controller" {
     id = local.controller_subnet_id
@@ -101,7 +97,7 @@ resource "aws_instance" "controlplane_ec2_node" {
     # Distribute nodes across the provided subnets:
     # The first node (controller) goes into controller_subnet_id
     # The rest are round-robin'd across the other subnets
-    subnet_id                   = local.controlplane.subnet_ids[count.index % length(local.controlplane.subnet_ids)]
+    subnet_id                   = var.subnet_ids[count.index % length(var.subnet_ids)]
     key_name                    = aws_key_pair.tls_key.key_name 
     iam_instance_profile        = aws_iam_instance_profile.iprofile_ec2.name
     security_groups             = [aws_security_group.sg_instances.id]  
@@ -151,7 +147,7 @@ resource "aws_instance" "agentplane_ec2_node" {
     ami                         = local.agentplane.ec2_ami_id
     instance_type               = local.agentplane.ec2_instance_type
     # Distribute nodes across the provided subnets
-    subnet_id                   = local.agentplane.subnet_ids[count.index % length(local.agentplane.subnet_ids)]
+    subnet_id                   = var.subnet_ids[count.index % length(var.subnet_ids)]
     key_name                    = aws_key_pair.tls_key.key_name 
     iam_instance_profile        = aws_iam_instance_profile.iprofile_ec2.name
     security_groups             = [aws_security_group.sg_instances.id]  
