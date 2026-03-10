@@ -63,6 +63,10 @@ module "k3s_cluster" {
         subnet_ids              = module.vpc_cloud.subnet_public_ids
     }
 
+    agentplane = {
+        subnet_ids              = module.vpc_cloud.subnet_public_ids
+    }
+
     applications = {
         argocd = { # Deployer: ArgoCD   
             pstore_idp_config       = local.pstore_idp_config

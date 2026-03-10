@@ -71,6 +71,26 @@ function k3s_server() {
     log_okay "K3s Server successfully installed!"
 }
 
+function k3s_agent() {
+    log_info "Installing Agent!"
+    log_info "CONTROLLER_HOST $CONTROLLER_HOST"
+
+    # Wait until the master node is up
+    log_info "Checking if the controller is up"
+    is_controller_okay || return 1
+    log_okay "Controller node is confirmed to be up!"
+
+    # Try to ping AWS SSM to see if the k3s token is ready
+    log_info "Retrieving K3s token!"
+    local token="$(download_k3s_token)" || return 1
+    log_okay "K3s token has been retrieved!"
+
+    # Set up K3s agent
+    log_info "Set up K3s Agent"
+    install_k3s_agent "$token" || return 1
+    log_okay "K3s Agent successfully installed!"
+}
+
 log_info "$0: LAUNCHED"
 # Perform node type
 case "$NODE_TYPE" in
@@ -89,6 +109,14 @@ case "$NODE_TYPE" in
             exit 1
         }
         log_okay "Install K3s: Server - COMPLETED"
+        ;;
+    agent)
+        log_info "Install K3s: Agent"
+        k3s_agent || {
+            log_fail "Failed to set up K3s: Agent"
+            exit 1
+        }
+        log_okay "Install K3s: Agent - COMPLETED"
         ;;
     *) 
         log_fail "Install K3s Failed: Invalid input ($NODE_TYPE)"

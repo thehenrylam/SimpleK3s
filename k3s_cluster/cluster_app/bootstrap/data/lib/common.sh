@@ -59,6 +59,19 @@ function install_k3s_server() {
         --tls-san="$controller_host" 2>&1 
 }
 
+# Install K3s (Agent)
+function install_k3s_agent() {
+    # simplek3s.env variables:
+    # - K3S_INSTALL_URL
+    # - CONTROLLER_HOST
+
+    local token="${1}"
+    local controller_host="${2:-$CONTROLLER_HOST}"
+
+    curl -sfL "$K3S_INSTALL_URL" | INSTALL_K3S_VERSION="$K3S_VERSION" K3S_TOKEN="$token" sh -s - agent \
+        --server "https://$controller_host:6443" 2>&1
+}
+
 # Get the K3s token
 function get_k3s_token() {
     # Define an uninitialized value to set up a fallback output 

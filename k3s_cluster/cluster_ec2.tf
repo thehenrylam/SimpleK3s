@@ -11,7 +11,7 @@ locals {
     controller_private_ip           = coalesce(var.controlplane.controller_private_ip_override, cidrhost(local.controller_subnet_cidr, local.controller_private_ip_hostnum))
 
     default_controlplane   = {
-        node_count                   = 3
+        node_count              = 3
         ec2_ami_id              = "ami-01b1eba85c1cd6a3d"
         ec2_instance_type       = "t4g.medium"
         ec2_swapfile_size       = "1G"
@@ -19,14 +19,14 @@ locals {
         ebs_volume_type         = "gp3"
     }
 
-    # default_agent_plane     = {
-    #     count                   = 3
-    #     ec2_ami_id              = "ami-01b1eba85c1cd6a3d"
-    #     ec2_instance_type       = "t4g.medium"
-    #     ec2_swapfile_size       = "1G"
-    #     ebs_volume_size         = 12
-    #     ebs_volume_type         = "gp3"
-    # }
+    default_agentplane     = {
+        node_count                   = 3
+        ec2_ami_id              = "ami-01b1eba85c1cd6a3d"
+        ec2_instance_type       = "t4g.medium"
+        ec2_swapfile_size       = "1G"
+        ebs_volume_size         = 12
+        ebs_volume_type         = "gp3"
+    }
 
     controlplane   = {
         # General
@@ -46,9 +46,29 @@ locals {
         controller_private_ip_override = local.controller_private_ip
     }
 
-    # agent_plane     = {
-    #     # ...
-    # }
+    agentplane     = {
+        # General
+        node_count          = coalesce(try(var.agentplane.node_count, null), local.default_agentplane.node_count)
+
+        # EC2
+        ec2_ami_id          = coalesce(try(var.agentplane.ec2_ami_id, null), local.default_agentplane.ec2_ami_id)
+        ec2_instance_type   = coalesce(try(var.agentplane.ec2_instance_type, null), local.default_agentplane.ec2_instance_type)
+        ec2_swapfile_size   = coalesce(try(var.agentplane.ec2_swapfile_size, null), local.default_agentplane.ec2_swapfile_size)
+
+        # EBS
+        ebs_volume_size     = coalesce(try(var.agentplane.ec2_volume_size, null), local.default_agentplane.ebs_volume_size)
+        ebs_volume_type     = coalesce(try(var.agentplane.ec2_volume_type, null), local.default_agentplane.ebs_volume_type)
+
+        # Networking
+        subnet_ids          = var.agentplane.subnet_ids
+    }
+}
+
+# Output local variables
+locals {
+    controlplane_ids = [ for instance in aws_instance.controlplane_ec2_node : instance.id ]
+    agentplane_ids = [ for instance in aws_instance.agentplane_ec2_node : instance.id ]
+    cluster_instance_ids = concat(local.controlplane_ids, local.agentplane_ids)
 }
 
 #################################################
@@ -112,4 +132,59 @@ resource "aws_instance" "controlplane_ec2_node" {
         Name        = "${local.ec2_name}_controlplane-${random_string.controlplane_node_suffix[count.index].result}"
         Nickname    = "${var.nickname}"
     }
+}
+
+#######################################
+#    EC2 instances for K3S Cluster    #
+#######################################
+# Set up random strings for the purposes of appending them to node names
+resource "random_string" "agentplane_node_suffix" {
+  count = local.agentplane.node_count
+  length  = 5 
+  special = false 
+  upper   = false 
+  numeric  = true
+}
+# Initialize EC2 instances for the K3s cluster
+resource "aws_instance" "agentplane_ec2_node" {
+    count                       = local.agentplane.node_count
+    ami                         = local.agentplane.ec2_ami_id
+    instance_type               = local.agentplane.ec2_instance_type
+    # Distribute nodes across the provided subnets
+    subnet_id                   = local.agentplane.subnet_ids[count.index % length(local.agentplane.subnet_ids)]
+    key_name                    = aws_key_pair.tls_key.key_name 
+    iam_instance_profile        = aws_iam_instance_profile.iprofile_ec2.name
+    security_groups             = [aws_security_group.sg_instances.id]  
+    associate_public_ip_address = true
+    # All agentplane ec2 nodes will get dynamic IPs
+    private_ip = null
+
+    user_data = templatefile("${path.module}/cloudinit.sh.tftpl", {
+        count_index             = count.index,
+        cluster_type            = "agentplane",
+        bootstrap_bucket        = aws_s3_bucket.bootstrap.bucket,
+        bootstrap_dir           = local.bstrap_dir,
+        # Assume the first object of local.s3keys_default_bootstrap is the installation script
+        s3key_install_script    = local.s3keys_default_bootstrap[0],
+    })
+
+    root_block_device {
+        volume_size = local.agentplane.ebs_volume_size
+        volume_type = local.agentplane.ebs_volume_type
+
+        tags = {
+            Name        = "${local.ebs_name}_agentplane-root-${random_string.agentplane_node_suffix[count.index].result}"
+            Nickname    = "${var.nickname}"
+        }
+    }
+
+    tags = {
+        Name        = "${local.ec2_name}_agentplane-${random_string.agentplane_node_suffix[count.index].result}"
+        Nickname    = "${var.nickname}"
+    }
+
+    # Wait for EC2 node to be set up before we start setting up ELB
+    depends_on = [
+        aws_instance.controlplane_ec2_node # aws_instance.ec2_node 
+    ]
 }

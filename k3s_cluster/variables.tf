@@ -54,6 +54,19 @@ variable "controlplane" {
     })
 }
 
+variable "agentplane" {
+    description = "The control plane settings"
+    type        = object({
+        node_count          = optional(number)
+        ec2_ami_id          = optional(string)
+        ec2_instance_type   = optional(string)
+        ec2_swapfile_size   = optional(string)
+        ebs_volume_size     = optional(number)
+        ebs_volume_type     = optional(string)
+        subnet_ids          = list(string)
+    })
+}
+
 # Pre-built subsystems
 variable "subsystems" {
     description = "Pre-built subsystems (Modify underlying cluster behavior)"
