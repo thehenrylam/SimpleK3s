@@ -1,0 +1,46 @@
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+    name: ${cluster_name}-workers
+spec:
+    template:
+        metadata:
+            labels:
+                simplek3s.io/lifecycle: karpenter
+        spec:
+            nodeClassRef:
+                group: karpenter.k8s.aws
+                kind: EC2NodeClass
+                name: ${cluster_name}-workers
+
+            requirements:
+                - key: kubernetes.io/os
+                  operator: In
+                  values: ["linux"]
+                - key: kubernetes.io/arch
+                  operator: In
+                  values: ["${arch}"]
+                - key: karpenter.sh/capacity-type
+                  operator: In
+                  values: ["${capacity_type}"]
+                - key: karpenter.k8s.aws/instance-category
+                  operator: In
+                  values:
+%{ for c in instance_categories ~}
+                      - "${c}"
+%{ endfor ~}
+                - key: karpenter.k8s.aws/instance-generation
+                  operator: Gt
+                  values: ["${instance_generation_gt}"]
+
+    limits:
+        cpu: "${cpu_limit}"
+        memory: "${memory_limit}"
+
+    disruption:
+        # Allow at least 1 node to be disrupted at a time.
+        # The default budget (10%) rounds down to 0 on small clusters, blocking consolidation entirely.
+        budgets:
+            - nodes: "1" # "10%" is the default. "1" is used since we expect SimpleK3s to work with only a few nodes per cluster
+        consolidationPolicy: WhenEmptyOrUnderutilized
+        consolidateAfter: "${consolidate_after}"

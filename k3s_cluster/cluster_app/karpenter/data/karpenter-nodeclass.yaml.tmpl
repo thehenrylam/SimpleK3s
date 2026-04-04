@@ -1,0 +1,29 @@
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+    name: ${cluster_name}-workers
+spec:
+    amiFamily: Custom
+
+    amiSelectorTerms:
+        - id: ${ami_id}
+
+    instanceProfile: ${instance_profile} # iprofile-k3s-${cluster_name}_karpenter-node
+
+    associatePublicIPAddress: true
+
+    subnetSelectorTerms:
+%{ for subnet_id in subnet_ids ~}
+        - id: ${subnet_id}
+%{ endfor ~}
+
+    securityGroupSelectorTerms:
+        - name: "${security_group_name}"
+
+    tags:
+        Name: "ec2-k3s-${cluster_name}-karpenter-worker"
+        Nickname: "${cluster_name}"
+        simplek3s.io/lifecycle: "karpenter"
+
+    userData: |
+        ${indent(8, trimspace(cloudinit_user_data))}

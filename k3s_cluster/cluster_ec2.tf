@@ -112,6 +112,7 @@ resource "aws_instance" "controlplane_ec2_node" {
         bootstrap_dir           = local.bstrap_dir,
         # Assume the first object of local.s3keys_default_bootstrap is the installation script
         s3key_install_script    = local.s3keys_default_bootstrap[0],
+        ssh_public_key          = "",
     })
 
     root_block_device {
@@ -162,6 +163,7 @@ resource "aws_instance" "agentplane_ec2_node" {
         bootstrap_dir           = local.bstrap_dir,
         # Assume the first object of local.s3keys_default_bootstrap is the installation script
         s3key_install_script    = local.s3keys_default_bootstrap[0],
+        ssh_public_key          = "",
     })
 
     root_block_device {

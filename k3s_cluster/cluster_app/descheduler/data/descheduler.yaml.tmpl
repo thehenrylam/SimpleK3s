@@ -16,6 +16,19 @@ spec:
     kind: CronJob
     schedule: "${schedule}"
 
+    # Keep descheduler jobs off Karpenter-managed nodes.
+    # Descheduler runs every few minutes; landing on a Karpenter node resets its
+    # consolidation timer (consolidateAfter), preventing the node from scaling down.
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: simplek3s.io/lifecycle
+                  operator: NotIn
+                  values:
+                    - karpenter
+
     deschedulerPolicy:
       profiles:
         - name: default

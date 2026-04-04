@@ -35,6 +35,12 @@ In addition, it serves as a way to transition nicely into EKS since your apps wo
     - [How to set up AWS Credentials for Terraform](https://www.sudeepa.com/?p=382)
     - [How to use a Terraform with an AWS profile](https://renatogolia.com/2022/05/31/how-to-use-terraform-with-multiple-aws-profiles/)
 - A domain name (Approx. $15USD for 4 yrs)
+- `aws` package (Helpful tool to interact with AWS resources for debugging and advanced usage)
+    - Search up "Install aws cli" via a search engine
+    - https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
+- `session-manager-plugin` package (Used for connecting to instances without needing keypairs)
+    - Search up "Install session-manager-plugin for aws cli" via a search engine 
+    - https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html
 
 # How to use
 This is used as a Terraform module for your AWS IaC Projects.
@@ -130,6 +136,9 @@ module "k3s_cluster" {
         - `AWS_PROFILE="your_aws_profile" tofu init`
         - `AWS_PROFILE="your_aws_profile" tofu plan`
         - `AWS_PROFILE="your_aws_profile" tofu apply`
+
+## How to connect to an EC2 node
+* aws ssm start-session --target `instance id (Found in AWS EC2 dashboard)` --profile `your_aws_profile`
 
 ## Things to keep in mind
 * AWS Free Tier allows for 50K Monthly Active Users for AWS Cognito

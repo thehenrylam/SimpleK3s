@@ -30,6 +30,37 @@ apt-get install -y awscli ca-certificates gettext-base
 # install nice-to-haves
 apt-get install -y fastfetch htop
 
+# Install SSM agent (not pre-installed on Debian AMIs)
+echo "Install SSM agent"
+ARCH=$(dpkg --print-architecture) # amd64 or arm64
+SSM_DEB="/tmp/amazon-ssm-agent.deb"
+curl -fsSo "$SSM_DEB" "https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_$ARCH/amazon-ssm-agent.deb"
+dpkg -i "$SSM_DEB"
+systemctl enable amazon-ssm-agent
+systemctl start amazon-ssm-agent
+rm -f "$SSM_DEB"
+
+# Configure SSM sessions to use bash instead of the default sh
+mkdir -p /etc/amazon/ssm
+cat > /etc/amazon/ssm/session-manager-agent.json <<'EOF'
+{
+    "shell": "/bin/bash"
+}
+EOF
+
+# Inject SSH public key if provided.
+# Karpenter-provisioned nodes do not support EC2 key pair attachment via EC2NodeClass,
+# so the public key must be written to authorized_keys during cloud-init instead.
+# Default user is "admin" on Debian AWS AMIs.
+%{ if ssh_public_key != "" ~}
+SSH_USER="admin"
+mkdir -p "/home/$SSH_USER/.ssh"
+echo "${ssh_public_key}" >> "/home/$SSH_USER/.ssh/authorized_keys"
+chmod 700 "/home/$SSH_USER/.ssh"
+chmod 600 "/home/$SSH_USER/.ssh/authorized_keys"
+chown -R "$SSH_USER:$SSH_USER" "/home/$SSH_USER/.ssh"
+%{ endif ~}
+
 COUNT_INDEX="${count_index}"
 CLUSTER_TYPE="${cluster_type}" # controlplane / agentplane
 

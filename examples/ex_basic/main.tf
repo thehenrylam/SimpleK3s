@@ -65,7 +65,22 @@ module "k3s_cluster" {
     }
 
     agentplane = {
-        node_count = 3
+        node_count = 0
+    }
+
+    subsystems = {
+        karpenter = {
+            ami_id                 = "ami-01b1eba85c1cd6a3d"
+            version                = "1.9.0"
+            k3s_version            = "v1.35.1+k3s1"
+            capacity_type          = "on-demand"
+            arch                   = "arm64"
+            instance_categories    = ["t"] # ["m", "c", "r"]
+            instance_generation_gt = 3
+            cpu_limit              = "32"
+            memory_limit           = "128Gi"
+            consolidate_after      = "5m"
+        }
     }
 
     applications = {

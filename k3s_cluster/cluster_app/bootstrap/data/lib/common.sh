@@ -67,9 +67,14 @@ function install_k3s_agent() {
 
     local token="${1}"
     local controller_host="${2:-$CONTROLLER_HOST}"
+    local provider_id="${3:-}"
+
+    local extra_args=()
+    [[ -n "$provider_id" ]] && extra_args+=(--kubelet-arg="provider-id=$provider_id")
 
     curl -sfL "$K3S_INSTALL_URL" | INSTALL_K3S_VERSION="$K3S_VERSION" K3S_TOKEN="$token" sh -s - agent \
-        --server "https://$controller_host:6443" 2>&1
+        --server "https://$controller_host:6443" \
+        "${extra_args[@]}" 2>&1
 }
 
 # Get the K3s token

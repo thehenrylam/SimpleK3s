@@ -93,6 +93,18 @@ variable "subsystems" {
         descheduler = optional(object({
             version = optional(string)
         }))
+        karpenter = optional(object({
+            version                 = optional(string)
+            ami_id                  = optional(string)
+            k3s_version             = optional(string)
+            capacity_type           = optional(string)
+            arch                    = optional(string)
+            instance_categories     = optional(list(string))
+            instance_generation_gt  = optional(number)
+            cpu_limit               = optional(string)
+            memory_limit            = optional(string)
+            consolidate_after       = optional(string)
+        }))
     })
     default = {}
 }

@@ -1,0 +1,38 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+    name: karpenter
+    namespace: kube-system
+spec:
+    targetNamespace: kube-system
+    createNamespace: false
+    chart: oci://public.ecr.aws/karpenter/karpenter
+    version: ${version}
+    valuesContent: |-
+        settings:
+            clusterName: "${settings.cluster_name}"
+            # Explicitly set so Karpenter does not attempt to auto-discover via eks:DescribeCluster
+            # (this is K3s — there is no EKS cluster to describe)
+            clusterEndpoint: "${settings.cluster_endpoint}"
+
+        controller:
+            resources:
+                requests:
+                    cpu: "${resources.karpenter.req.cpu}"
+                    memory: "${resources.karpenter.req.mem}"
+                limits:
+                    cpu: "${resources.karpenter.lmt.cpu}"
+                    memory: "${resources.karpenter.lmt.mem}"
+
+        # topologySpreadConstraints: Spreads Karpenter's replicas across nodes.
+        # - topologyKey: hostname (not zone) — K3s nodes lack topology.kubernetes.io/zone
+        #   (that label requires the AWS cloud controller manager, which K3s does not run)
+        # - whenUnsatisfiable: ScheduleAnyway — soft constraint, never blocks scheduling
+        topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: ScheduleAnyway
+              labelSelector:
+                  matchLabels:
+                      app.kubernetes.io/instance: karpenter
+                      app.kubernetes.io/name: karpenter

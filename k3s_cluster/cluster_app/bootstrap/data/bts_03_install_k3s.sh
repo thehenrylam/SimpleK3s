@@ -85,9 +85,14 @@ function k3s_agent() {
     local token="$(download_k3s_token)" || return 1
     log_okay "K3s token has been retrieved!"
 
+    # Fetch EC2 provider ID so Karpenter can match this node to its nodeclaim
+    log_info "Fetching EC2 provider ID"
+    local provider_id="$(get_ec2_provider_id)" || return 1
+    log_info "Provider ID: $provider_id"
+
     # Set up K3s agent
     log_info "Set up K3s Agent"
-    install_k3s_agent "$token" || return 1
+    install_k3s_agent "$token" "$CONTROLLER_HOST" "$provider_id" || return 1
     log_okay "K3s Agent successfully installed!"
 }
 
