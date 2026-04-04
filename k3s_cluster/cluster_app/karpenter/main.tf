@@ -18,7 +18,6 @@ locals {
         cpu_limit               = "32"
         memory_limit            = "128Gi"
         consolidate_after       = "5m"
-        ssh_public_key          = ""
     }
 
     settings = {
@@ -38,7 +37,6 @@ locals {
         cpu_limit               = coalesce(try(var.settings.cpu_limit, null),              local.default_settings.cpu_limit)
         memory_limit            = coalesce(try(var.settings.memory_limit, null),           local.default_settings.memory_limit)
         consolidate_after       = coalesce(try(var.settings.consolidate_after, null),      local.default_settings.consolidate_after)
-        ssh_public_key          = try(var.settings.ssh_public_key, local.default_settings.ssh_public_key)
     }
 
     resource_presets = module.common.resource_presets
@@ -136,7 +134,6 @@ module "aws_s3obj" {
                     bootstrap_dir           = "/opt/simplek3s/" # TODO: Parameterize this
                     # Assume the first object of local.s3keys_default_bootstrap is the installation script
                     s3key_install_script    = "${var.s3_config.keyroot}/init.sh" # TODO: Parameterize this
-                    ssh_public_key          = local.settings.ssh_public_key
                 })
             })
         },

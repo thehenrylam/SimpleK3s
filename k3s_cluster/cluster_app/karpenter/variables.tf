@@ -22,7 +22,6 @@ variable "settings" {
         cpu_limit              = optional(string)
         memory_limit           = optional(string)
         consolidate_after      = optional(string)
-        ssh_public_key         = optional(string)
     })
 }
 

@@ -85,7 +85,6 @@ module "cluster_app_karpenter" {
             security_group_name = local.sg_ec2_name
             ami_id              = coalesce(try(local.subsystems.karpenter.ami_id, null), try(local.agentplane.ec2_ami_id, null))
             k3s_version         = coalesce(try(local.subsystems.karpenter.k3s_version, null), "v1.35.1+k3s1")
-            ssh_public_key      = tls_private_key.tls_key.public_key_openssh
         }
     )
     # S3 settings

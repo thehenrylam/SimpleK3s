@@ -48,19 +48,6 @@ cat > /etc/amazon/ssm/session-manager-agent.json <<'EOF'
 }
 EOF
 
-# Inject SSH public key if provided.
-# Karpenter-provisioned nodes do not support EC2 key pair attachment via EC2NodeClass,
-# so the public key must be written to authorized_keys during cloud-init instead.
-# Default user is "admin" on Debian AWS AMIs.
-%{ if ssh_public_key != "" ~}
-SSH_USER="admin"
-mkdir -p "/home/$SSH_USER/.ssh"
-echo "${ssh_public_key}" >> "/home/$SSH_USER/.ssh/authorized_keys"
-chmod 700 "/home/$SSH_USER/.ssh"
-chmod 600 "/home/$SSH_USER/.ssh/authorized_keys"
-chown -R "$SSH_USER:$SSH_USER" "/home/$SSH_USER/.ssh"
-%{ endif ~}
-
 COUNT_INDEX="${count_index}"
 CLUSTER_TYPE="${cluster_type}" # controlplane / agentplane
 

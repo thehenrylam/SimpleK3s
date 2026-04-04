@@ -117,16 +117,19 @@ function wait_ssm() {
 # Required so Karpenter can match this K3s node to its nodeclaim via spec.providerID.
 function get_ec2_provider_id() {
     local imds_token
-    imds_token=$(curl -s -X PUT "$AWS_IMDS_URL/latest/api/token" \
+    imds_token=$(curl -sf -X PUT "$AWS_IMDS_URL/latest/api/token" \
         -H "X-aws-ec2-metadata-token-ttl-seconds: 21600") || return 1
+    [[ -n "$imds_token" ]] || return 1
 
     local az
-    az=$(curl -s -H "X-aws-ec2-metadata-token: $imds_token" \
+    az=$(curl -sf -H "X-aws-ec2-metadata-token: $imds_token" \
         "$AWS_IMDS_URL/latest/meta-data/placement/availability-zone") || return 1
+    [[ -n "$az" ]] || return 1
 
     local instance_id
-    instance_id=$(curl -s -H "X-aws-ec2-metadata-token: $imds_token" \
+    instance_id=$(curl -sf -H "X-aws-ec2-metadata-token: $imds_token" \
         "$AWS_IMDS_URL/latest/meta-data/instance-id") || return 1
+    [[ -n "$instance_id" ]] || return 1
 
     echo "aws:///$az/$instance_id"
 }
