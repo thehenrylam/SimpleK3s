@@ -65,7 +65,7 @@ variable "controlplane" {
 }
 
 variable "agentplane" {
-    description = "The control plane settings"
+    description = "The agent plane settings"
     type        = object({
         node_count          = optional(number)
         ec2_ami_id          = optional(string)
