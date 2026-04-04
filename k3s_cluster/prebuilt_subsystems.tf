@@ -9,7 +9,10 @@ locals {
         kyverno             = {}
         external-secrets    = {}
         descheduler         = {}
-        karpenter           = {}
+        karpenter           = {
+            ami_id      = try(local.agentplane.ec2_ami_id, null)
+            k3s_version = "v1.35.1+k3s1"
+        }
     }
     subsystems = merge(local.subsystems_default, var.subsystems)
 
@@ -83,8 +86,8 @@ module "cluster_app_karpenter" {
             token_ssm_name      = "${local.pstore_key_root}/k3s-token"
             subnet_ids          = var.subnet_ids
             security_group_name = local.sg_ec2_name
-            ami_id              = coalesce(try(local.subsystems.karpenter.ami_id, null), try(local.agentplane.ec2_ami_id, null))
-            k3s_version         = coalesce(try(local.subsystems.karpenter.k3s_version, null), "v1.35.1+k3s1")
+            ami_id              = coalesce(try(local.subsystems.karpenter.ami_id, null), local.subsystems_default.karpenter.ami_id)
+            k3s_version         = coalesce(try(local.subsystems.karpenter.k3s_version, null), local.subsystems_default.karpenter.k3s_version)
         }
     )
     # S3 settings
