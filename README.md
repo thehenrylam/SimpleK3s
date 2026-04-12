@@ -12,12 +12,15 @@ In addition, it serves as a way to transition nicely into EKS since your apps wo
 | Cost Efficiency 🤑   | ⭐️⭐️⭐️⭐️⭐️   | ⭐️⭐️⭐️             | ⭐️       |
 | Kubernetes-Ready ⚙️  | 🚫          | ✅                | ✅       |
 | High Availability 🦾 | 🚫          | ✅                | ✅       |
-| Prebuilt Deployer 🦑 | 🚫          | ✅                | 🚫       |
-| Auto Scaling 📈      | 🚫          | 🏗️ (**WIP**) 🏗️   | ✅       |
+| Auto Scaling 📈      | 🚫          | ✅                | ✅       |
 | Monitoring 👀        | 🚫          | ✅                | ✅       |
 | Deployer 🏗️          | 🚫          | ✅                | ✅       |
+| QoL: ArgoCD 🦑       | 🚫          | ✅                | 🚫       |
+| QoL: Grafana 🍥      | 🚫          | ✅                | 🚫       |
+| QoL: Governance 👨‍⚖️   | 🚫          | ✅                | 🚫       |
+| QoL: Secrets Mgmt 🤫 | 🚫          | ✅                | 🚫       |
 | Security 🔐          | ⭐️          | ⭐️⭐️⭐️            | ⭐️⭐️⭐️⭐️⭐️ |
-| Operational Ease 🛠️  | ⭐️          | ⭐️⭐️⭐️            | ⭐️⭐️⭐️⭐️⭐️ |
+| Operational Ease 🛠️  | ⭐️          | ⭐️⭐️⭐️⭐️⭐️        | ⭐️⭐️⭐️⭐️⭐️ |
 | Best For... 🫥       | Small Projects | Scalable MVPs | Full Production |
 
 # Disclaimer
