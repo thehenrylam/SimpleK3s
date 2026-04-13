@@ -40,6 +40,11 @@ if [[ "$COUNT_INDEX" -eq 0 ]]; then
         "$SCRIPT_DIR/sub_apply_external-secrets.sh" || exit 1
     fi
 
+    # Apply Karpenter (Must be initialized before descheduler)
+    if [ -f "$SCRIPT_DIR/sub_apply_karpenter.sh" ]; then
+        "$SCRIPT_DIR/sub_apply_karpenter.sh" || exit 1
+    fi
+
     # Apply Descheduler
     if [ -f "$SCRIPT_DIR/sub_apply_descheduler.sh" ]; then
         "$SCRIPT_DIR/sub_apply_descheduler.sh" || exit 1

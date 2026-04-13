@@ -9,6 +9,14 @@ SCRIPT_DIR="$PROVIDER_DIR/../../"
 # Retrieve all of the needed environment variables from this file
 source "$SCRIPT_DIR/simplek3s.env"
 
+# Base URL for the EC2 Instance Metadata Service (IMDSv2).
+# 169.254.169.254 is a dynamically configured link-local address reserved for cloud metadata services.
+# See: https://serverfault.com/a/427022
+# Used to retrieve instance identity information (instance ID, AZ, region, etc.)
+# from within a running EC2 instance.
+# Docs: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html
+AWS_IMDS_URL="http://169.254.169.254"
+
 # Inserts the value into SSM
 function ssm_put() {
     # Required Inputs
@@ -102,5 +110,27 @@ function wait_ssm() {
 
     wait_ssm_raw "$PARAMSTORE_KEYROOT/$key" "$w_decryption" "$aws_region" \
         "$max_attempts" "$sleep_s" || return 1
+}
+
+# Returns the Kubernetes provider ID for this EC2 instance using IMDSv2.
+# Format: aws:///<availability-zone>/<instance-id>
+# Required so Karpenter can match this K3s node to its nodeclaim via spec.providerID.
+function get_ec2_provider_id() {
+    local imds_token
+    imds_token=$(curl -sf -X PUT "$AWS_IMDS_URL/latest/api/token" \
+        -H "X-aws-ec2-metadata-token-ttl-seconds: 21600") || return 1
+    [[ -n "$imds_token" ]] || return 1
+
+    local az
+    az=$(curl -sf -H "X-aws-ec2-metadata-token: $imds_token" \
+        "$AWS_IMDS_URL/latest/meta-data/placement/availability-zone") || return 1
+    [[ -n "$az" ]] || return 1
+
+    local instance_id
+    instance_id=$(curl -sf -H "X-aws-ec2-metadata-token: $imds_token" \
+        "$AWS_IMDS_URL/latest/meta-data/instance-id") || return 1
+    [[ -n "$instance_id" ]] || return 1
+
+    echo "aws:///$az/$instance_id"
 }
 

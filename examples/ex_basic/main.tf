@@ -56,11 +56,32 @@ module "k3s_cluster" {
     source                  = "../../k3s_cluster" 
     nickname                = var.nickname 
     aws_region              = var.aws_region
-    node_count              = var.node_count 
-    ec2_instance_type       = "t4g.medium"
     admin_ip_list           = var.admin_ip_list 
     vpc_id                  = module.vpc_cloud.vpc_id 
-    subnet_ids              = module.vpc_cloud.subnet_public_ids 
+    subnet_ids              = module.vpc_cloud.subnet_public_ids
+
+    controlplane = {
+        node_count = 3
+    }
+
+    agentplane = {
+        node_count = 0
+    }
+
+    subsystems = {
+        karpenter = {
+            ami_id                 = "ami-01b1eba85c1cd6a3d"
+            version                = "1.9.0"
+            k3s_version            = "v1.35.1+k3s1"
+            capacity_type          = "on-demand"
+            arch                   = "arm64"
+            instance_categories    = ["t"] # ["m", "c", "r"]
+            instance_generation_gt = 3
+            cpu_limit              = "32"
+            memory_limit           = "128Gi"
+            consolidate_after      = "5m"
+        }
+    }
 
     applications = {
         argocd = { # Deployer: ArgoCD   

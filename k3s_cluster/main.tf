@@ -34,16 +34,6 @@ data "aws_vpc" "selected" {
     id = var.vpc_id
 }
 #################################################
-#           Subnet lookup (for CIDRs)           #
-#################################################
-data "aws_subnet" "selected" {
-    count = length(var.subnet_ids)
-    id    = var.subnet_ids[count.index]
-}
-data "aws_subnet" "controller" {
-    id = coalesce(var.controller_subnet_id, var.subnet_ids[0])
-}
-#################################################
 #      Get current AWS Partition (for IAM)      #
 #################################################
 data "aws_partition" "current" {}
@@ -67,17 +57,6 @@ locals {
     # NOTE: If you are having lots of issues with DNS resolution, try setting this to "0.0.0.0/0" to allow all outbound DNS queries
     # Link to Docs: https://tutorialsdojo.com/using-amazon-route-53-resolver/
     vpc_dns_resolver_cidr   = "${cidrhost(local.vpc_cidr, 2)}/32"
-
-    #########################################
-    #   Computed Values (Controller Node)   #
-    #########################################
-    # Controller node networking (node 0)
-    # If the controller_subnet_id is not set, default to the FIRST subnet in subnet_ids
-    controller_subnet_id    = coalesce(var.controller_subnet_id, var.subnet_ids[0])
-    controller_subnet_cidr  = data.aws_subnet.controller.cidr_block
-    # If the controller_private_ip is not set, compute it via cidrhost()
-    controller_private_ip   = coalesce(var.controller_private_ip, cidrhost(local.controller_subnet_cidr, var.controller_private_ip_hostnum))
-    controller_host         = local.controller_private_ip
 
     #########################################
     #   Computed Values (Caller Identity)   #

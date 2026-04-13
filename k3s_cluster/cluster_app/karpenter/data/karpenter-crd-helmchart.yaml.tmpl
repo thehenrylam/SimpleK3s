@@ -1,0 +1,10 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+    name: karpenter-crd
+    namespace: kube-system
+spec:
+    targetNamespace: kube-system
+    createNamespace: false
+    chart: oci://public.ecr.aws/karpenter/karpenter-crd
+    version: ${version}
