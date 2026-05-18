@@ -23,6 +23,9 @@ In addition, it serves as a way to transition nicely into EKS since your apps wo
 | Operational Ease 🛠️  | ⭐️          | ⭐️⭐️⭐️⭐️⭐️        | ⭐️⭐️⭐️⭐️⭐️ |
 | Best For... 🫥       | Small Projects | Scalable MVPs | Full Production |
 
+# Pricing
+Estimated monthly costs for common deployment profiles, plus a side-by-side comparison with equivalent EKS setups — see [PRICING.md](./PRICING.md).
+
 # Disclaimer
 - This is **NOT** meant to be a $0 or lowest possible price point setup.
     - Remember, a webapp running on 1-2 instances will **ALWAYS** be cheaper than a Kubernetes cluster.
