@@ -31,7 +31,7 @@ This document provides estimated monthly costs for running SimpleK3s across comm
 *NOTE: Spot instances (for the t4g family) can provide up to ~60-70% savings compared to on-demand instances.
 - The discount rates are completely dependent on the current market demand for instances
 - Spot instances are NOT recommended to be used on control plane nodes.
-    - Spot instances add a lot of risk of stability on the Kubernetes cluster
+    - Spot instances add a lot of risk to the stability of the Kubernetes cluster
     - Having a 1xt4g.large (non-spot) control plane is better than 3xt4g.medium (spot) control plane 
 
 ---
@@ -59,7 +59,7 @@ A cost baseline of an EKS setup with the same platform capabilities that SimpleK
 - 2 × t4g.large worker nodes to host all system pods with adequate headroom (Represented as `Workers (System)`)
 - All tools (e.g. ArgoCD) are self-installed via Helm (no AWS managed add-ons) - ***same as SimpleK3s***
 - Single NLB for ingress (via Traefik) - ***same as SimpleK3s***
-- `Est. Monthly Cost` equals to 30 days of full 24/7 usage 
+- `Est. Monthly Cost` is equal to 30 days of full 24/7 usage 
 
 | Line Item              | Est. Monthly Cost | Detail                    | 
 | :--------------------- | :---------------- | :------------------------ | 
@@ -146,7 +146,7 @@ Scenario that illustrates a standard deployment of a startup that is between mon
 
 > **Caution**: Please be careful, although we have sources stating that t2.micros can handle 2000 RPS, `t*` type instances primarily use burst credits to drive their performance, if the workload is consistently high, it will deplete its burst credits and throttle hard. Please be prepared to use `t4g.medium` instances, or `m*`/`c*` type instances the moment slow response times are detected.
 
-> ***Reminder***: This setup is cheaper than a SimpleK3s control plane only setup (default settings)! (**$96.76/mo** vs **$103.84/mo**)
+> ***Reminder***: This setup is cheaper than a SimpleK3s control plane only setup (default settings)! (**$96.54/mo** vs **$103.84/mo**)
 
 ---
 
@@ -225,10 +225,10 @@ Scenario that illustrates a standard deployment of a startup that is >2 years of
 | CDN — Cloudflare Enterprise     | $10,000.00        | Flat fee, unmetered bandwidth, ~95% cache hit rate            |
 | Database (RDS Aurora)           | $3,686.40         | 1 × db.r6g.4xlarge writer + 3 × db.r6g.2xlarge readers + 2TB I/O Optimized storage |
 | EC2 Data Transfer (5% miss)     | $162,003,791.00 (worst case) | 3.24 PB EC2 egress @ AWS tiers; **~$0 if AWS Bandwidth Alliance applies** |
-| **Total**                       | **$24,441.57**    | Excludes EC2 data transfer (see note below)                   |
-| **Comparable EKS Setup**        | **$24,312.59**    | EKS baseline cost + 1 NLB + Scenario 5 worker resources + DB  |
+| **Total**                       | **$24,440.57**    | Excludes EC2 data transfer (see note below)                   |
+| **Comparable EKS Setup**        | **$24,312.73**    | EKS baseline cost + 1 NLB + Scenario 5 worker resources + DB  |
 
-> **Data Transfer Note:** The EC2 egress line (~$162M/mo) represents the worst-case cost if AWS Bandwidth Alliance does **not** apply. If Cloudflare's Bandwidth Alliance agreement with AWS waives EC2 → Cloudflare egress (which it commonly does), the effective data transfer cost drops to **~$0**, making the total **$24,441.57/mo**. At this scale, confirming Bandwidth Alliance eligibility with both AWS and Cloudflare is essential before budgeting.
+> **Data Transfer Note:** The EC2 egress line (~$162M/mo) represents the worst-case cost if AWS Bandwidth Alliance does **not** apply. If Cloudflare's Bandwidth Alliance agreement with AWS waives EC2 → Cloudflare egress (which it commonly does), the effective data transfer cost drops to **~$0**, making the total **$24,440.57/mo**. At this scale, confirming Bandwidth Alliance eligibility with both AWS and Cloudflare is essential before budgeting.
 
 > 1M users w/ 1% conversion rate where each paying customer pays $10/mo, it will generate $100K/mo of revenue (covers infra cost)<br/>
 > At this point, you wouldn't be worried much about burn rate, if you are for some reason, then you should have a dedicated FinOps team to optimize the cost for you.
@@ -250,7 +250,7 @@ EKS charges a flat **$73/mo** for the managed control plane regardless of cluste
 | 2 — Cost Optimized                  | $70.04/mo     | $196.76/mo     | SimpleK3s ~64% cheaper |
 | 3 — Minimal Workload (~1K users)    | $96.54/mo     | $223.26/mo     | SimpleK3s ~57% cheaper |
 | 4 — Standard Workload (~2.5K users) | $179.32/mo    | $272.24/mo     | SimpleK3s ~34% cheaper |
-| 5 — Full Traction (~1M users)       | $24,441.57/mo | $24,312.59/mo* | Roughly equivalent     |
+| 5 — Full Traction (~1M users)       | $24,440.57/mo | $24,312.73/mo* | Roughly equivalent     |
 
 > EKS equivalents assume the same worker and storage configuration as the corresponding SimpleK3s scenario, replacing the SimpleK3s control-plane EC2 costs with the $73/mo EKS flat fee. Managed add-on costs (CloudWatch Container Insights, managed Karpenter, etc.) are excluded from EKS estimates — including them would widen the gap further in SimpleK3s's favour at lower scenarios.
 
