@@ -28,10 +28,10 @@ This document provides estimated monthly costs for running SimpleK3s across comm
 | ELB (Network)  | --N/A--         | ~$16/mo (low traffic baseline) |
 | Public IPv4    |  $0.005/hr      | ~$3.65/mo per address          |
 
-*NOTE: Spot instances (for the t4g family) can provide up to ~60-70% compared to on-demand instances.
+*NOTE: Spot instances (for the t4g family) can provide up to ~60-70% savings compared to on-demand instances.
 - The discount rates are completely dependent on the current market demand for instances
 - Spot instances are NOT recommended to be used on control plane nodes.
-    - Spot instances adds a lot of risk of stability on the Kubernetes cluster
+    - Spot instances add a lot of risk of stability on the Kubernetes cluster
     - Having a 1xt4g.large (non-spot) control plane is better than 3xt4g.medium (spot) control plane 
 
 ---
@@ -67,10 +67,10 @@ A cost baseline of an EKS setup with the same platform capabilities that SimpleK
 | EC2 — Workers (System) | $98.11            | 2 × t4g.large (on-demand) |
 | EBS — Workers (System) | $3.20             | 2 × 20 GB gp3             |
 | Network Load Balancer  | $16.43            | 1 NLB (low traffic)       |
-| Public IPv4 (System)   | $7.30             | 2 addresses × $3.65/mo    |
+| Public IPv4 (System)   | $7.30             | 2 address(es) × $3.65/mo  |
 | **Total**              | **$198.04**       |                           |
 
-> ***Reminder***: Although EKS helps simplify the creation of a Kubernetes cluster, installation and configuration of each tool like ArgoCD is still need to be done by the developer. Not to mention the requirement to stay on the AWS's EKS upgrade cycle.
+> ***Reminder***: Although EKS helps simplify the creation of a Kubernetes cluster, installation and configuration of each tool like ArgoCD is still needs to be done by the developer. Not to mention the requirement to stay on the AWS's EKS upgrade cycle.
 
 ### Scenario 1 — Baseline (Default Settings)
 
@@ -80,28 +80,28 @@ The out-of-the-box configuration: 3 control-plane nodes running K3s, all system 
 | --------------------------: | :---------------- | :---------------------------- |
 | EC2 — Control Plane         | $73.58            | 3 × t4g.medium (on-demand)    |
 | EBS — Control Plane         | $1.60             | 1 × 20 GB gp3                 |
-| Public IPv4 - Control Plane | $10.95            | 3 addresses × $3.65/mo        |
+| Public IPv4 - Control Plane | $10.95            | 3 address(es) × $3.65/mo      |
 | Network Load Balancer       | $16.43            | 1 NLB (low traffic)           |
 | **Total**                   | **$102.56**       |                               |
 
-> SimpleK3s costs ***47%*** of a comparible EKS setup without changing anything
+> SimpleK3s costs ***47%*** of a comparable EKS setup without changing anything
 
 ---
 
 ### Scenario 2 — Cost Optimized
 
-Minimizes spend while keeping the full platform (ArgoCD, Grafana, monitoring) operational while keeping minimizing cost.
-Optimization Philosophy: Changed the default settings while not compromising on deployment and observability (which would immediately cost the startup in terms of lost productivity and potential downtime)
+Minimizes spend while keeping the full platform (ArgoCD, Grafana, monitoring) operational.
+Optimization Philosophy: Change the default settings while not compromising on deployment and observability (which would immediately cost the startup in terms of lost productivity and potential downtime)
 
 | Line Item             | Est. Monthly Cost | Detail                      |
 | --------------------: | :---------------- | :-------------------------- |
 | EC2 — Control Plane   | $49.00            | 1 × t4g.large (on-demand)   |
 | EBS — Control Plane   | $2.88             | 1 × 12 GB gp3               |
 | Network Load Balancer | $16.43            | 1 NLB (low traffic)         |
-| Public IPv4           | $3.65             | 1 addresses × $3.65/mo      |
+| Public IPv4           | $3.65             | 1 address(es) × $3.65/mo    |
 | **Total**             | **$71.96**        |                             |
 
-> SimpleK3s costs ***63%*** of a comparible EKS setup (without HA)<br/>
+> SimpleK3s costs ***63%*** of a comparable EKS setup (without HA)<br/>
 > SimpleK3s costs ***30%*** of a SimpleK3s default setup
 
 **Additional Notes:**
@@ -124,7 +124,7 @@ Scenario that illustrates a standard deployment of a startup that is between mon
     - Frontend: ReactJS 
     - Backend: ExpressJS and NodeJS
     - Database: Supabase (Popular, well-known, and widely-used among startups)
-- The startup / project is using 1.5 x t4g.small (2vCPU/2GB) with 24GB gp3 ELB
+- The startup / project is using 1.5 x t4g.small (2vCPU/2GB) with 24GB gp3 EBS
     - 0.5 x t4g.small is reserved for the dev team to experiment with new features or used as part of a blue/green deployment
         - "0.5" simply means that we expect it to be up ~50% of the time in a single month
     - 1.0 x t4g.small is to serve the customers
@@ -136,7 +136,7 @@ Scenario that illustrates a standard deployment of a startup that is between mon
 | SimpleK3s Control Plane    | $71.96            | Pricing metrics of Scenario 2      |
 | EC2 — Workers (On-Demand)  | $18.36            | 1.5 × t4g.small (1.5 x $0.017/hr)  |
 | EBS — Workers              | $2.88             | 1.5 × 24 GB gp3                    |
-| Public IPv4 - Workers      | $5.48             | 1.5 × IPv4 address                 |
+| Public IPv4 - Workers      | $5.48             | 1.5 × address(es)                  |
 | Database (Supabase Free)   | $0.00             | 500MB disk, 5 GB egress, 50K MAU   |
 | **Total**                  | **$98.68**        |                                    |
 
@@ -145,7 +145,7 @@ Scenario that illustrates a standard deployment of a startup that is between mon
 
 > **Caution**: Please be careful, although we have sources stating that t2.micros can handle 2000 RPS, `t*` type instances are primarily use burst credits to drive their performance, if the workload is consistently elevated, it will deplete its burst credits and throttle hard. Please be prepared to use `t4g.medium` instances, or `m*` type instances the moment slow response times are detected.
 
-> ***Reminder***: This minimal setup is cheaper than an SimpleK3s default setup! (**$98.68/mo** vs **$102.56/mo**)
+> ***Reminder***: This minimal setup is cheaper than a SimpleK3s default setup! (**$98.68/mo** vs **$102.56/mo**)
 
 ---
 
@@ -162,7 +162,7 @@ Scenario that illustrates a standard deployment of a startup that is between mon
     - Frontend: ReactJS 
     - Backend: ExpressJS and NodeJS
     - Database: Supabase (Popular, well-known, and widely-used among startups)
-- The startup / project is using 1.5 x m6g.medium (1vCPU/4GB) with 24GB gp3 ELB
+- The startup / project is using 1.5 x m6g.medium (1vCPU/4GB) with 24GB gp3 EBS
     - 0.5 x m6g.medium is reserved for the dev team to experiment with new features or used as part of a blue/green deployment
         - "0.5" simply means that we expect it to be up ~50% of the time in a single month
     - 1.0 x m6g.medium is to serve the customers
@@ -174,7 +174,7 @@ Scenario that illustrates a standard deployment of a startup that is between mon
 | SimpleK3s Control Plane    | $102.56           | Pricing metrics of Scenario 1      |
 | EC2 — Workers (On-Demand)  | $42.12            | 1.5 × m6g.medium (1.5 x $0.039/hr) |
 | EBS — Workers              | $2.88             | 1.5 × 24 GB gp3                    |
-| Public IPv4 - Workers      | $5.48             | 1.5 × IPv4 address                 |
+| Public IPv4 - Workers      | $5.48             | 1.5 × address(es)                  |
 | Database (Supabase PRO)    | $25.00            | 8GB disk, 250 GB egress, 100K MAU  |
 | **Total**                  | **$178.04**       |                                    |
 
@@ -227,7 +227,7 @@ Scenario that illustrates a standard deployment of a startup that is >2 years of
 
 > **Data Transfer Note:** The EC2 egress line (~$162M/mo) represents the worst-case cost if AWS Bandwidth Alliance does **not** apply. If Cloudflare's Bandwidth Alliance agreement with AWS waives EC2 → Cloudflare egress (which it commonly does), the effective data transfer cost drops to **~$0**, making the total **~$23,154/mo**. At this scale, confirming Bandwidth Alliance eligibility with both AWS and Cloudflare is essential before budgeting.
 
-> 1M users w/ %1 conversion rate where each paying customer pays $10/mo, it will generate $100K/mo of revenue (covers infra cost)<br/>
+> 1M users w/ 1% conversion rate where each paying customer pays $10/mo, it will generate $100K/mo of revenue (covers infra cost)<br/>
 > At this point, you wouldn't be worried much about burn rate, if you are for some reason, then you should have a dedicated FinOps team to optimize the cost for you.
 
 ---
@@ -280,7 +280,7 @@ EKS charges a flat **$73/mo** for the managed control plane regardless of cluste
   - https://dev.to/ocodista/under-pressure-benchmarking-nodejs-on-a-single-core-ec2-5ghe
     - NodeJS achieved 2000 RPS with a 100% success rate with a t2.micro (1vCPU/1GB) with little to no overhead
   - https://pixel506.com/insights/how-much-traffic-can-nodejs-handle
-    - ExpressJS can handle ~15K RPS and the basic HTTP mdoule can handle 70K RPS (via a benchmark made by Fastify)
+    - ExpressJS can handle ~15K RPS and the basic HTTP module can handle 70K RPS (via a benchmark made by Fastify)
   - https://medium.com/@louisbertson/benchmarking-node-js-frameworks-choose-your-framework-for-2025-4a2fa089dcf3
     - ExpressJS can handle ~3482 RPS
   - https://supabase.com/pricing
