@@ -5,6 +5,13 @@ on:
     branches: [main]
     paths:
       - "**/*.tf"
+      - "**/*.tftpl"
+      - "**/*.tmpl"
+      - "**/*.sh"
+      - "**/*.yml"
+      - "**/*.yaml"
+      - "**/*.env"
+      - "**/*.tfvars"
       - ".tflint.hcl"
       - ".checkov.yaml"
       - ".github/workflows/static-analysis.yml"
@@ -12,6 +19,13 @@ on:
     branches: [main]
     paths:
       - "**/*.tf"
+      - "**/*.tftpl"
+      - "**/*.tmpl"
+      - "**/*.sh"
+      - "**/*.yml"
+      - "**/*.yaml"
+      - "**/*.env"
+      - "**/*.tfvars"
       - ".tflint.hcl"
       - ".checkov.yaml"
       - ".github/workflows/static-analysis.yml"
