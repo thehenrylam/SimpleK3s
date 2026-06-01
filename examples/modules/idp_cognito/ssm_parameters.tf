@@ -1,34 +1,34 @@
 resource "aws_ssm_parameter" "idp_issuer" {
-    description = "IdP - IdP Issuer"
-    type        = "SecureString"
-    name        = "${local.ssm_parameters_key_root}/idp_issuer"
-    value       = local.issuer_url
+  description = "IdP - IdP Issuer"
+  type        = "SecureString"
+  name        = "${local.ssm_parameters_key_root}/idp_issuer"
+  value       = local.issuer_url
 
-    tags = merge(var.tags, local.tags_default, {
-        Name = local.pstore_issuer_name 
-    })
+  tags = merge(var.tags, local.tags_default, {
+    Name = local.pstore_issuer_name
+  })
 }
 
 resource "aws_ssm_parameter" "idp_client" {
-    description = "IdP - IdP Client"
-    type        = "SecureString"
-    name        = "${local.ssm_parameters_key_root}/idp_client"
-    value       = aws_cognito_user_pool_client.this.id
+  description = "IdP - IdP Client"
+  type        = "SecureString"
+  name        = "${local.ssm_parameters_key_root}/idp_client"
+  value       = aws_cognito_user_pool_client.this.id
 
-    tags = merge(var.tags, local.tags_default, {
-        Name = local.pstore_client_name 
-    })
+  tags = merge(var.tags, local.tags_default, {
+    Name = local.pstore_client_name
+  })
 }
 
 resource "aws_ssm_parameter" "idp_secret" {
-    description = "IdP - IdP Secret"
-    type        = "SecureString"
-    name        = "${local.ssm_parameters_key_root}/idp_secret"
-    value       = aws_cognito_user_pool_client.this.client_secret
+  description = "IdP - IdP Secret"
+  type        = "SecureString"
+  name        = "${local.ssm_parameters_key_root}/idp_secret"
+  value       = aws_cognito_user_pool_client.this.client_secret
 
-    tags = merge(var.tags, local.tags_default, {
-        Name = local.pstore_secret_name 
-    })
+  tags = merge(var.tags, local.tags_default, {
+    Name = local.pstore_secret_name
+  })
 }
 
 # One SecureString parameter containing all IdP/OIDC settings as JSON
@@ -44,11 +44,11 @@ resource "aws_ssm_parameter" "idp_config" {
 
     # Put the Cognito Hosted UI base domain here, e.g.
     # https://<your-domain>.auth.us-east-1.amazoncognito.com
-    domain        = local.hosted_ui_base
+    domain = local.hosted_ui_base
   })
 
   tags = merge(var.tags, local.tags_default, {
-    Name = local.pstore_config_name 
+    Name = local.pstore_config_name
   })
 }
 

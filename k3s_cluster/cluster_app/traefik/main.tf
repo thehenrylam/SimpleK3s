@@ -1,27 +1,31 @@
+terraform {
+  required_version = ">= 1.11.0"
+}
+
 locals {
-    module_name = "cluster_app_${basename(path.module)}"
+  module_name = "cluster_app_${basename(path.module)}"
 
-    default_settings = {
-        version         = "37.1.0"
-        nodeport_http   = 30080
-        nodeport_https  = 30443
-        ingress_http    = 80
-    }
+  default_settings = {
+    version        = "37.1.0"
+    nodeport_http  = 30080
+    nodeport_https = 30443
+    ingress_http   = 80
+  }
 
-    settings = {
-        version         = coalesce(try(var.settings.version,null),          local.default_settings.version)
-        nodeport_http   = coalesce(try(var.settings.nodeport_http,null),    local.default_settings.nodeport_http)
-        nodeport_https  = coalesce(try(var.settings.nodeport_https,null),   local.default_settings.nodeport_https)
-        ingress_http    = coalesce(try(var.settings.ingress_http,null),     local.default_settings.ingress_http)
-    }
+  settings = {
+    version        = coalesce(try(var.settings.version, null), local.default_settings.version)
+    nodeport_http  = coalesce(try(var.settings.nodeport_http, null), local.default_settings.nodeport_http)
+    nodeport_https = coalesce(try(var.settings.nodeport_https, null), local.default_settings.nodeport_https)
+    ingress_http   = coalesce(try(var.settings.ingress_http, null), local.default_settings.ingress_http)
+  }
 
-    # Resource presets (to put into performance profiles)
-    resource_presets = module.common.resource_presets
+  # Resource presets (to put into performance profiles)
+  resource_presets = module.common.resource_presets
 }
 
 # Get common values (i.e. resource_presents)
 module "common" {
-    source      = "../utils/common_values"
+  source = "../utils/common_values"
 }
 
 # # Set up the aws pstore
@@ -46,45 +50,45 @@ module "common" {
 
 # Set up the aws s3obj
 module "aws_s3obj" {
-    source      = "../utils/aws_s3obj"
-    # General variables
-    nickname    = var.nickname
-    module_name = local.module_name
-    # S3 settings
-    s3_bucket_id    = var.s3_config.id 
-    s3obj_data      = [
-        { # Traefik Manifests
-            desc        = "Traefik Manifests",
-            key         = "${var.s3_config.keyroot}/manifests/traefik-helmchart.yaml",
-            src         = "${path.module}/data/traefik-helmchart.yaml",
-            template    = jsonencode({
-                version         = local.settings.version
-                network         = {
-                    traefik = {
-                        nodeport_http   = local.settings.nodeport_http
-                        nodeport_https  = local.settings.nodeport_https
-                    }
-                }
-                resources       = local.resource_profile["standard"]
-            })
-        },
-        { # Traefik Middleware (Reroute Network Traffic from HTTP to HTTPs)
-            desc        = "Traefik Middleware",
-            key         = "${var.s3_config.keyroot}/manifests/traefik-middleware.yaml",
-            src         = "${path.module}/data/traefik-middleware.yaml",
-            template    = jsonencode({
-                network = {
-                    traefik = {
-                        ingress_http    = local.settings.ingress_http
-                    }
-                }
-            })
-        },
-        {
-            desc        = "Init Script (Apply Traefik)",
-            key         = "${var.s3_config.keyroot}/sub_apply_traefik.sh",
-            src         = "${path.module}/data/sub_apply_traefik.sh",
-            template    = null
+  source = "../utils/aws_s3obj"
+  # General variables
+  nickname    = var.nickname
+  module_name = local.module_name
+  # S3 settings
+  s3_bucket_id = var.s3_config.id
+  s3obj_data = [
+    { # Traefik Manifests
+      desc = "Traefik Manifests",
+      key  = "${var.s3_config.keyroot}/manifests/traefik-helmchart.yaml",
+      src  = "${path.module}/data/traefik-helmchart.yaml",
+      template = jsonencode({
+        version = local.settings.version
+        network = {
+          traefik = {
+            nodeport_http  = local.settings.nodeport_http
+            nodeport_https = local.settings.nodeport_https
+          }
         }
-    ]
+        resources = local.resource_profile["standard"]
+      })
+    },
+    { # Traefik Middleware (Reroute Network Traffic from HTTP to HTTPs)
+      desc = "Traefik Middleware",
+      key  = "${var.s3_config.keyroot}/manifests/traefik-middleware.yaml",
+      src  = "${path.module}/data/traefik-middleware.yaml",
+      template = jsonencode({
+        network = {
+          traefik = {
+            ingress_http = local.settings.ingress_http
+          }
+        }
+      })
+    },
+    {
+      desc     = "Init Script (Apply Traefik)",
+      key      = "${var.s3_config.keyroot}/sub_apply_traefik.sh",
+      src      = "${path.module}/data/sub_apply_traefik.sh",
+      template = null
+    }
+  ]
 }
