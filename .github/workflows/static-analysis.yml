@@ -1,0 +1,26 @@
+name: Static Analysis
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.tf"
+      - ".tflint.hcl"
+      - ".checkov.yaml"
+      - ".github/workflows/static-analysis.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "**/*.tf"
+      - ".tflint.hcl"
+      - ".checkov.yaml"
+      - ".github/workflows/static-analysis.yml"
+
+jobs:
+  terraform:
+    name: Terraform Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
