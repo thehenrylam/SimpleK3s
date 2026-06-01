@@ -1,3 +1,7 @@
+terraform {
+  required_version = ">= 1.11.0"
+}
+
 locals {
   module_name = "cluster_app_${basename(path.module)}"
 

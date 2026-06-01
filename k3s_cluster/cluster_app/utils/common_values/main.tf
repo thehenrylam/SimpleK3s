@@ -1,3 +1,7 @@
+terraform {
+  required_version = ">= 1.11.0"
+}
+
 output "resource_presets" {
   description = "The list of s3 objects set up for the cluster_app"
   value = {

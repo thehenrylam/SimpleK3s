@@ -39,8 +39,6 @@ module "cluster_app_traefik" {
   settings = local.subsystems.traefik
   # S3 settings
   s3_config = local.s3_config_subsystems
-  # IAM settings 
-  iam_config = local.iam_config_subsystems
 }
 
 module "cluster_app_kyverno" {
@@ -50,8 +48,6 @@ module "cluster_app_kyverno" {
   settings = local.subsystems.kyverno
   # S3 settings
   s3_config = local.s3_config_subsystems
-  # IAM settings 
-  iam_config = local.iam_config_subsystems
 }
 
 module "cluster_app_external-secrets" {
@@ -61,8 +57,6 @@ module "cluster_app_external-secrets" {
   settings = local.subsystems.external-secrets
   # S3 settings
   s3_config = local.s3_config_subsystems
-  # IAM settings 
-  iam_config = local.iam_config_subsystems
 }
 
 module "cluster_app_karpenter" {
@@ -95,6 +89,4 @@ module "cluster_app_descheduler" {
   settings = local.subsystems.descheduler
   # S3 settings
   s3_config = local.s3_config_subsystems
-  # IAM settings 
-  iam_config = local.iam_config_subsystems
 }

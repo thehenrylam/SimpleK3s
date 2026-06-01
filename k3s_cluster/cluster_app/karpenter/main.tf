@@ -1,3 +1,14 @@
+terraform {
+  required_version = ">= 1.11.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 6.0"
+    }
+  }
+}
+
 locals {
   module_name = "cluster_app_${basename(path.module)}"
 

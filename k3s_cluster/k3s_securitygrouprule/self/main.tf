@@ -1,3 +1,14 @@
+terraform {
+  required_version = ">= 1.11.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 6.0"
+    }
+  }
+}
+
 locals {
   # Translate var.type's input into a list of security group types to create
   type_list = var.type == "both" ? ["ingress", "egress"] : [var.type]
