@@ -22,6 +22,7 @@ skip-path:
 #   CKV2_AWS_34  - SSM parameter encryption (same as above; default tier uses AES-256)
 #
 # Intentional design decisions:
+#   CKV_AWS_24   - SSH open to 0.0.0.0/0 (SSH is gated behind var.admin_ip_list; a check block in instance_security_groups.tf warns at plan time if 0.0.0.0/0 is passed)
 #   CKV_AWS_88   - EC2 public IP (nodes need public IPs for SSM Session Manager access without a bastion host)
 #   CKV_AWS_150  - NLB deletion protection (hobbyists and CI need to be able to destroy the cluster easily)
 #   CKV2_AWS_12  - Default VPC security group (the vpc_cloud module creates a new VPC; default SG is not used)
@@ -46,6 +47,7 @@ skip-check:
   - CKV2_AWS_62
   - CKV_AWS_337
   - CKV2_AWS_34
+  - CKV_AWS_24
   - CKV_AWS_88
   - CKV_AWS_150
   - CKV2_AWS_12

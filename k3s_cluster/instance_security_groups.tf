@@ -16,7 +16,7 @@ resource "aws_security_group" "sg_instances" {
 #############################
 #   SSH Access for Admins   #
 #############################
-# Allow SSH from admin IPs 
+# Allow SSH from admin IPs
 resource "aws_security_group_rule" "sgr_ssh_admin" {
   type              = "ingress"
   from_port         = 22
@@ -24,6 +24,14 @@ resource "aws_security_group_rule" "sgr_ssh_admin" {
   protocol          = "tcp"
   cidr_blocks       = var.admin_ip_list
   security_group_id = aws_security_group.sg_instances.id
+}
+
+# Warn (non-fatal) if SSH is open to the world — lets the developer consciously proceed
+check "sgr_ssh_admin_open_access" {
+  assert {
+    condition     = !contains(var.admin_ip_list, "0.0.0.0/0")
+    error_message = "SSH (port 22) is open to 0.0.0.0/0 — confirm this is intentional."
+  }
 }
 
 ########################################################################
