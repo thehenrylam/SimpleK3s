@@ -61,6 +61,23 @@ jobs:
       - name: Format check
         run: tofu fmt -check -recursive
 
+      - name: Setup tflint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: "v0.62.1"
+
+      - name: Cache tflint plugins
+        uses: actions/cache@v4
+        with:
+          path: ~/.tflint.d/plugins
+          key: ${{ runner.os }}-tflint-${{ hashFiles('.tflint.hcl') }}
+
+      - name: Init tflint
+        run: tflint --init
+
+      - name: Run tflint
+        run: tflint --recursive
+
       - name: Validate k3s_cluster
         working-directory: k3s_cluster
         run: |
