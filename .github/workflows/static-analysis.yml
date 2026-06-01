@@ -30,6 +30,9 @@ on:
       - ".checkov.yaml"
       - ".github/workflows/static-analysis.yml"
 
+env:
+  TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
+
 jobs:
   terraform:
     name: Terraform Checks
@@ -44,11 +47,46 @@ jobs:
         with:
           tofu_version: "1.11.2"
 
+      - name: Create provider plugin cache dir
+        run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+
+      - name: Cache provider plugins
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: ${{ runner.os }}-tofu-providers-${{ hashFiles('**/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-tofu-providers-
+
       - name: Format check
         run: tofu fmt -check -recursive
 
       - name: Validate k3s_cluster
         working-directory: k3s_cluster
+        run: |
+          tofu init -backend=false
+          tofu validate
+
+      - name: Validate examples/modules/vpc_cloud
+        working-directory: examples/modules/vpc_cloud
+        run: |
+          tofu init -backend=false
+          tofu validate
+
+      - name: Validate examples/modules/idp_cognito
+        working-directory: examples/modules/idp_cognito
+        run: |
+          tofu init -backend=false
+          tofu validate
+
+      - name: Validate examples/ex_basic
+        working-directory: examples/ex_basic
+        run: |
+          tofu init -backend=false
+          tofu validate
+
+      - name: Validate examples/ex_idp
+        working-directory: examples/ex_idp
         run: |
           tofu init -backend=false
           tofu validate
