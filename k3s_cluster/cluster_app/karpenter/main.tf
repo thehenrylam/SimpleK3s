@@ -39,7 +39,6 @@ locals {
     consolidate_after      = coalesce(try(var.settings.consolidate_after, null), local.default_settings.consolidate_after)
   }
 
-  resource_presets = module.common.resource_presets
 }
 
 module "common" {

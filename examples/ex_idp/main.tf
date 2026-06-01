@@ -23,18 +23,12 @@ locals {
   dns_basename = var.dns.basename
   dns_prefix   = coalesce(var.dns.prefix, "k3s")
 
-  modules_path = "../modules/"
-  domain_name  = "${local.dns_prefix}.${local.dns_basename}"
+  domain_name = "${local.dns_prefix}.${local.dns_basename}"
 
-  pstore_key_root = "/idp-standalone/${var.nickname}"
-
-  pstore_issuer_name = "pstore-idp_issuer-${var.nickname}"
-  pstore_client_name = "pstore-idp_client-${var.nickname}"
-  pstore_secret_name = "pstore-idp_secret-${var.nickname}"
 }
 
 module "idp" {
-  source   = "${local.modules_path}/idp_cognito"
+  source   = "../modules/idp_cognito"
   nickname = var.nickname
   callback_urls = [
     "https://${local.domain_name}/argocd/auth/callback",

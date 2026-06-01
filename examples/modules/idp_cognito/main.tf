@@ -26,7 +26,7 @@ locals {
   ssm_parameters_key_root = "/idp-standalone/${var.nickname}"
 
   tags_default = {
-    Nickname = "${var.nickname}"
+    Nickname = var.nickname
   }
 }
 

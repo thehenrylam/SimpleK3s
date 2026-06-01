@@ -8,8 +8,8 @@ resource "aws_security_group" "sg_instances" {
   vpc_id      = var.vpc_id
 
   tags = {
-    Name     = "${local.sg_ec2_name}"
-    Nickname = "${var.nickname}"
+    Name     = local.sg_ec2_name
+    Nickname = var.nickname
   }
 }
 

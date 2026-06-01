@@ -30,14 +30,6 @@ locals {
 
 # Output data (Typically used for modules outside the file)
 locals {
-  s3keys_default_subsystems = concat(
-    try(module.cluster_app_traefik.processed_s3obj, []),          # Traefik files
-    try(module.cluster_app_kyverno.processed_s3obj, []),          # Kyverno files
-    try(module.cluster_app_external-secrets.processed_s3obj, []), # External Secret files
-    try(module.cluster_app_descheduler.processed_s3obj, []),      # Descheduler files
-    try(module.cluster_app_karpenter.processed_s3obj, []),        # Karpenter files
-    []                                                            # Default empty list (in case no submodules are initalized or commented out)
-  )
 }
 
 module "cluster_app_traefik" {

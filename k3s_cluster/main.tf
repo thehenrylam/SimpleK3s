@@ -76,7 +76,6 @@ locals {
   # Filepaths for S3
   s3_bstrap_key_root         = "bootstrap" # This is used as part of a key
   s3_bstrap_key_root_default = "${local.s3_bstrap_key_root}/default"
-  s3_bstrap_key_root_custom  = "${local.s3_bstrap_key_root}/custom"
 
   # List of param-store data
   pstore_key_root = "/simplek3s/${var.nickname}"
@@ -86,8 +85,6 @@ locals {
 #    LOCALS : General Variables    #
 ####################################
 locals {
-  # Static Variables (Not supposed to change!)
-  uninitialized = "__UNINITIALIZED__"
 
   # General Variables
   module      = "k3s"
@@ -111,12 +108,6 @@ locals {
   # ELB (Elastic Load Balancer) Variables
   elb_name    = "elb-${local.module_name}"
   sg_elb_name = "sgroup-${local.module_name}_for-elb"
-  lport_name  = "lport-${local.module_name}"
-  # TG (Target Group) Variables
-  tgroup_name      = "tgroup-${local.module_name}"
-  tgroup_name_6443 = "${local.tgroup_name}-6443"
-  tgroup_name_80   = "${local.tgroup_name}-80"
-  tgroup_name_443  = "${local.tgroup_name}-443"
 
   # KeyPair Variables
   keypair_name = "kp-${local.module_name}-node"

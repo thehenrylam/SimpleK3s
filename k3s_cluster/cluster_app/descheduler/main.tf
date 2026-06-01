@@ -33,8 +33,6 @@ locals {
     }
   }
 
-  # Resource presets (to put into performance profiles)
-  resource_presets = module.common.resource_presets
 }
 
 # Get common values (i.e. resource_presents)

@@ -8,8 +8,8 @@ resource "aws_key_pair" "tls_key" {
   public_key = tls_private_key.tls_key.public_key_openssh
 
   tags = {
-    Name     = "${local.keypair_name}"
-    Nickname = "${var.nickname}"
+    Name     = local.keypair_name
+    Nickname = var.nickname
   }
 }
 # Generate a TLS Private Key (Stored Locally)

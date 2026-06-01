@@ -13,8 +13,6 @@ locals {
     pstore_key_root = coalesce(try(var.settings.pstore_key_root, null), local.default_settings.pstore_key_root)
   }
 
-  # Resource presets (to put into performance profiles)
-  resource_presets = module.common.resource_presets
 }
 
 # Get common values (i.e. resource_presents)

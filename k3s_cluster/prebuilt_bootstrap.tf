@@ -2,9 +2,6 @@
 # #  LOCALS : S3 Bootstrap : Files   #
 # ####################################
 locals {
-  bootstrap_default = {
-    bootstrap = {}
-  }
   # Enable this when there are meaningful configs to adjust bootstrap behavior
   # bootstrap = merge(local.bootstrap_default, var.bootstrap)
 

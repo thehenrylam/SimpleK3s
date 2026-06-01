@@ -67,13 +67,6 @@ locals {
   cluster_instance_ids = concat(local.controlplane_ids, local.agentplane_ids)
 }
 
-#################################################
-#           Subnet lookup (for CIDRs)           #
-#################################################
-data "aws_subnet" "selected" {
-  count = length(var.subnet_ids)
-  id    = var.subnet_ids[count.index]
-}
 data "aws_subnet" "controller" {
   id = local.controller_subnet_id
 }
@@ -120,13 +113,13 @@ resource "aws_instance" "controlplane_ec2_node" {
 
     tags = {
       Name     = "${local.ebs_name}_controlplane-root-${random_string.controlplane_node_suffix[count.index].result}"
-      Nickname = "${var.nickname}"
+      Nickname = var.nickname
     }
   }
 
   tags = {
     Name     = "${local.ec2_name}_controlplane-${random_string.controlplane_node_suffix[count.index].result}"
-    Nickname = "${var.nickname}"
+    Nickname = var.nickname
   }
 }
 
@@ -170,13 +163,13 @@ resource "aws_instance" "agentplane_ec2_node" {
 
     tags = {
       Name     = "${local.ebs_name}_agentplane-root-${random_string.agentplane_node_suffix[count.index].result}"
-      Nickname = "${var.nickname}"
+      Nickname = var.nickname
     }
   }
 
   tags = {
     Name     = "${local.ec2_name}_agentplane-${random_string.agentplane_node_suffix[count.index].result}"
-    Nickname = "${var.nickname}"
+    Nickname = var.nickname
   }
 
   # Wait for EC2 node to be set up before we start setting up ELB

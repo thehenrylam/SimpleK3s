@@ -4,11 +4,6 @@
 
 # Input data (Typically used for the modules listed within this file)
 locals {
-  applications_default = {
-    argocd     = {}
-    monitoring = {}
-  }
-  applications = merge(local.applications_default, var.applications)
 
   s3_config_applications = {
     id      = aws_s3_bucket.bootstrap.id
@@ -22,11 +17,6 @@ locals {
 
 # Output data (Typically used for modules outside the file)
 locals {
-  s3keys_default_applications = concat(
-    try(module.cluster_app_argocd[0].processed_s3obj, []),     # (Optional) ArgoCD files
-    try(module.cluster_app_monitoring[0].processed_s3obj, []), # (Optional) Monitoring file
-    []                                                         # Default empty list (in case no submodules are initalized or commented out)
-  )
 }
 
 # IF ENABLED: Check and Set up all of the needed files for ArgoCD 

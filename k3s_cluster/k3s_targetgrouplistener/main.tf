@@ -27,8 +27,8 @@ resource "aws_lb_listener" "listener" {
   }
 
   tags = {
-    Name     = "${local.listener_name}"
-    Nickname = "${var.nickname}"
+    Name     = local.listener_name
+    Nickname = var.nickname
   }
 }
 
@@ -40,8 +40,8 @@ resource "aws_lb_target_group" "tgroup" {
   vpc_id   = var.vpc_id
 
   tags = {
-    Name     = "${local.tgroup_name}"
-    Nickname = "${var.nickname}"
+    Name     = local.tgroup_name
+    Nickname = var.nickname
   }
 }
 
