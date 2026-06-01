@@ -107,6 +107,10 @@ resource "aws_instance" "controlplane_ec2_node" {
     s3key_install_script = local.s3keys_default_bootstrap[0],
   })
 
+  metadata_options {
+    http_tokens = "required"
+  }
+
   root_block_device {
     volume_size = local.controlplane.ebs_volume_size
     volume_type = local.controlplane.ebs_volume_type
@@ -156,6 +160,10 @@ resource "aws_instance" "agentplane_ec2_node" {
     # Assume the first object of local.s3keys_default_bootstrap is the installation script
     s3key_install_script = local.s3keys_default_bootstrap[0],
   })
+
+  metadata_options {
+    http_tokens = "required"
+  }
 
   root_block_device {
     volume_size = local.agentplane.ebs_volume_size

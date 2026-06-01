@@ -78,6 +78,23 @@ jobs:
       - name: Run tflint
         run: tflint --recursive
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache checkov
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-checkov-${{ hashFiles('.checkov.yaml') }}
+
+      - name: Install checkov
+        run: pip install checkov
+
+      - name: Run checkov
+        run: checkov -d . --config-file .checkov.yaml
+
       - name: Validate k3s_cluster
         working-directory: k3s_cluster
         run: |

@@ -1,6 +1,8 @@
 # SimpleK3s
 A simple K3s implementation for AWS
 
+[![Static Analysis](https://github.com/thehenrylam/SimpleK3s/actions/workflows/static-analysis.yml/badge.svg)](https://github.com/thehenrylam/SimpleK3s/actions/workflows/static-analysis.yml)
+
 # Features
 Perfect for Hobbyists and Entrepreneurs who want a setup with critical enterprise features without committing to EKS.
 This acts as a perfect starting point to deploy MVPs with scaling, monitoring, and good defaults for security in mind. 
@@ -25,6 +27,13 @@ In addition, it serves as a way to transition nicely into EKS since your apps wo
 
 # Pricing
 Estimated monthly costs for common deployment profiles, plus a side-by-side comparison with equivalent EKS setups — see [PRICING.md](./PRICING.md).
+
+# CI
+Every pull request and push to `main` runs a static analysis pipeline (no AWS credentials required):
+- **`tofu fmt`** — enforces consistent formatting
+- **`tflint`** — lint rules for naming, versioning, and AWS best practices
+- **`tofu validate`** — type-checks all five root modules
+- **`checkov`** — security and compliance scan of Terraform resources
 
 # Disclaimer
 - This is **NOT** meant to be a $0 or lowest possible price point setup.

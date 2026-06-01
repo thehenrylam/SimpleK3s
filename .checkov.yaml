@@ -1,0 +1,56 @@
+compact: true
+quiet: true
+framework:
+  - terraform
+skip-path:
+  - _tmp
+
+# Checks intentionally skipped — grouped by reason.
+#
+# Cost trade-offs (features that add AWS charges not appropriate for a hobbyist/startup tool):
+#   CKV_AWS_126  - EC2 detailed monitoring (CloudWatch detailed metrics are billed per instance)
+#   CKV_AWS_135  - EC2 EBS optimized (t4g.medium on Nitro is automatically EBS-optimized; flag is a false positive)
+#   CKV_AWS_91   - NLB access logging (requires an S3 log bucket; adds cost)
+#   CKV_AWS_152  - NLB cross-zone load balancing (billed per GB processed across AZs)
+#   CKV2_AWS_11  - VPC flow logging (CloudWatch/S3 flow log ingestion is billed)
+#   CKV_AWS_18   - S3 access logging (requires a separate log bucket; adds cost)
+#   CKV_AWS_144  - S3 cross-region replication (bootstrap bucket is ephemeral; replication adds cost)
+#   CKV_AWS_145  - S3 KMS encryption (SSE-S3 is sufficient for a bootstrap bucket)
+#   CKV2_AWS_61  - S3 lifecycle configuration (bootstrap bucket objects are managed by Terraform, not lifecycle rules)
+#   CKV2_AWS_62  - S3 event notifications (not needed for a bootstrap bucket)
+#   CKV_AWS_337  - SSM parameter KMS CMK (default SSM encryption is sufficient; CMK adds cost)
+#   CKV2_AWS_34  - SSM parameter encryption (same as above; default tier uses AES-256)
+#
+# Intentional design decisions:
+#   CKV_AWS_88   - EC2 public IP (nodes need public IPs for SSM Session Manager access without a bastion host)
+#   CKV_AWS_150  - NLB deletion protection (hobbyists and CI need to be able to destroy the cluster easily)
+#   CKV2_AWS_12  - Default VPC security group (the vpc_cloud module creates a new VPC; default SG is not used)
+#   CKV_AWS_107  - IAM credentials exposure — Karpenter controller policy (Karpenter requires broad EC2 permissions to provision nodes)
+#   CKV_AWS_109  - IAM permissions management — Karpenter controller policy (same as above)
+#   CKV_AWS_111  - IAM write access without constraints — Karpenter controller policy (same as above)
+#   CKV_AWS_356  - IAM wildcard resource — Karpenter controller policy (same as above)
+#
+# Minor style:
+#   CKV_AWS_23   - Security group rule descriptions (informational only; does not affect security posture)
+
+skip-check:
+  - CKV_AWS_126
+  - CKV_AWS_135
+  - CKV_AWS_91
+  - CKV_AWS_152
+  - CKV2_AWS_11
+  - CKV_AWS_18
+  - CKV_AWS_144
+  - CKV_AWS_145
+  - CKV2_AWS_61
+  - CKV2_AWS_62
+  - CKV_AWS_337
+  - CKV2_AWS_34
+  - CKV_AWS_88
+  - CKV_AWS_150
+  - CKV2_AWS_12
+  - CKV_AWS_107
+  - CKV_AWS_109
+  - CKV_AWS_111
+  - CKV_AWS_356
+  - CKV_AWS_23
