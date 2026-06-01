@@ -46,3 +46,9 @@ jobs:
 
       - name: Format check
         run: tofu fmt -check -recursive
+
+      - name: Validate k3s_cluster
+        working-directory: k3s_cluster
+        run: |
+          tofu init -backend=false
+          tofu validate
