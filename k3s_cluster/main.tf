@@ -1,37 +1,37 @@
 terraform {
-    required_providers {
-        aws = {
-            source  = "hashicorp/aws"
-            version = ">= 6.0"
-        }
-        # Used by tls_private_key
-        tls = {
-            source  = "hashicorp/tls"
-            version = ">= 4.0"
-        }
-        # Used by random_string
-        random = {
-            source  = "hashicorp/random"
-            version = ">= 3.0"
-        }
-        # Used by local_file
-        local = {
-            source  = "hashicorp/local"
-            version = ">= 2.0"
-        }
-        # Used by assert
-        assert = {
-            source = "opentofu/assert"
-            version = "0.14.0"
-        }
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 6.0"
     }
+    # Used by tls_private_key
+    tls = {
+      source  = "hashicorp/tls"
+      version = ">= 4.0"
+    }
+    # Used by random_string
+    random = {
+      source  = "hashicorp/random"
+      version = ">= 3.0"
+    }
+    # Used by local_file
+    local = {
+      source  = "hashicorp/local"
+      version = ">= 2.0"
+    }
+    # Used by assert
+    assert = {
+      source  = "opentofu/assert"
+      version = "0.14.0"
+    }
+  }
 }
 
 #################################################
 #          VPC lookup (for CIDR Block)          #
 #################################################
 data "aws_vpc" "selected" {
-    id = var.vpc_id
+  id = var.vpc_id
 }
 #################################################
 #      Get current AWS Partition (for IAM)      #
@@ -48,74 +48,74 @@ data "aws_caller_identity" "current" {}
 #      LOCALS : Derive Values      #
 ####################################
 locals {
-    #############################
-    #   Computed Values (VPC)   #
-    #############################
-    vpc_cidr                = data.aws_vpc.selected.cidr_block
-    # IP to VPC DNS Resolver is always at VPC+2 (i.e. x.x.x.2)
-    # NOTE: If you have custom DHCP options set or custom DNS servers, ensure that the DNS server IP is correctly set
-    # NOTE: If you are having lots of issues with DNS resolution, try setting this to "0.0.0.0/0" to allow all outbound DNS queries
-    # Link to Docs: https://tutorialsdojo.com/using-amazon-route-53-resolver/
-    vpc_dns_resolver_cidr   = "${cidrhost(local.vpc_cidr, 2)}/32"
+  #############################
+  #   Computed Values (VPC)   #
+  #############################
+  vpc_cidr = data.aws_vpc.selected.cidr_block
+  # IP to VPC DNS Resolver is always at VPC+2 (i.e. x.x.x.2)
+  # NOTE: If you have custom DHCP options set or custom DNS servers, ensure that the DNS server IP is correctly set
+  # NOTE: If you are having lots of issues with DNS resolution, try setting this to "0.0.0.0/0" to allow all outbound DNS queries
+  # Link to Docs: https://tutorialsdojo.com/using-amazon-route-53-resolver/
+  vpc_dns_resolver_cidr = "${cidrhost(local.vpc_cidr, 2)}/32"
 
-    #########################################
-    #   Computed Values (Caller Identity)   #
-    #########################################
-    account_id              = coalesce(var.account_id, data.aws_caller_identity.current.account_id)
+  #########################################
+  #   Computed Values (Caller Identity)   #
+  #########################################
+  account_id = coalesce(var.account_id, data.aws_caller_identity.current.account_id)
 }
 
 ##########################################################
 #  LOCALS : General Bootstrap Config : S3, PSTORE, etc   #
 ##########################################################
 locals {
-    # Bootstrapping : Data
-    # Key bootstrapping values
-    bstrap_dir                  = "/opt/simplek3s/"
-    # Filepaths for S3
-    s3_bstrap_key_root          = "bootstrap" # This is used as part of a key
-    s3_bstrap_key_root_default  = "${local.s3_bstrap_key_root}/default"
-    s3_bstrap_key_root_custom   = "${local.s3_bstrap_key_root}/custom"
+  # Bootstrapping : Data
+  # Key bootstrapping values
+  bstrap_dir = "/opt/simplek3s/"
+  # Filepaths for S3
+  s3_bstrap_key_root         = "bootstrap" # This is used as part of a key
+  s3_bstrap_key_root_default = "${local.s3_bstrap_key_root}/default"
+  s3_bstrap_key_root_custom  = "${local.s3_bstrap_key_root}/custom"
 
-    # List of param-store data
-    pstore_key_root = "/simplek3s/${var.nickname}"
+  # List of param-store data
+  pstore_key_root = "/simplek3s/${var.nickname}"
 }
 
 ####################################
 #    LOCALS : General Variables    #
 ####################################
 locals {
-    # Static Variables (Not supposed to change!)
-    uninitialized       = "__UNINITIALIZED__"
+  # Static Variables (Not supposed to change!)
+  uninitialized = "__UNINITIALIZED__"
 
-    # General Variables
-    module              = "k3s"
-    module_name         = "${local.module}-${var.nickname}"
+  # General Variables
+  module      = "k3s"
+  module_name = "${local.module}-${var.nickname}"
 
-    # IAM Variables
-    irole_name                  = "irole-${local.module_name}_ssm-for-ec2"
-    iprofile_name               = "iprofile-${local.module_name}_ssm-for-ec2"
-    ipolicy_k3s_pstore_name     = "ipolicy-${local.module_name}_k3s-paramstore"
-    ipolicy_s3_bstrap_obj_name  = "ipolicy-${local.module_name}_s3-bootstrap-obj"
-    ipolicy_s3_bstrap_bkt_name  = "ipolicy-${local.module_name}_s3-bootstrap-bkt"
+  # IAM Variables
+  irole_name                 = "irole-${local.module_name}_ssm-for-ec2"
+  iprofile_name              = "iprofile-${local.module_name}_ssm-for-ec2"
+  ipolicy_k3s_pstore_name    = "ipolicy-${local.module_name}_k3s-paramstore"
+  ipolicy_s3_bstrap_obj_name = "ipolicy-${local.module_name}_s3-bootstrap-obj"
+  ipolicy_s3_bstrap_bkt_name = "ipolicy-${local.module_name}_s3-bootstrap-bkt"
 
-    # EC2 (Related) Variables
-    ec2_name            = "ec2-${local.module_name}"
-    sg_ec2_name         = "sgroup-${local.module_name}_for-ec2"
-    ebs_name            = "ebs-${local.module_name}"
+  # EC2 (Related) Variables
+  ec2_name    = "ec2-${local.module_name}"
+  sg_ec2_name = "sgroup-${local.module_name}_for-ec2"
+  ebs_name    = "ebs-${local.module_name}"
 
-    # S3 Variables
-    s3_bstrap_name      = "s3-${local.module_name}-bootstrap"
+  # S3 Variables
+  s3_bstrap_name = "s3-${local.module_name}-bootstrap"
 
-    # ELB (Elastic Load Balancer) Variables
-    elb_name            = "elb-${local.module_name}"
-    sg_elb_name         = "sgroup-${local.module_name}_for-elb"
-    lport_name          = "lport-${local.module_name}"
-    # TG (Target Group) Variables
-    tgroup_name         = "tgroup-${local.module_name}"
-    tgroup_name_6443    = "${local.tgroup_name}-6443"
-    tgroup_name_80      = "${local.tgroup_name}-80"
-    tgroup_name_443     = "${local.tgroup_name}-443"
+  # ELB (Elastic Load Balancer) Variables
+  elb_name    = "elb-${local.module_name}"
+  sg_elb_name = "sgroup-${local.module_name}_for-elb"
+  lport_name  = "lport-${local.module_name}"
+  # TG (Target Group) Variables
+  tgroup_name      = "tgroup-${local.module_name}"
+  tgroup_name_6443 = "${local.tgroup_name}-6443"
+  tgroup_name_80   = "${local.tgroup_name}-80"
+  tgroup_name_443  = "${local.tgroup_name}-443"
 
-    # KeyPair Variables
-    keypair_name        = "kp-${local.module_name}-node"
+  # KeyPair Variables
+  keypair_name = "kp-${local.module_name}-node"
 }
