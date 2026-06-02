@@ -29,10 +29,9 @@ In addition, it serves as a way to transition nicely into EKS since your apps wo
 There are some useful commands/skills for your coding agents to utilize:
 
 ## Claude Code
-- [Contributing Skills](./CONTRIBUTING.md#ai-cheatsheet-for-contributing)
-  - **/introduce-contributor** (Introduces the potential contributor to the project)
-  - **/new-issue** (Helps create a new issue based on the formatting outlined in this document)
-
+__[Contributing Skills](./CONTRIBUTING.md#ai-cheatsheet-for-contributing)__
+- **/introduce-contributor** (Introduces the potential contributor to the project)
+- **/new-issue** (Helps create a new issue based on the formatting outlined in this document)
 
 # Pricing
 Estimated monthly costs for common deployment profiles, plus a side-by-side comparison with equivalent EKS setups — see [PRICING.md](./PRICING.md).

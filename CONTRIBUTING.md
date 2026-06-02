@@ -4,6 +4,7 @@ This document will outline all the relevant info for beginners to join in and wo
 
 ## AI Cheatsheet for Contributing
 
+__Claude Code__
 - **/introduce-contributor** (Introduces the potential contributor to the project)
 - **/new-issue** (Helps create a new issue based on the formatting outlined in this document)
 
