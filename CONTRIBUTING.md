@@ -2,6 +2,11 @@
 Contributions to SimpleK3s are greatly welcomed and we want to set everyone up for success to allow for them
 This document will outline all the relevant info for beginners to join in and work on it
 
+## AI Cheatsheet for Contributing
+
+- **/introduce-contributor** (Introduces the potential contributor to the project)
+- **/new-issue** (Helps create a new issue based on the formatting outlined in this document)
+
 ## Most common types of changes
 These are the most common changes that we want to focus on for now (No set priority)
 - Bug fixes
