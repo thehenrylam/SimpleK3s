@@ -12,7 +12,7 @@ source "$SCRIPT_DIR/simplek3s.env"
 
 # Get date
 function print_date() {
-    echo "$(date +'%Y-%m-%dT%H:%M:%S.%3N')"
+    date +'%Y-%m-%dT%H:%M:%S.%3N'
 }
 
 # Logging functions
