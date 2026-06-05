@@ -82,7 +82,8 @@ function install_k3s_agent() {
 function get_k3s_token() {
     # Define an uninitialized value to set up a fallback output 
     local PLACEHOLDER_TOKEN="__UNINITIALIZED__"
-    local output_token="$(sudo cat /var/lib/rancher/k3s/server/token)"
+    local output_token
+    output_token="$(sudo cat /var/lib/rancher/k3s/server/token)"
     if [[ -z "$output_token" || "$output_token" == "$PLACEHOLDER_TOKEN" ]]; then
         echo "$output_token"
         return 1

@@ -28,7 +28,8 @@ function upload_k3s_token() {
 function download_k3s_token() {
     local ssmkey_k3s_token="k3s-token"
     local decrypt="decrypt"
-    local token="$(wait_ssm "$ssmkey_k3s_token" "$decrypt")" || return 1
+    local token
+    token="$(wait_ssm "$ssmkey_k3s_token" "$decrypt")" || return 1
     echo "$token"
     return 0
 }
@@ -44,7 +45,8 @@ function k3s_controller() {
 
     # Read the generated token (server token file)
     log_info "Getting K3s token to store into AWS SSM Parameter Store"
-    local token=$(get_k3s_token) || return 1
+    local token
+    token=$(get_k3s_token) || return 1
     log_okay "Succeeded to get K3s token!"
 
     # Store in Parameter Store (SecureString). Overwrite allows rebuilds.
@@ -64,7 +66,8 @@ function k3s_server() {
 
     # Try to ping AWS SSM to see if the k3s token is ready
     log_info "Retrieving K3s token!"
-    local token="$(download_k3s_token)" || return 1
+    local token
+    token="$(download_k3s_token)" || return 1
     log_okay "K3s token has been retrieved!"
 
     # Set up K3s server
@@ -84,12 +87,14 @@ function k3s_agent() {
 
     # Try to ping AWS SSM to see if the k3s token is ready
     log_info "Retrieving K3s token!"
-    local token="$(download_k3s_token)" || return 1
+    local token
+    token="$(download_k3s_token)" || return 1
     log_okay "K3s token has been retrieved!"
 
     # Fetch EC2 provider ID so Karpenter can match this node to its nodeclaim
     log_info "Fetching EC2 provider ID"
-    local provider_id="$(get_ec2_provider_id)" || return 1
+    local provider_id
+    provider_id="$(get_ec2_provider_id)" || return 1
     log_info "Provider ID: $provider_id"
 
     # Set up K3s agent

@@ -50,7 +50,8 @@ function setup_control_plane() {
     "$SCRIPT_DIR/bts_02_setup_swapfile.sh" "$SWAPFILE_ALLOC_AMT" || exit 1
 
     # Setup the k3s (if COUNT_INDEX == 0 then install as "controller", otherwise install as "server")
-    local NODE_TYPE=$([ "$COUNT_INDEX" -eq 0 ] && echo "controller" || echo "server")
+    local NODE_TYPE
+    NODE_TYPE=$([ "$COUNT_INDEX" -eq 0 ] && echo "controller" || echo "server")
     "$SCRIPT_DIR/bts_03_install_k3s.sh" "$NODE_TYPE" || exit 1
 
     "$SCRIPT_DIR/init_subsystems.sh" "$COUNT_INDEX" || exit 1
