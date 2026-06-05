@@ -5,4 +5,4 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-find "${REPO_ROOT}" -name "*.sh" -not -path "${REPO_ROOT}/_tmp/*" | xargs shellcheck
+find "${REPO_ROOT}" -name "*.sh" -not -path "${REPO_ROOT}/_tmp/*" -print0 | xargs -0 shellcheck -x

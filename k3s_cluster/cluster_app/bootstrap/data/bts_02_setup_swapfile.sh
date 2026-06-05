@@ -11,6 +11,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ALLOCATION_AMOUNT="${1}"
 
 # Retrieve the common functions from common.sh (Calls upon simplek3s.env file)
+# shellcheck source=k3s_cluster/cluster_app/bootstrap/data/lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
 
 function setup_swapfile() {

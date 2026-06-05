@@ -7,6 +7,7 @@
 LIBRARY_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_DIR="$LIBRARY_DIR/../"
 # Retrieve all of the needed environment variables from this file
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/simplek3s.env"
 
 # Get date

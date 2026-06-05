@@ -23,10 +23,13 @@ echo "=== $(basename $0) starting ==="
 echo "LOG_FILE=$LOG_FILE"
 
 # Retrieve all of the needed environment variables from this file
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/simplek3s.env"
 # Retrieve the common functions from common.sh
+# shellcheck source=k3s_cluster/cluster_app/bootstrap/data/lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
 # Retrieve the AWS specific functions from aws.sh
+# shellcheck source=k3s_cluster/cluster_app/bootstrap/data/lib/providers/aws.sh
 source "$SCRIPT_DIR/lib/providers/aws.sh"
 
 
