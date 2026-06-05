@@ -21,7 +21,7 @@ if [[ -z "$COUNT_INDEX" || ! "$COUNT_INDEX" =~ ^[0-9]+$ ]]; then
     exit 2
 fi
 
-echo "=== $(basename $0) starting ==="
+echo "=== $(basename "$0") starting ==="
 
 # Execute additional scripts for the controller
 if [[ "$COUNT_INDEX" -eq 0 ]]; then
@@ -40,4 +40,4 @@ else
     log_info "COUNT_INDEX is NOT 0; Skipping initialization of applications"
 fi
 
-echo "=== $(basename $0) completed ==="
+echo "=== $(basename "$0") completed ==="
