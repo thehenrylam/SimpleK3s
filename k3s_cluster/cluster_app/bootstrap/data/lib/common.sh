@@ -91,7 +91,6 @@ function get_k3s_token() {
         echo "$output_token"
         return 0
     fi
-    return 0
 }
 
 # Waiting functions
