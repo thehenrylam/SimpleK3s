@@ -1,0 +1,8 @@
+# Default shell dialect — all scripts in this repo use bash
+shell=bash
+
+# Report warnings and above (style noise excluded)
+severity=warning
+
+# Exclude _tmp/ from analysis (scratch/dev scripts, not production)
+exclude-path=_tmp

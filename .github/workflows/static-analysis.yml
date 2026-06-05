@@ -14,6 +14,7 @@ on:
       - "**/*.tfvars"
       - ".tflint.hcl"
       - ".checkov.yaml"
+      - ".shellcheckrc"
       - ".github/workflows/static-analysis.yml"
   pull_request:
     branches: [main]
@@ -28,12 +29,27 @@ on:
       - "**/*.tfvars"
       - ".tflint.hcl"
       - ".checkov.yaml"
+      - ".shellcheckrc"
       - ".github/workflows/static-analysis.yml"
 
 env:
   TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
 
 jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Run shellcheck
+        run: bash testcases/test_check_all_shellscripts.sh
+
   terraform:
     name: Terraform Checks
     runs-on: ubuntu-latest

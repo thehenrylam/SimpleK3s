@@ -7,11 +7,12 @@
 LIBRARY_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_DIR="$LIBRARY_DIR/../"
 # Retrieve all of the needed environment variables from this file
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/simplek3s.env"
 
 # Get date
 function print_date() {
-    echo "$(date +'%Y-%m-%dT%H:%M:%S.%3N')"
+    date +'%Y-%m-%dT%H:%M:%S.%3N'
 }
 
 # Logging functions
@@ -81,7 +82,8 @@ function install_k3s_agent() {
 function get_k3s_token() {
     # Define an uninitialized value to set up a fallback output 
     local PLACEHOLDER_TOKEN="__UNINITIALIZED__"
-    local output_token="$(sudo cat /var/lib/rancher/k3s/server/token)"
+    local output_token
+    output_token="$(sudo cat /var/lib/rancher/k3s/server/token)"
     if [[ -z "$output_token" || "$output_token" == "$PLACEHOLDER_TOKEN" ]]; then
         echo "$output_token"
         return 1
@@ -89,7 +91,6 @@ function get_k3s_token() {
         echo "$output_token"
         return 0
     fi
-    return 0
 }
 
 # Waiting functions

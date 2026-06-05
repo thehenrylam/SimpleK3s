@@ -19,14 +19,17 @@ chmod 0644 "$LOG_FILE"
 # Redirect script's output to the log file 
 exec > >(tee -a "$LOG_FILE") 2>&1
 # Announce to that this script will start
-echo "=== $(basename $0) starting ==="
+echo "=== $(basename "$0") starting ==="
 echo "LOG_FILE=$LOG_FILE"
 
 # Retrieve all of the needed environment variables from this file
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/simplek3s.env"
 # Retrieve the common functions from common.sh
+# shellcheck source=k3s_cluster/cluster_app/bootstrap/data/lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
 # Retrieve the AWS specific functions from aws.sh
+# shellcheck source=k3s_cluster/cluster_app/bootstrap/data/lib/providers/aws.sh
 source "$SCRIPT_DIR/lib/providers/aws.sh"
 
 
@@ -47,7 +50,8 @@ function setup_control_plane() {
     "$SCRIPT_DIR/bts_02_setup_swapfile.sh" "$SWAPFILE_ALLOC_AMT" || exit 1
 
     # Setup the k3s (if COUNT_INDEX == 0 then install as "controller", otherwise install as "server")
-    local NODE_TYPE=$([ $COUNT_INDEX -eq 0 ] && echo "controller" || echo "server")
+    local NODE_TYPE
+    NODE_TYPE=$([ "$COUNT_INDEX" -eq 0 ] && echo "controller" || echo "server")
     "$SCRIPT_DIR/bts_03_install_k3s.sh" "$NODE_TYPE" || exit 1
 
     "$SCRIPT_DIR/init_subsystems.sh" "$COUNT_INDEX" || exit 1
@@ -103,4 +107,4 @@ case "$CLUSTER_TYPE" in
         ;;
 esac
 
-echo "=== $(basename $0) completed ==="
+echo "=== $(basename "$0") completed ==="

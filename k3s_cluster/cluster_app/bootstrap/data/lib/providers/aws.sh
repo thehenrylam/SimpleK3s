@@ -7,6 +7,7 @@
 PROVIDER_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_DIR="$PROVIDER_DIR/../../"
 # Retrieve all of the needed environment variables from this file
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/simplek3s.env"
 
 # Base URL for the EC2 Instance Metadata Service (IMDSv2).

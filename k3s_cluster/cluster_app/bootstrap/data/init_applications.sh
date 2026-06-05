@@ -9,6 +9,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 # Retrieve the common functions from common.sh (Calls upon simplek3s.env file)
+# shellcheck source=k3s_cluster/cluster_app/bootstrap/data/lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
 
 # The index of the current node 
@@ -20,7 +21,7 @@ if [[ -z "$COUNT_INDEX" || ! "$COUNT_INDEX" =~ ^[0-9]+$ ]]; then
     exit 2
 fi
 
-echo "=== $(basename $0) starting ==="
+echo "=== $(basename "$0") starting ==="
 
 # Execute additional scripts for the controller
 if [[ "$COUNT_INDEX" -eq 0 ]]; then
@@ -39,4 +40,4 @@ else
     log_info "COUNT_INDEX is NOT 0; Skipping initialization of applications"
 fi
 
-echo "=== $(basename $0) completed ==="
+echo "=== $(basename "$0") completed ==="
