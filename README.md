@@ -29,6 +29,10 @@ In addition, it serves as a way to transition nicely into EKS since your apps wo
 There are some useful commands/skills for your coding agents to utilize:
 
 ## Claude Code
+
+__General Skills__
+- **/testcase** (Helps perform testcases and provide a report on the results)
+
 __[Contributing Skills](./CONTRIBUTING.md#ai-cheatsheet-for-contributing)__
 - **/introduce-contributor** (Introduces the potential contributor to the project)
 - **/new-issue** (Helps create a new issue based on the formatting outlined in this document)
@@ -36,12 +40,37 @@ __[Contributing Skills](./CONTRIBUTING.md#ai-cheatsheet-for-contributing)__
 # Pricing
 Estimated monthly costs for common deployment profiles, plus a side-by-side comparison with equivalent EKS setups — see [PRICING.md](./PRICING.md).
 
-# CI
+# CI and Testing
 Every pull request and push to `main` runs a static analysis pipeline (no AWS credentials required):
 - **`tofu fmt`** — enforces consistent formatting
 - **`tflint`** — lint rules for naming, versioning, and AWS best practices
 - **`tofu validate`** — type-checks all five root modules
 - **`checkov`** — security and compliance scan of Terraform resources
+- **`shellcheck`** — checks linting, syntax, validity of shell scripts
+
+There are two main methods of easily testing changes locally:
+
+1. Test via shellscripts
+``` bash
+./testcases/test_check_all_shellscripts.sh # Perform shellscript checks
+./testcases/test_check_all_terraform.sh # Perform terraform checks
+```
+2. Test via [Claude Code](./README.md#claude-code) 
+``` bash
+# Within the claude terminal:
+# Usage:
+> /testcase "context of what you want to check"
+# Examples: 
+> /testcase             # Execute all tests 
+> /testcase all         # Execute all tests 
+> /testcase relevant    # Execute tests that's relevant 
+> /testcase shellscript # Execute tests related to shell scripts
+> /testcase terraform   # Execute tests related to terraform config
+# Note: 
+# 1. Test scripts under testcases/ folder will be preferred by the LLM
+# 2. The logs of the tests will be under the testcases/ folder
+# 3. The LLM will prompt you to determine the order of tests to run
+```
 
 # Disclaimer
 - This is **NOT** meant to be a $0 or lowest possible price point setup.
