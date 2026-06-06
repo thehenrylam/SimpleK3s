@@ -1,6 +1,9 @@
 # Local .terraform directories
 .terraform/
 
+# Local .vscode directories
+.vscode/
+
 # .tfstate files
 *.tfstate
 *.tfstate.*
@@ -62,3 +65,6 @@ manifests/jenkins.yaml
 **/bootstrap/**/kyverno-baseline-policies.yaml
 **/bootstrap/**/simplek3s.env
 **/cluster_app/**/data/*.yaml
+
+# CUSTOM: Ignore log files under the testcases/ folder
+testcases/*.log
