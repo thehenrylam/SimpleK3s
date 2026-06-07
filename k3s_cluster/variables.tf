@@ -28,6 +28,13 @@ variable "admin_ip_list" {
   type        = list(string)
 }
 
+# SSM Agent Version
+variable "ssm_agent_version" {
+  description = "The amazon-ssm-agent version to install on each EC2 node"
+  type        = string
+  default     = "3.3.4515.0"
+}
+
 # K3s Specific Config: K3s Version
 variable "k3s_version" {
   description = "The K3s version to install across the cluster (control plane, agent nodes, and Karpenter-provisioned nodes)"
