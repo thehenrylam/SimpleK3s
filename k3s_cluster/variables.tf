@@ -28,6 +28,13 @@ variable "admin_ip_list" {
   type        = list(string)
 }
 
+# K3s Specific Config: K3s Version
+variable "k3s_version" {
+  description = "The K3s version to install across the cluster (control plane, agent nodes, and Karpenter-provisioned nodes)"
+  type        = string
+  default     = "v1.35.1+k3s1"
+}
+
 # K3s Specific Config: Traefik NodePorts
 variable "k3s_nodeport_traefik_http" {
   description = "The traefik nodeport representing the K3 pod HTTP port"

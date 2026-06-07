@@ -11,7 +11,7 @@ locals {
     descheduler      = {}
     karpenter = {
       ami_id      = try(local.agentplane.ec2_ami_id, null)
-      k3s_version = "v1.35.1+k3s1"
+      k3s_version = var.k3s_version
     }
   }
   subsystems = merge(local.subsystems_default, var.subsystems)
