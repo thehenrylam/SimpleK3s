@@ -19,6 +19,7 @@ locals {
     controller_host        = null
     ami_id                 = null
     k3s_version            = "v1.35.1+k3s1"
+    aws_cli_version        = "2.34.63"
     ssm_agent_version      = "3.3.4515.0"
     token_ssm_name         = "/simplek3s/${var.nickname}/k3s-token"
     subnet_ids             = []
@@ -39,6 +40,7 @@ locals {
     controller_host        = coalesce(try(var.settings.controller_host, null), local.default_settings.controller_host)
     ami_id                 = coalesce(try(var.settings.ami_id, null), local.default_settings.ami_id)
     k3s_version            = coalesce(try(var.settings.k3s_version, null), local.default_settings.k3s_version)
+    aws_cli_version        = coalesce(try(var.settings.aws_cli_version, null), local.default_settings.aws_cli_version)
     ssm_agent_version      = coalesce(try(var.settings.ssm_agent_version, null), local.default_settings.ssm_agent_version)
     token_ssm_name         = coalesce(try(var.settings.token_ssm_name, null), local.default_settings.token_ssm_name)
     subnet_ids             = coalesce(try(var.settings.subnet_ids, null), local.default_settings.subnet_ids)
@@ -144,6 +146,7 @@ module "aws_s3obj" {
           cluster_type      = "agentplane"
           bootstrap_bucket  = var.s3_config.id
           bootstrap_dir     = "/opt/simplek3s/" # TODO: Parameterize this
+          aws_cli_version   = local.settings.aws_cli_version
           ssm_agent_version = local.settings.ssm_agent_version
           # Assume the first object of local.s3keys_default_bootstrap is the installation script
           s3key_install_script = "${var.s3_config.keyroot}/init.sh" # TODO: Parameterize this

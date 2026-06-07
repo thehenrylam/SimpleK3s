@@ -113,9 +113,45 @@ install_tflint() {
 
 install_checkov() {
     echo "==> Installing checkov"
+
+    local bin_name="checkov-${CHECKOV_VERSION}"
+    local bin_path="${BIN_DIR}/${bin_name}"
+    local symlink_path="${BIN_DIR}/checkov"
+
     echo "  Installing checkov v${CHECKOV_VERSION} via pip..."
     pip3 install "checkov==${CHECKOV_VERSION}"
-    echo "  Installed: checkov v${CHECKOV_VERSION}"
+
+    local pip_bin
+    pip_bin="$(python3 -m site --user-base)/bin/checkov"
+
+    if [[ ! -f "$pip_bin" ]]; then
+        echo "  ERROR: could not find checkov binary at ${pip_bin}" >&2
+        return 1
+    fi
+
+    mkdir -p "$BIN_DIR"
+    cp "$pip_bin" "$bin_path"
+    chmod 755 "$bin_path"
+    echo "  Copied to: ${bin_path}"
+
+    if [[ -L "$symlink_path" ]]; then
+        local current_target
+        current_target="$(readlink "$symlink_path")"
+        echo "  Symlink 'checkov' already exists -> ${current_target}"
+        printf "  Point 'checkov' to %s instead? [y/N] " "$bin_name"
+        read -r answer
+        if [[ "$answer" == "y" ]] || [[ "$answer" == "Y" ]]; then
+            ln -sf "$bin_path" "$symlink_path"
+            echo "  Updated symlink: checkov -> ${bin_name}"
+        else
+            echo "  Keeping existing symlink."
+        fi
+    elif [[ -e "$symlink_path" ]]; then
+        echo "  WARNING: ${symlink_path} exists but is not a symlink — skipping symlink creation."
+    else
+        ln -s "$bin_path" "$symlink_path"
+        echo "  Created symlink: checkov -> ${bin_name}"
+    fi
 }
 
 # --- main ---

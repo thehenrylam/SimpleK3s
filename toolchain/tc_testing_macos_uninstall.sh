@@ -68,6 +68,29 @@ uninstall_tflint() {
 
 uninstall_checkov() {
     echo "==> Uninstalling checkov"
+
+    local bin_name="checkov-${CHECKOV_VERSION}"
+    local bin_path="${BIN_DIR}/${bin_name}"
+    local symlink_path="${BIN_DIR}/checkov"
+
+    if [[ -L "$symlink_path" ]]; then
+        local current_target
+        current_target="$(readlink "$symlink_path")"
+        if [[ "$current_target" == "$bin_path" ]]; then
+            rm "$symlink_path"
+            echo "  Removed symlink: checkov -> ${bin_name}"
+        else
+            echo "  Symlink 'checkov' points elsewhere (${current_target}) — leaving it."
+        fi
+    fi
+
+    if [[ -f "$bin_path" ]]; then
+        rm "$bin_path"
+        echo "  Removed: ${bin_path}"
+    else
+        echo "  Not installed: ${bin_path}"
+    fi
+
     pip3 uninstall -y checkov || true
 }
 

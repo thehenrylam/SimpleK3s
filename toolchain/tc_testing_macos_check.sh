@@ -63,18 +63,24 @@ check_tflint() {
 # --- checkov ---
 
 check_checkov() {
-    local installed_version
-    installed_version="$(checkov --version 2>/dev/null | head -1)" || true
+    local bin_name="checkov-${CHECKOV_VERSION}"
+    local bin_path="${BIN_DIR}/${bin_name}"
+    local symlink_path="${BIN_DIR}/checkov"
 
-    if [[ "$installed_version" == "$CHECKOV_VERSION" ]]; then
-        echo "[OK]   checkov-${CHECKOV_VERSION}: ${installed_version}"
+    if [[ -f "$bin_path" ]]; then
+        echo "[OK]   ${bin_name}: $("$bin_path" --version 2>&1 | head -1)"
         ((PASS++)) || true
-    elif [[ -n "$installed_version" ]]; then
-        echo "[WARN] checkov: found ${installed_version}, expected ${CHECKOV_VERSION}"
-        ((FAIL++)) || true
     else
-        echo "[MISS] checkov-${CHECKOV_VERSION}: not found"
+        echo "[MISS] ${bin_name}: not found at ${bin_path}"
         ((FAIL++)) || true
+    fi
+
+    if [[ -L "$symlink_path" ]]; then
+        local target
+        target="$(readlink "$symlink_path")"
+        echo "       symlink checkov -> ${target}"
+    else
+        echo "       symlink checkov: not set"
     fi
 }
 

@@ -24,9 +24,13 @@ function apt_update() {
 function apt_install_essential() {
     log_info "Kicking off install (mandatory)"
 
+    # Note: awscli and amazon-ssm-agent are NOT installed here.
+    # They are assumed to be pre-installed before this script runs —
+    # either baked into the AMI or provisioned by the cloud-init script.
+
     # install essentials
+    # check-versions: ignore - ca-certificates and gettext-base are OS-level packages tied to the Debian release
     apt-get install -y \
-        awscli \
         ca-certificates \
         gettext-base || return 1
 
@@ -37,6 +41,7 @@ function apt_install_nicetohave() {
     log_info "Kicking off install (nicetohave)"
 
     # install nice-to-haves
+    # check-versions: ignore - fastfetch and htop are convenience utilities, version is not critical
     apt-get install -y \
         fastfetch \
         htop || return 1

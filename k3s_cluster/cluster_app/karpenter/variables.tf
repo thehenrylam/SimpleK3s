@@ -12,6 +12,7 @@ variable "settings" {
     controller_host        = optional(string)
     ami_id                 = optional(string)
     k3s_version            = optional(string)
+    aws_cli_version        = optional(string)
     ssm_agent_version      = optional(string)
     token_ssm_name         = optional(string)
     subnet_ids             = optional(list(string))

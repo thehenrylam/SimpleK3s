@@ -74,6 +74,7 @@ module "cluster_app_karpenter" {
       security_group_name = local.sg_ec2_name
       ami_id              = coalesce(try(local.subsystems.karpenter.ami_id, null), local.subsystems_default.karpenter.ami_id)
       k3s_version         = coalesce(try(local.subsystems.karpenter.k3s_version, null), local.subsystems_default.karpenter.k3s_version)
+      aws_cli_version     = var.aws_cli_version
       ssm_agent_version   = var.ssm_agent_version
     }
   )

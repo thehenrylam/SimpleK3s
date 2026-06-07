@@ -31,6 +31,8 @@ There are some useful commands/skills for your coding agents to utilize:
 ## Claude Code
 
 __General Skills__
+- **/check-versions** (Helps scan through the entire repo for software used and their versions)
+    - WARNING: Very token intensive, use on a fresh claude session if possible.
 - **/testcase** (Helps perform testcases and provide a report on the results)
 
 __[Contributing Skills](./CONTRIBUTING.md#ai-cheatsheet-for-contributing)__
