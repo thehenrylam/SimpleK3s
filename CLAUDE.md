@@ -141,6 +141,8 @@ These versions are hardcoded defaults in the module. Check here first when inves
 
 | Type            | Dependency | Version | Defined In |
 |-----------------|------------|---|---|
+| Tooling         | OpenTofu | `1.11.2` | `.github/workflows/static-analysis.yml` |
+| Tooling         | Python | `3.12` | `.github/workflows/static-analysis.yml` |
 | Platform        | K3s        | `v1.35.1+k3s1` | `k3s_cluster/variables.tf` |
 | Platform Access | SSM Agent (`amazon-ssm-agent`) | `3.3.4515.0` | `k3s_cluster/variables.tf`, `k3s_cluster/cluster_app/karpenter/main.tf` |
 | Platform App    | Traefik          | `37.1.0` | `k3s_cluster/cluster_app/traefik/main.tf` |
