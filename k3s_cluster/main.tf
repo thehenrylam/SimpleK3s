@@ -1,25 +1,25 @@
 terraform {
-  required_version = ">= 1.11.0"
+  required_version = "~> 1.11"
 
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 6.0"
+      version = "~> 6.0"
     }
     # Used by tls_private_key
     tls = {
       source  = "hashicorp/tls"
-      version = ">= 4.0"
+      version = "~> 4.0"
     }
     # Used by random_string
     random = {
       source  = "hashicorp/random"
-      version = ">= 3.0"
+      version = "~> 3.0"
     }
     # Used by local_file
     local = {
       source  = "hashicorp/local"
-      version = ">= 2.0"
+      version = "~> 2.0"
     }
     # Used by assert
     assert = {
