@@ -34,6 +34,8 @@ on:
 
 env:
   TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
+  SHELLCHECK_VERSION: "0.11.0"
+  CHECKOV_VERSION: "3.2.530"
 
 jobs:
   shellcheck:
@@ -45,7 +47,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install shellcheck
-        run: sudo apt-get install -y shellcheck
+        run: |
+          curl -fsSL "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" \
+            | tar -xJ
+          sudo mv "shellcheck-v${SHELLCHECK_VERSION}/shellcheck" /usr/local/bin/shellcheck
 
       - name: Run shellcheck
         run: bash testcases/test_check_all_shellscripts.sh
@@ -106,7 +111,7 @@ jobs:
           key: ${{ runner.os }}-checkov-${{ hashFiles('.checkov.yaml') }}
 
       - name: Install checkov
-        run: pip install checkov
+        run: pip install "checkov==${CHECKOV_VERSION}"
 
       - name: Run checkov
         run: checkov -d . --config-file .checkov.yaml

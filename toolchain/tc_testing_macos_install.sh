@@ -5,14 +5,58 @@ set -euo pipefail
 # Installs local testing tools for contributors on macOS.
 # Requires Homebrew. Does NOT install OpenTofu (see tc_tofu_*.sh).
 
+SHELLCHECK_VERSION="0.11.0"
 TFLINT_VERSION="0.62.1"
+CHECKOV_VERSION="3.2.530"
 BIN_DIR="/opt/homebrew/bin"
 
 # --- shellcheck ---
 
 install_shellcheck() {
     echo "==> Installing shellcheck"
-    brew install shellcheck
+
+    local bin_name="shellcheck-${SHELLCHECK_VERSION}"
+    local bin_path="${BIN_DIR}/${bin_name}"
+    local symlink_path="${BIN_DIR}/shellcheck"
+
+    local arch
+    case "$(uname -m)" in
+        arm64)  arch="aarch64" ;;
+        x86_64) arch="x86_64" ;;
+        *) echo "ERROR: Unsupported architecture: $(uname -m)" >&2; return 1 ;;
+    esac
+
+    mkdir -p "$BIN_DIR"
+
+    local url="https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.darwin.${arch}.tar.xz"
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+
+    echo "  Downloading shellcheck v${SHELLCHECK_VERSION} (${arch})..."
+    curl -fsSL "$url" | tar -xJ -C "$tmpdir"
+    install -m 755 "${tmpdir}/shellcheck-v${SHELLCHECK_VERSION}/shellcheck" "$bin_path"
+    rm -rf "$tmpdir"
+
+    echo "  Installed: ${bin_path}"
+
+    if [[ -L "$symlink_path" ]]; then
+        local current_target
+        current_target="$(readlink "$symlink_path")"
+        echo "  Symlink 'shellcheck' already exists -> ${current_target}"
+        printf "  Point 'shellcheck' to %s instead? [y/N] " "$bin_name"
+        read -r answer
+        if [[ "$answer" == "y" ]] || [[ "$answer" == "Y" ]]; then
+            ln -sf "$bin_path" "$symlink_path"
+            echo "  Updated symlink: shellcheck -> ${bin_name}"
+        else
+            echo "  Keeping existing symlink."
+        fi
+    elif [[ -e "$symlink_path" ]]; then
+        echo "  WARNING: ${symlink_path} exists but is not a symlink — skipping symlink creation."
+    else
+        ln -s "$bin_path" "$symlink_path"
+        echo "  Created symlink: shellcheck -> ${bin_name}"
+    fi
 }
 
 # --- tflint ---
@@ -51,7 +95,7 @@ install_tflint() {
         echo "  Symlink 'tflint' already exists -> ${current_target}"
         printf "  Point 'tflint' to %s instead? [y/N] " "$bin_name"
         read -r answer
-        if [[ "${answer,,}" == "y" ]]; then
+        if [[ "$answer" == "y" ]] || [[ "$answer" == "Y" ]]; then
             ln -sf "$bin_path" "$symlink_path"
             echo "  Updated symlink: tflint -> ${bin_name}"
         else
@@ -69,7 +113,9 @@ install_tflint() {
 
 install_checkov() {
     echo "==> Installing checkov"
-    brew install checkov
+    echo "  Installing checkov v${CHECKOV_VERSION} via pip..."
+    pip3 install "checkov==${CHECKOV_VERSION}"
+    echo "  Installed: checkov v${CHECKOV_VERSION}"
 }
 
 # --- main ---
