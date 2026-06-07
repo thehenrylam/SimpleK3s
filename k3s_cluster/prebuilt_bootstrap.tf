@@ -28,6 +28,7 @@ module "cluster_app_bootstrap" {
   # General settings
   nickname = var.nickname
   settings = {
+    version         = var.k3s_version
     pstore_key_root = local.pstore_key_root
     env_vars = jsonencode({
       bootstrap_dir      = local.bstrap_dir

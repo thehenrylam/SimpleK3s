@@ -73,7 +73,6 @@ module "k3s_cluster" {
   subsystems = {
     karpenter = {
       version                = "1.9.0"
-      k3s_version            = "v1.35.1+k3s1"
       capacity_type          = "on-demand"
       arch                   = "arm64"
       instance_categories    = ["t"] # ["m", "c", "r"]
