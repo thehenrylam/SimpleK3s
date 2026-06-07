@@ -72,7 +72,6 @@ module "k3s_cluster" {
 
   subsystems = {
     karpenter = {
-      ami_id                 = "ami-01b1eba85c1cd6a3d"
       version                = "1.9.0"
       k3s_version            = "v1.35.1+k3s1"
       capacity_type          = "on-demand"
