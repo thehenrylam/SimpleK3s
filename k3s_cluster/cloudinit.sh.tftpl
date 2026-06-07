@@ -33,8 +33,9 @@ apt-get install -y fastfetch htop
 # Install SSM agent (not pre-installed on Debian AMIs)
 echo "Install SSM agent"
 ARCH=$(dpkg --print-architecture) # amd64 or arm64
+SSM_AGENT_VERSION="${ssm_agent_version}"
 SSM_DEB="/tmp/amazon-ssm-agent.deb"
-curl -fsSo "$SSM_DEB" "https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_$ARCH/amazon-ssm-agent.deb"
+curl -fsSo "$SSM_DEB" "https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/$SSM_AGENT_VERSION/debian_$ARCH/amazon-ssm-agent.deb"
 dpkg -i "$SSM_DEB"
 systemctl enable amazon-ssm-agent
 systemctl start amazon-ssm-agent
