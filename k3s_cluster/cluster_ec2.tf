@@ -10,9 +10,13 @@ locals {
   # If the controller_private_ip is not set, compute it via cidrhost()
   controller_private_ip = coalesce(var.controlplane.controller_private_ip_override, cidrhost(local.controller_subnet_cidr, local.controller_private_ip_hostnum))
 
+  # Pin default AMI version in text form
+  default_ami_owner        = "136693071363"      # Debian's official AWS account
+  default_ami_name_pattern = "debian-13-arm64-*" # Target Debian v13 (ARM)
+
   default_controlplane = {
     node_count        = 3
-    ec2_ami_id        = "ami-01b1eba85c1cd6a3d"
+    ec2_ami_id        = data.aws_ami.default.id
     ec2_instance_type = "t4g.medium"
     ec2_swapfile_size = "1G"
     ebs_volume_size   = 12
@@ -21,7 +25,7 @@ locals {
 
   default_agentplane = {
     node_count        = 3
-    ec2_ami_id        = "ami-01b1eba85c1cd6a3d"
+    ec2_ami_id        = data.aws_ami.default.id
     ec2_instance_type = "t4g.medium"
     ec2_swapfile_size = "1G"
     ebs_volume_size   = 12
@@ -69,6 +73,23 @@ locals {
 
 data "aws_subnet" "controller" {
   id = local.controller_subnet_id
+}
+
+# Dynamically determine the default AMI ID 
+# This is in case the user uses a different region, which the AMI ID will change
+data "aws_ami" "default" {
+  most_recent = true
+  owners      = [local.default_ami_owner]
+
+  filter {
+    name   = "name"
+    values = [local.default_ami_name_pattern]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
 }
 
 #######################################
