@@ -26,8 +26,10 @@ echo "Set up packages (apt-get)"
 # update package manager
 apt-get update -y
 # install essentials
+# check-versions: ignore - awscli pinning tracked separately (#issue); ca-certificates and gettext-base are OS-level packages pinned to the Debian release
 apt-get install -y awscli ca-certificates gettext-base
 # install nice-to-haves
+# check-versions: ignore - fastfetch and htop are convenience utilities, version is not critical
 apt-get install -y fastfetch htop
 
 # Install SSM agent (not pre-installed on Debian AMIs)

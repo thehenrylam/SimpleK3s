@@ -13,7 +13,21 @@ Read `CLAUDE.md` and parse the Pinned Versions table. For each row, record:
 
 This is the baseline. Everything found in the scan will be checked against it.
 
-### 2. Scan the codebase for version references
+### 2. Identify exclusions
+
+Before scanning, grep every file that will be scanned for lines containing the exclusion marker:
+
+```
+# check-versions: ignore - <reason>
+```
+
+An exclusion applies to the **next non-blank, non-comment line** after the marker, OR to the **same line** if the marker appears as an inline comment on that line. Record each exclusion as:
+- File path and line number of the excluded line
+- The reason text from the marker
+
+Any finding that matches an excluded line is moved out of its normal status bucket and into the ⚪ Excluded section instead. It is never reported as unpinned, untracked, or drifted.
+
+### 3. Scan the codebase for version references
 
 Search the following locations and patterns. For each finding record the dependency name, version string (or "unpinned"), and file + line number.
 
@@ -40,7 +54,7 @@ Search the following locations and patterns. For each finding record the depende
 **Bootstrap and other shell scripts** (`k3s_cluster/cluster_app/bootstrap/*.sh`, `toolchain/*.sh`):
 - Any `curl`/`wget`/`apt-get install`/`brew install` commands referencing `latest` or with no version (flag as unpinned)
 
-### 3. Classify each finding
+### 4. Classify each finding
 
 For every version found in the scan, assign one of these statuses:
 
@@ -50,10 +64,11 @@ For every version found in the scan, assign one of these statuses:
 | ⚠️ Drifted | Version is pinned in code BUT differs from the CLAUDE.md table |
 | 🔵 Pinned, untracked | Version is pinned in code but NOT present in the CLAUDE.md table |
 | 🔴 Unpinned | Version reference is floating (`latest`, `*`, no version specified) |
+| ⚪ Excluded | Line has a `# check-versions: ignore` marker — skip all other checks |
 
 Also check the inverse: flag any dependency listed in the CLAUDE.md table whose version cannot be found anywhere in the codebase scan (it may have been removed or the file moved).
 
-### 4. Report results
+### 5. Report results
 
 Output the report in this format:
 
@@ -84,11 +99,16 @@ Output the report in this format:
 | Dependency | Expected Version | Expected File |
 |---|---|---|
 | ...        | ...              | ...           |
+
+### ⚪ Excluded (check-versions: ignore)
+| Dependency | File | Line | Reason |
+|---|---|---|---|
+| ...        | ...  | ...  | ...    |
 ```
 
 Omit any section that has no rows.
 
-Close with a one-sentence summary: total findings by status (e.g. "8 pinned & tracked, 0 drifted, 1 untracked, 2 unpinned.") and a recommendation if any action is needed.
+Close with a one-sentence summary: total findings by status (e.g. "8 pinned & tracked, 0 drifted, 1 untracked, 2 unpinned, 3 excluded.") and a recommendation if any action is needed.
 
 ## Notes
 
@@ -98,3 +118,6 @@ Close with a one-sentence summary: total findings by status (e.g. "8 pinned & tr
 - Helm chart YAML template files that use `${version}` template variables are not unpinned — their value comes from the Terraform `default_settings`. Do not flag these.
 - The Debian AMI name pattern (`debian-13-arm64-*`) is intentionally dynamic — do not flag it.
 - When a dependency appears in multiple files (e.g. `ssm_agent_version` in both `variables.tf` and `karpenter/main.tf`), check that all occurrences agree. If they differ, flag the discrepancy under ⚠️ Drifted.
+- The exclusion marker format is exactly `# check-versions: ignore - <reason>`. The reason is mandatory — a marker without a reason should still be honoured but reported with reason shown as `(no reason given)`.
+- Exclusions are file-local: a marker in one file does not suppress findings in another file for the same dependency.
+- Always show excluded items in the ⚪ section so they remain visible and the reason is on record. Never silently drop them.
