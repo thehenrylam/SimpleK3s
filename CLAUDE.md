@@ -135,6 +135,28 @@ The `examples/ex_idp/` directory and `examples/modules/idp_cognito/` deploy AWS 
 - `examples/ex_idp/`: Standalone IdP setup (deploy this first).
 - `examples/modules/vpc_cloud/`: Reusable VPC module used by examples.
 
+## Pinned Versions
+
+These versions are hardcoded defaults in the module. Check here first when investigating version drift. To bump a version, update the `default` (or `default_settings`) value in the listed file.
+
+| Type            | Dependency | Version | Defined In |
+|-----------------|------------|---|---|
+| Tooling         | OpenTofu | `1.11.2` | `.github/workflows/static-analysis.yml` |
+| Tooling         | Python | `3.12` | `.github/workflows/static-analysis.yml` |
+| Platform        | K3s        | `v1.35.1+k3s1` | `k3s_cluster/variables.tf` |
+| Platform Access | AWS CLI | `2.34.63` | `k3s_cluster/variables.tf`, `k3s_cluster/cluster_app/karpenter/main.tf` |
+| Platform Access | SSM Agent (`amazon-ssm-agent`) | `3.3.4515.0` | `k3s_cluster/variables.tf`, `k3s_cluster/cluster_app/karpenter/main.tf` |
+| Platform App    | Traefik          | `37.1.0` | `k3s_cluster/cluster_app/traefik/main.tf` |
+| Platform App    | Karpenter        | `1.9.0` | `k3s_cluster/cluster_app/karpenter/main.tf` |
+| Platform App    | Kyverno          | `3.7.1` | `k3s_cluster/cluster_app/kyverno/main.tf` |
+| Platform App    | External Secrets | `2.0.1` | `k3s_cluster/cluster_app/external-secrets/main.tf` |
+| Platform App    | Descheduler      | `0.35.0` | `k3s_cluster/cluster_app/descheduler/main.tf` |
+| Platform App    | ArgoCD           | `9.4.5` | `k3s_cluster/cluster_app/argocd/main.tf` |
+| Platform App    | Monitoring / kube-prometheus-stack | `0.1.0-alpha.0` | `k3s_cluster/cluster_app/monitoring/main.tf` |
+| CI (Testing)    | tflint | `0.62.1` | `toolchain/tc_testing_macos_install.sh`, `.github/workflows/static-analysis.yml` |
+| CI (Testing)    | shellcheck | `0.11.0` | `toolchain/tc_testing_macos_install.sh`, `.github/workflows/static-analysis.yml` |
+| CI (Testing)    | checkov | `3.2.530` | `toolchain/tc_testing_macos_install.sh`, `.github/workflows/static-analysis.yml` |
+
 ## Conventions
 
 ### Commit Format

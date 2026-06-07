@@ -4,7 +4,9 @@ set -euo pipefail
 
 # Verifies that all local testing tools are installed and prints their versions.
 
+SHELLCHECK_VERSION="0.11.0"
 TFLINT_VERSION="0.62.1"
+CHECKOV_VERSION="3.2.530"
 BIN_DIR="/opt/homebrew/bin"
 
 PASS=0
@@ -13,12 +15,24 @@ FAIL=0
 # --- shellcheck ---
 
 check_shellcheck() {
-    if command -v shellcheck &>/dev/null; then
-        echo "[OK]   shellcheck: $(shellcheck --version 2>&1 | head -1)"
+    local bin_name="shellcheck-${SHELLCHECK_VERSION}"
+    local bin_path="${BIN_DIR}/${bin_name}"
+    local symlink_path="${BIN_DIR}/shellcheck"
+
+    if [[ -f "$bin_path" ]]; then
+        echo "[OK]   ${bin_name}: $("$bin_path" --version 2>&1 | grep '^version')"
         ((PASS++)) || true
     else
-        echo "[MISS] shellcheck: not found"
+        echo "[MISS] ${bin_name}: not found at ${bin_path}"
         ((FAIL++)) || true
+    fi
+
+    if [[ -L "$symlink_path" ]]; then
+        local target
+        target="$(readlink "$symlink_path")"
+        echo "       symlink shellcheck -> ${target}"
+    else
+        echo "       symlink shellcheck: not set"
     fi
 }
 
@@ -49,12 +63,24 @@ check_tflint() {
 # --- checkov ---
 
 check_checkov() {
-    if command -v checkov &>/dev/null; then
-        echo "[OK]   checkov: $(checkov --version 2>&1 | head -1)"
+    local bin_name="checkov-${CHECKOV_VERSION}"
+    local bin_path="${BIN_DIR}/${bin_name}"
+    local symlink_path="${BIN_DIR}/checkov"
+
+    if [[ -f "$bin_path" ]]; then
+        echo "[OK]   ${bin_name}: $("$bin_path" --version 2>&1 | head -1)"
         ((PASS++)) || true
     else
-        echo "[MISS] checkov: not found"
+        echo "[MISS] ${bin_name}: not found at ${bin_path}"
         ((FAIL++)) || true
+    fi
+
+    if [[ -L "$symlink_path" ]]; then
+        local target
+        target="$(readlink "$symlink_path")"
+        echo "       symlink checkov -> ${target}"
+    else
+        echo "       symlink checkov: not set"
     fi
 }
 

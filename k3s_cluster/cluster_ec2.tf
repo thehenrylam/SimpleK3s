@@ -124,6 +124,7 @@ resource "aws_instance" "controlplane_ec2_node" {
     cluster_type      = "controlplane",
     bootstrap_bucket  = aws_s3_bucket.bootstrap.bucket,
     bootstrap_dir     = local.bstrap_dir,
+    aws_cli_version   = var.aws_cli_version,
     ssm_agent_version = var.ssm_agent_version,
     # Assume the first object of local.s3keys_default_bootstrap is the installation script
     s3key_install_script = local.s3keys_default_bootstrap[0],
@@ -179,6 +180,7 @@ resource "aws_instance" "agentplane_ec2_node" {
     cluster_type      = "agentplane",
     bootstrap_bucket  = aws_s3_bucket.bootstrap.bucket,
     bootstrap_dir     = local.bstrap_dir,
+    aws_cli_version   = var.aws_cli_version,
     ssm_agent_version = var.ssm_agent_version,
     # Assume the first object of local.s3keys_default_bootstrap is the installation script
     s3key_install_script = local.s3keys_default_bootstrap[0],

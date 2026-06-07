@@ -1,7 +1,7 @@
 #!/bin/bash
 # Performs a general check on the shell scripts that is inside this project
 
-set -uo pipefail
+set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 

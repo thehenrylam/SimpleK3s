@@ -4,6 +4,7 @@ set -euo pipefail
 
 # Removes local testing tools installed by tc_testing_macos_install.sh.
 
+SHELLCHECK_VERSION="0.11.0"
 TFLINT_VERSION="0.62.1"
 BIN_DIR="/opt/homebrew/bin"
 
@@ -11,7 +12,28 @@ BIN_DIR="/opt/homebrew/bin"
 
 uninstall_shellcheck() {
     echo "==> Uninstalling shellcheck"
-    brew uninstall --ignore-dependencies shellcheck || true
+
+    local bin_name="shellcheck-${SHELLCHECK_VERSION}"
+    local bin_path="${BIN_DIR}/${bin_name}"
+    local symlink_path="${BIN_DIR}/shellcheck"
+
+    if [[ -L "$symlink_path" ]]; then
+        local current_target
+        current_target="$(readlink "$symlink_path")"
+        if [[ "$current_target" == "$bin_path" ]]; then
+            rm "$symlink_path"
+            echo "  Removed symlink: shellcheck -> ${bin_name}"
+        else
+            echo "  Symlink 'shellcheck' points elsewhere (${current_target}) — leaving it."
+        fi
+    fi
+
+    if [[ -f "$bin_path" ]]; then
+        rm "$bin_path"
+        echo "  Removed: ${bin_path}"
+    else
+        echo "  Not installed: ${bin_path}"
+    fi
 }
 
 # --- tflint ---
@@ -46,7 +68,30 @@ uninstall_tflint() {
 
 uninstall_checkov() {
     echo "==> Uninstalling checkov"
-    brew uninstall --ignore-dependencies checkov || true
+
+    local bin_name="checkov-${CHECKOV_VERSION}"
+    local bin_path="${BIN_DIR}/${bin_name}"
+    local symlink_path="${BIN_DIR}/checkov"
+
+    if [[ -L "$symlink_path" ]]; then
+        local current_target
+        current_target="$(readlink "$symlink_path")"
+        if [[ "$current_target" == "$bin_path" ]]; then
+            rm "$symlink_path"
+            echo "  Removed symlink: checkov -> ${bin_name}"
+        else
+            echo "  Symlink 'checkov' points elsewhere (${current_target}) — leaving it."
+        fi
+    fi
+
+    if [[ -f "$bin_path" ]]; then
+        rm "$bin_path"
+        echo "  Removed: ${bin_path}"
+    else
+        echo "  Not installed: ${bin_path}"
+    fi
+
+    pip3 uninstall -y checkov || true
 }
 
 # --- main ---

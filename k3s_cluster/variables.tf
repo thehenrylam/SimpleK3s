@@ -28,6 +28,13 @@ variable "admin_ip_list" {
   type        = list(string)
 }
 
+# AWS CLI Version
+variable "aws_cli_version" {
+  description = "The AWS CLI v2 version to install on each EC2 node"
+  type        = string
+  default     = "2.34.63"
+}
+
 # SSM Agent Version
 variable "ssm_agent_version" {
   description = "The amazon-ssm-agent version to install on each EC2 node"

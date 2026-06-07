@@ -26,13 +26,29 @@ echo "Set up packages (apt-get)"
 # update package manager
 apt-get update -y
 # install essentials
-apt-get install -y awscli ca-certificates gettext-base
+# check-versions: ignore - ca-certificates and gettext-base are OS-level packages pinned to the Debian release (unzip is a utility with pretty good stability in how its used, so it should be fine)
+apt-get install -y ca-certificates gettext-base unzip
 # install nice-to-haves
+# check-versions: ignore - fastfetch and htop are convenience utilities, version is not critical
 apt-get install -y fastfetch htop
+
+ARCH=$(dpkg --print-architecture) # amd64 or arm64
+
+# Install AWS CLI v2
+echo "Install AWS CLI"
+AWS_CLI_VERSION="${aws_cli_version}"
+case "$ARCH" in
+    amd64) AWS_CLI_ARCH="x86_64" ;;
+    arm64) AWS_CLI_ARCH="aarch64" ;;
+esac
+AWS_CLI_ZIP="/tmp/awscli.zip"
+curl -fsSo "$AWS_CLI_ZIP" "https://awscli.amazonaws.com/awscli-exe-linux-$AWS_CLI_ARCH-$AWS_CLI_VERSION.zip"
+unzip -q "$AWS_CLI_ZIP" -d /tmp/awscli-install
+/tmp/awscli-install/aws/install
+rm -rf "$AWS_CLI_ZIP" /tmp/awscli-install
 
 # Install SSM agent (not pre-installed on Debian AMIs)
 echo "Install SSM agent"
-ARCH=$(dpkg --print-architecture) # amd64 or arm64
 SSM_AGENT_VERSION="${ssm_agent_version}"
 SSM_DEB="/tmp/amazon-ssm-agent.deb"
 curl -fsSo "$SSM_DEB" "https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/$SSM_AGENT_VERSION/debian_$ARCH/amazon-ssm-agent.deb"
