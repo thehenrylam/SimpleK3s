@@ -3,6 +3,22 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CURR_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# --- Logging ---
+# set up 
+LOG_FILE="${CURR_ROOT}/test_check_all_shellscripts-$(date +'%Y%m%d-%H%M%S').log"
+mkdir -p "$(dirname "$LOG_FILE")"
+touch "$LOG_FILE"
+chmod 0644 "$LOG_FILE"
+
+# Send all output (stdout+stderr) to:
+#  - your log file
+#  - cloud-init output log (via console)
+#  - syslog (tagged)
+exec > >(while IFS= read -r line; do printf '[%s] %s\n' "$(date +'%Y-%m-%d %H:%M:%S')" "$line"; done \
+    | tee -a "$LOG_FILE" >(logger -t test_check_all_shellscripts)) 2>&1
+# --- Logging ---
 
 PASS=0
 FAIL=0
@@ -75,12 +91,13 @@ check_validate() {
 
 cd "${REPO_ROOT}" || exit 1
 
+echo "=== $(basename ${0}) (Starting) ==="
 check_fmt
 check_tflint
 check_checkov
 check_validate
+echo "=== $(basename "${0}") (Completed: Results Below) ==="
 
-echo ""
 if [[ "$FAIL" -eq 0 ]]; then
     echo "All ${PASS} checks passed."
 else
