@@ -29,10 +29,20 @@ function apt_install_essential() {
     # either baked into the AMI or provisioned by the cloud-init script.
 
     # install essentials
-    # check-versions: ignore - ca-certificates and gettext-base are OS-level packages tied to the Debian release
+    log_info "Installing packages via apt"
+    # check-versions: ignore - ca-certificates, gettext-base, and unzip are OS-level packages tied to the Debian release
     apt-get install -y \
         ca-certificates \
-        gettext-base || return 1
+        gettext-base \
+        unzip || return 1
+
+    # Install python3 environment and our required modules
+    log_info "Installing Python packages via uv"
+    local PYTHON_DIR="${SCRIPT_DIR}/py"
+    local UV_VERSION="0.11.20" # check-versions: update in CLAUDE.md pinned versions table
+    curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | UV_INSTALL_DIR="/usr/local/bin" sh || return 1
+    # uv sync: creates .venv/ and installs all dependencies from pyproject.toml
+    (cd "$PYTHON_DIR" && uv sync) || return 1
 
     log_okay "Completed install (mandatory)"
 }

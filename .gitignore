@@ -4,6 +4,10 @@
 # Local .vscode directories
 .vscode/
 
+# Local venv directories
+venv/
+.venv/
+
 # .tfstate files
 *.tfstate
 *.tfstate.*

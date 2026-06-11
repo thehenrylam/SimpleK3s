@@ -106,6 +106,36 @@ module "aws_s3obj" {
       key      = "${var.s3_config.keyroot}/init_applications.sh",
       src      = "${path.module}/data/init_applications.sh",
       template = null
+    },
+    {
+      desc     = "Helper Script (Python - pyproject.toml)"
+      key      = "${var.s3_config.keyroot}/py/pyproject.toml",
+      src      = "${path.module}/data/py/pyproject.toml",
+      template = null
+    },
+    {
+      desc     = "Helper Script (Python - .python-version)"
+      key      = "${var.s3_config.keyroot}/py/.python-version",
+      src      = "${path.module}/data/py/.python-version",
+      template = null
+    },
+    {
+      desc     = "Helper Script (Python - fetch_UTILITIES.py)"
+      key      = "${var.s3_config.keyroot}/py/fetch_UTILITIES.py",
+      src      = "${path.module}/data/py/fetch_UTILITIES.py",
+      template = null
+    },
+    {
+      desc     = "Helper Script (Python - fetch_hardware.py)"
+      key      = "${var.s3_config.keyroot}/py/fetch_hardware.py",
+      src      = "${path.module}/data/py/fetch_hardware.py",
+      template = null
+    },
+    {
+      desc     = "Helper Script (Python - fetch_k3s-platform.py)"
+      key      = "${var.s3_config.keyroot}/py/fetch_k3s-platform.py",
+      src      = "${path.module}/data/py/fetch_k3s-platform.py",
+      template = null
     }
   ]
 }
