@@ -100,7 +100,7 @@ def fetch_platform() -> dict:
     nodes_ready = 0
     nodes_not_ready = 0
     if node_result.ok:
-        lines = [l for l in node_result.stdout.splitlines() if l.strip()]
+        lines = [ln for ln in node_result.stdout.splitlines() if ln.strip()]
         nodes_total = len(lines)
         for line in lines:
             parts = line.split()

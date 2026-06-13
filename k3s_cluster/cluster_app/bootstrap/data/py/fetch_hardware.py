@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 
 # Builtin Modules
-from time import sleep
 import json
 # Installed Modules
-import numpy
 import psutil
 
 # HELPER FUNCTION: Convert B -> MB (Round to 2 decimal places)
