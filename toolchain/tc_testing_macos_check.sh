@@ -7,6 +7,7 @@ set -euo pipefail
 readonly SHELLCHECK_VERSION="0.11.0"
 readonly TFLINT_VERSION="0.62.1"
 readonly CHECKOV_VERSION="3.2.530"
+readonly RUFF_VERSION="0.15.17"
 readonly BIN_DIR="/opt/homebrew/bin"
 
 PASS=0
@@ -84,11 +85,36 @@ check_checkov() {
     fi
 }
 
+# --- ruff ---
+
+check_ruff() {
+    local bin_name="ruff-${RUFF_VERSION}"
+    local bin_path="${BIN_DIR}/${bin_name}"
+    local symlink_path="${BIN_DIR}/ruff"
+
+    if [[ -f "$bin_path" ]]; then
+        echo "[OK]   ${bin_name}: $("$bin_path" --version 2>&1 | head -1)"
+        ((PASS++)) || true
+    else
+        echo "[MISS] ${bin_name}: not found at ${bin_path}"
+        ((FAIL++)) || true
+    fi
+
+    if [[ -L "$symlink_path" ]]; then
+        local target
+        target="$(readlink "$symlink_path")"
+        echo "       symlink ruff -> ${target}"
+    else
+        echo "       symlink ruff: not set"
+    fi
+}
+
 # --- main ---
 
 check_shellcheck
 check_tflint
 check_checkov
+check_ruff
 
 echo ""
 if [[ "$FAIL" -eq 0 ]]; then
