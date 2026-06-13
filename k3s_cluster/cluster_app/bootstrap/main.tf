@@ -136,6 +136,36 @@ module "aws_s3obj" {
       key      = "${var.s3_config.keyroot}/py/fetch_k3s-platform.py",
       src      = "${path.module}/data/py/fetch_k3s-platform.py",
       template = null
+    },
+    {
+      desc     = "Helper Script (Python - fetch_k3s-apps.py)"
+      key      = "${var.s3_config.keyroot}/py/fetch_k3s-apps.py",
+      src      = "${path.module}/data/py/fetch_k3s-apps.py",
+      template = null
+    },
+    {
+      desc     = "Helper Script (Python - fetch_app-external-secrets.py)"
+      key      = "${var.s3_config.keyroot}/py/fetch_app-external-secrets.py",
+      src      = "${path.module}/data/py/fetch_app-external-secrets.py",
+      template = null
+    },
+    {
+      desc     = "Helper Script (Python - fetch_app-karpenter.py)"
+      key      = "${var.s3_config.keyroot}/py/fetch_app-karpenter.py",
+      src      = "${path.module}/data/py/fetch_app-karpenter.py",
+      template = null
+    },
+    {
+      desc     = "Helper Script (Python - fetch_app-kyverno.py)"
+      key      = "${var.s3_config.keyroot}/py/fetch_app-kyverno.py",
+      src      = "${path.module}/data/py/fetch_app-kyverno.py",
+      template = null
+    },
+    {
+      desc     = "Helper Script (Python - fetch_app-traefik.py)"
+      key      = "${var.s3_config.keyroot}/py/fetch_app-traefik.py",
+      src      = "${path.module}/data/py/fetch_app-traefik.py",
+      template = null
     }
   ]
 }
