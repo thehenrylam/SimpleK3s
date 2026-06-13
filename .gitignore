@@ -4,9 +4,11 @@
 # Local .vscode directories
 .vscode/
 
-# Local venv directories
+# Local python3-type directories and files
+__pycache__/
 venv/
 .venv/
+uv.lock
 
 # .tfstate files
 *.tfstate
