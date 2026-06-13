@@ -1,0 +1,94 @@
+{
+  "nodes": {
+    "$each": {
+      "role": { "$regex": "controlplane|agentplane" },
+      "name": { "$ignore": true },
+      "hardware": {
+        "cpu": {
+          "load": { "$ignore": true },
+          "usage": { "$ignore": true }
+        },
+        "memory": {
+          "ram": {
+            "usage": { "$ignore": true },
+            "free (MB)": { "$ignore": true },
+            "used (MB)": { "$ignore": true },
+            "total (MB)": { "$gte": 1 }
+          },
+          "swap": { "$ignore": true }
+        },
+        "disk": {
+          "usage": { "$warn": { "$lte": 85 } },
+          "free (MB)": { "$ignore": true },
+          "used (MB)": { "$ignore": true },
+          "total (MB)": { "$gte": 1 }
+        }
+      }
+    }
+  },
+  "cluster": {
+    "k3s_platform": {
+      "stable": {
+        "healthz": { "ok": true, "response": { "$ignore": true } },
+        "livez": { "ok": true, "response": { "$ignore": true }, "checks": { "$ignore": true } }
+      },
+      "ready": {
+        "readyz": { "ok": true, "response": { "$ignore": true }, "checks": { "$ignore": true } },
+        "scheduler": { "ok": true },
+        "controller_manager": { "ok": true }
+      },
+      "platform": {
+        "nodes": { "total": { "$gte": 1 }, "ready": { "$gte": 1 }, "not_ready": 0 },
+        "system_pods": { "total": { "$gte": 1 }, "running": { "$gte": 1 }, "completed": { "$ignore": true }, "not_running": { "$warn": 0 } },
+        "namespaces": { "$ignore": true }
+      }
+    },
+    "k3s_apps": {
+      "ready": true,
+      "summary": {
+        "workloads_total": { "$gte": 1 },
+        "workloads_ready": { "$gte": 1 },
+        "workloads_not_ready": 0,
+        "cronjobs_not_ready": 0,
+        "unhealthy_pods": 0
+      },
+      "workloads": { "$ignore": true },
+      "cronjobs": { "$ignore": true },
+      "unhealthy_pods": { "$ignore": true },
+      "errors": { "$ignore": true },
+      "waited_seconds": { "$ignore": true }
+    },
+    "apps": {
+      "traefik": {
+        "ready": true,
+        "summary": { "$ignore": true },
+        "ingressroutes": { "$ignore": true },
+        "middlewares": { "$ignore": true },
+        "errors": { "$ignore": true },
+        "note": { "$ignore": true }
+      },
+      "karpenter": {
+        "ready": true,
+        "summary": { "config_not_ready": 0 },
+        "ec2nodeclasses": { "$ignore": true },
+        "nodepools": { "$ignore": true },
+        "nodeclaims": { "$ignore": true },
+        "errors": { "$ignore": true }
+      },
+      "kyverno": {
+        "ready": true,
+        "summary": { "not_ready": 0 },
+        "cluster_policies": { "$ignore": true },
+        "policies": { "$ignore": true },
+        "errors": { "$ignore": true }
+      },
+      "external_secrets": {
+        "ready": true,
+        "summary": { "not_ready": 0 },
+        "external_secrets": { "$ignore": true },
+        "secret_stores": { "$ignore": true },
+        "errors": { "$ignore": true }
+      }
+    }
+  }
+}

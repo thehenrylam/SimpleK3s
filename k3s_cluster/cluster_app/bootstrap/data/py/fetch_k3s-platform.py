@@ -112,20 +112,30 @@ def fetch_platform() -> dict:
                 nodes_not_ready += 1
 
     # --- kube-system pods ---
-    pod_result = run_command(f"{KUBECTL} get pods -n kube-system --no-headers", timeout=15)
+    # Classify by .status.phase. Succeeded pods are completed Jobs/CronJobs
+    # (helm-install-*, descheduler-*) — a normal terminal state, NOT a failure —
+    # so they get their own "completed" bucket instead of inflating "not_running".
+    # This mirrors how fetch_k3s-apps.py skips Succeeded pods. The text STATUS
+    # column conflates "Completed" with failures, so we parse JSON phases.
+    pod_result = run_command(f"{KUBECTL} get pods -n kube-system -o json", timeout=15)
     pods_total = 0
     pods_running = 0
+    pods_completed = 0
     pods_not_running = 0
     if pod_result.ok:
-        lines = [l for l in pod_result.stdout.splitlines() if l.strip()]
-        pods_total = len(lines)
-        for line in lines:
-            parts = line.split()
-            # STATUS column is index 2: Running / Pending / CrashLoopBackOff / etc.
-            status = parts[2] if len(parts) >= 3 else ""
-            if status.lower() == "running":
+        try:
+            pod_items = json.loads(pod_result.stdout).get("items", []) if pod_result.stdout else []
+        except json.JSONDecodeError:
+            pod_items = []
+        pods_total = len(pod_items)
+        for pod in pod_items:
+            phase = pod.get("status", {}).get("phase", "")
+            if phase == "Running":
                 pods_running += 1
+            elif phase == "Succeeded":
+                pods_completed += 1
             else:
+                # Pending / Failed / Unknown — genuinely not running.
                 pods_not_running += 1
 
     # --- Namespaces ---
@@ -146,6 +156,7 @@ def fetch_platform() -> dict:
         "system_pods": {
             "total": pods_total,
             "running": pods_running,
+            "completed": pods_completed,
             "not_running": pods_not_running
         },
         "namespaces": namespaces
