@@ -33,7 +33,7 @@ There are some useful commands/skills for your coding agents to utilize:
 __General Skills__
 - **/check-versions** (Helps scan through the entire repo for software used and their versions)
     - WARNING: Very token intensive, use on a fresh claude session if possible.
-- **/testcase** (Helps perform testcases and provide a report on the results)
+- **/test-out** (Helps perform testcases and provide a report on the results)
 
 __[Contributing Skills](./CONTRIBUTING.md#ai-cheatsheet-for-contributing)__
 - **/introduce-contributor** (Introduces the potential contributor to the project)
@@ -54,20 +54,20 @@ There are two main methods of easily testing changes locally:
 
 1. Test via shellscripts
 ``` bash
-./testcases/test_check_all_shellscripts.sh # Perform shellscript checks
-./testcases/test_check_all_terraform.sh # Perform terraform checks
+./test-outs/test-out_shellscripts.sh # Perform shellscript checks
+./test-outs/test-out_terraform.sh # Perform terraform checks
 ```
 2. Test via [Claude Code](./README.md#claude-code) 
 ``` bash
 # Within the claude terminal:
 # Usage:
-> /testcase "context of what you want to check"
+> /test-out "context of what you want to check"
 # Examples: 
-> /testcase             # Execute all tests 
-> /testcase all         # Execute all tests 
-> /testcase relevant    # Execute tests that's relevant 
-> /testcase shellscript # Execute tests related to shell scripts
-> /testcase terraform   # Execute tests related to terraform config
+> /test-out             # Execute all tests 
+> /test-out all         # Execute all tests 
+> /test-out relevant    # Execute tests that's relevant 
+> /test-out shellscript # Execute tests related to shell scripts
+> /test-out terraform   # Execute tests related to terraform config
 # Note: 
 # 1. Test scripts under testcases/ folder will be preferred by the LLM
 # 2. The logs of the tests will be under the testcases/ folder
