@@ -45,6 +45,9 @@ override.tf.json
 .terraformrc
 terraform.rc
 
+# CUSTOM: Ignore all *.log files
+*.log
+
 # CUSTOM: Ignore git *.patch files
 *.patch
 

@@ -5,10 +5,10 @@ set -euo pipefail
 # Installs local testing tools for contributors on macOS.
 # Requires Homebrew. Does NOT install OpenTofu (see tc_tofu_*.sh).
 
-SHELLCHECK_VERSION="0.11.0"
-TFLINT_VERSION="0.62.1"
-CHECKOV_VERSION="3.2.530"
-BIN_DIR="/opt/homebrew/bin"
+readonly SHELLCHECK_VERSION="0.11.0"
+readonly TFLINT_VERSION="0.62.1"
+readonly CHECKOV_VERSION="3.2.530"
+readonly BIN_DIR="/opt/homebrew/bin"
 
 # --- shellcheck ---
 

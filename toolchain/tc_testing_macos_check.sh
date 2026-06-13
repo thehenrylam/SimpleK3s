@@ -4,10 +4,10 @@ set -euo pipefail
 
 # Verifies that all local testing tools are installed and prints their versions.
 
-SHELLCHECK_VERSION="0.11.0"
-TFLINT_VERSION="0.62.1"
-CHECKOV_VERSION="3.2.530"
-BIN_DIR="/opt/homebrew/bin"
+readonly SHELLCHECK_VERSION="0.11.0"
+readonly TFLINT_VERSION="0.62.1"
+readonly CHECKOV_VERSION="3.2.530"
+readonly BIN_DIR="/opt/homebrew/bin"
 
 PASS=0
 FAIL=0
