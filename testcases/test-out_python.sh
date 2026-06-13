@@ -46,6 +46,7 @@ run_check() {
 ruff_check_all() {
     find "${REPO_ROOT}" -name "*.py" \
         -not -path "${REPO_ROOT}/_tmp/*" \
+        -not -path "${REPO_ROOT}/venv/*" \
         -not -path "${REPO_ROOT}/*/.venv/*" \
         -print0 \
         | xargs -0 ruff check
