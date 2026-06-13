@@ -131,7 +131,8 @@ resource "aws_instance" "controlplane_ec2_node" {
   })
 
   metadata_options {
-    http_tokens = "required"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
   }
 
   root_block_device {
@@ -187,7 +188,8 @@ resource "aws_instance" "agentplane_ec2_node" {
   })
 
   metadata_options {
-    http_tokens = "required"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
   }
 
   root_block_device {
