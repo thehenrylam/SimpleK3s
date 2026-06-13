@@ -4,6 +4,12 @@
 # Local .vscode directories
 .vscode/
 
+# Local python3-type directories and files
+__pycache__/
+venv/
+.venv/
+uv.lock
+
 # .tfstate files
 *.tfstate
 *.tfstate.*
@@ -40,6 +46,9 @@ override.tf.json
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc
+
+# CUSTOM: Ignore all *.log files
+*.log
 
 # CUSTOM: Ignore git *.patch files
 *.patch

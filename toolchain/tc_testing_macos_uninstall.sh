@@ -4,9 +4,9 @@ set -euo pipefail
 
 # Removes local testing tools installed by tc_testing_macos_install.sh.
 
-SHELLCHECK_VERSION="0.11.0"
-TFLINT_VERSION="0.62.1"
-BIN_DIR="/opt/homebrew/bin"
+readonly SHELLCHECK_VERSION="0.11.0"
+readonly TFLINT_VERSION="0.62.1"
+readonly BIN_DIR="/opt/homebrew/bin"
 
 # --- shellcheck ---
 
