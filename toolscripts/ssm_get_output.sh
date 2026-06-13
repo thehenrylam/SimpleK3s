@@ -14,7 +14,7 @@ function get_output() {
 	local STDERR
 	
 	count=30
-	for i in $(seq $count); do
+	for _ in $(seq "$count"); do
 		RESULT=$(aws ssm get-command-invocation \
 			--command-id "${COMMAND_ID}" \
 			--instance-id "${INSTANCE_ID}" \
