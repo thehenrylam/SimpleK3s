@@ -53,7 +53,7 @@ jobs:
           sudo mv "shellcheck-v${SHELLCHECK_VERSION}/shellcheck" /usr/local/bin/shellcheck
 
       - name: Run shellcheck
-        run: bash testcases/test_check_all_shellscripts.sh
+        run: bash testcases/test-out_shellscripts.sh
 
   terraform:
     name: Terraform Checks

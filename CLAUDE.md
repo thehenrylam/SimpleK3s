@@ -52,14 +52,14 @@ Scripts in `testcases/` mirror what the CI pipeline runs. Execute from the repo 
 
 ```bash
 # shellcheck on all .sh files in the repo
-bash testcases/test_check_all_shellscripts.sh
+bash testcases/test-out_shellscripts.sh
 
 # tofu fmt, tflint, checkov, and tofu validate across all modules
-bash testcases/test_check_all_terraform.sh
+bash testcases/test-out_terraform.sh
 ```
 
 Each script prints `[OK]` / `[FAIL]` per check and exits non-zero if anything fails.
-Use the `/testcase` Claude command to run these interactively with guided output (see below).
+Use the `/test-out` Claude command to run these interactively with guided output (see below).
 
 ## Claude Commands
 
@@ -67,7 +67,7 @@ The `.claude/commands/` directory contains slash commands for use inside Claude 
 
 - **`/introduce-contributor`** — Onboards a new contributor: project overview, architecture walkthrough, contribution workflow, and local environment check.
 - **`/new-issue`** — Creates a GitHub issue following project conventions and checks out a matching branch.
-- **`/testcase`** — Runs one or more scripts from `testcases/` interactively, logs all output to a timestamped file under `testcases/`, and reports pass/fail results with a nested summary per failure.
+- **`/test-out`** — Runs one or more scripts from `testcases/` interactively, logs all output to a timestamped file under `testcases/`, and reports pass/fail results with a nested summary per failure.
 
 ## Architecture
 
