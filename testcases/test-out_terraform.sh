@@ -2,12 +2,15 @@
 
 set -euo pipefail
 
+LOG_FILENAME="${1-test-out_terraform}"
+LOG_TIMESTAMP="${2-$(date +'%Y%m%d-%H%M%S')}"
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CURR_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- Logging ---
 # set up 
-LOG_FILE="${CURR_ROOT}/test_check_all_shellscripts-$(date +'%Y%m%d-%H%M%S').log"
+LOG_FILE="${CURR_ROOT}/${LOG_FILENAME}-${LOG_TIMESTAMP}.log"
 mkdir -p "$(dirname "$LOG_FILE")"
 touch "$LOG_FILE"
 chmod 0644 "$LOG_FILE"
@@ -17,7 +20,7 @@ chmod 0644 "$LOG_FILE"
 #  - cloud-init output log (via console)
 #  - syslog (tagged)
 exec > >(while IFS= read -r line; do printf '[%s] %s\n' "$(date +'%Y-%m-%d %H:%M:%S')" "$line"; done \
-    | tee -a "$LOG_FILE" >(logger -t test_check_all_shellscripts)) 2>&1
+    | tee -a "$LOG_FILE" >(logger -t "${LOG_FILENAME}")) 2>&1
 # --- Logging ---
 
 PASS=0
