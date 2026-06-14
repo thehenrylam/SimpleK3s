@@ -8,7 +8,7 @@ Run one or more test scripts from the `testcases/` directory and report results.
 
 The available test scripts are:
 - `testcases/test-out_shellscripts.sh` — shellcheck on all `.sh` files
-- `testcases/test-out_terraform.sh` — tofu fmt, tflint, checkov, tofu validate
+- `testcases/test-out_terraform.sh` — fmt, tflint, checkov, validate (defaults to `tofu`; pass `--use-terraform` to run under Terraform, `--help` for options)
 
 Use the args and conversation context to decide which tests to run:
 

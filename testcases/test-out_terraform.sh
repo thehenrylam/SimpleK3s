@@ -2,6 +2,68 @@
 
 set -euo pipefail
 
+usage() {
+    cat <<'EOF'
+Usage: test-out_terraform.sh [options] [log_filename] [log_timestamp]
+
+Runs fmt, tflint, checkov, and validate across all root modules.
+
+Tool selection (default: OpenTofu / tofu):
+  --use-opentofu [PATH]   use OpenTofu; PATH optionally points at the tofu binary
+  --use-terraform [PATH]  use Terraform; PATH optionally points at the terraform binary
+
+Other options:
+  -h, --help              show this help and exit
+
+Positional arguments (mainly for /test-out; sensible defaults otherwise):
+  log_filename            log filename stem (default: test-out_terraform)
+  log_timestamp           log timestamp     (default: now, %Y%m%d-%H%M%S)
+
+Examples:
+  test-out_terraform.sh                         # OpenTofu (tofu) on PATH
+  test-out_terraform.sh --use-terraform         # Terraform (terraform) on PATH
+  test-out_terraform.sh --use-terraform /opt/homebrew/bin/terraform
+EOF
+}
+
+# --- Tool selection + positional args ---
+# Default to OpenTofu (tofu). --use-opentofu / --use-terraform pick the binary and
+# each take an OPTIONAL path to a custom binary. Anything left over is treated as
+# the positional log filename + timestamp, kept for /test-out compatibility. Use
+# `--` to force the rest to be positional (e.g. `--use-terraform -- mylog ts`).
+TF_BIN="tofu"
+POSITIONAL=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --use-opentofu)
+            TF_BIN="tofu"
+            if [[ -n "${2:-}" && "$2" != -* ]]; then TF_BIN="$2"; shift; fi
+            shift ;;
+        --use-terraform)
+            TF_BIN="terraform"
+            if [[ -n "${2:-}" && "$2" != -* ]]; then TF_BIN="$2"; shift; fi
+            shift ;;
+        -h | --help)
+            usage
+            exit 0 ;;
+        --)
+            shift
+            while [[ $# -gt 0 ]]; do POSITIONAL+=("$1"); shift; done ;;
+        -*)
+            echo "Unknown option: $1" >&2
+            usage >&2
+            exit 2 ;;
+        *)
+            POSITIONAL+=("$1"); shift ;;
+    esac
+done
+set -- ${POSITIONAL[@]+"${POSITIONAL[@]}"}
+
+if ! command -v "$TF_BIN" >/dev/null 2>&1; then
+    echo "Selected binary '${TF_BIN}' not found on PATH" >&2
+    exit 1
+fi
+
 LOG_FILENAME="${1-test-out_terraform}"
 LOG_TIMESTAMP="${2-$(date +'%Y%m%d-%H%M%S')}"
 
@@ -42,11 +104,11 @@ run_check() {
     fi
 }
 
-# --- tofu fmt ---
+# --- fmt ---
 
 check_fmt() {
-    run_check "tofu fmt -check -recursive" \
-        tofu fmt -check -recursive
+    run_check "${TF_BIN} fmt -check -recursive" \
+        "$TF_BIN" fmt -check -recursive
 }
 
 # --- tflint ---
@@ -64,7 +126,7 @@ check_checkov() {
         checkov -d . --config-file .checkov.yaml
 }
 
-# --- tofu validate ---
+# --- validate ---
 
 VALIDATE_MODULES=(
     "k3s_cluster"
@@ -79,11 +141,11 @@ check_validate() {
     for mod in "${VALIDATE_MODULES[@]}"; do
         local mod_dir="${REPO_ROOT}/${mod}"
         local output
-        if output=$(cd "${mod_dir}" && tofu init -backend=false 2>&1 && tofu validate 2>&1); then
-            echo "[OK]   tofu validate: ${mod}"
+        if output=$(cd "${mod_dir}" && "$TF_BIN" init -backend=false 2>&1 && "$TF_BIN" validate 2>&1); then
+            echo "[OK]   ${TF_BIN} validate: ${mod}"
             ((PASS++)) || true
         else
-            echo "[FAIL] tofu validate: ${mod}"
+            echo "[FAIL] ${TF_BIN} validate: ${mod}"
             printf '%s\n' "${output}"
             ((FAIL++)) || true
         fi
@@ -94,7 +156,7 @@ check_validate() {
 
 cd "${REPO_ROOT}" || exit 1
 
-echo "=== $(basename ${0}) (Starting) ==="
+echo "=== $(basename "${0}") (Starting) ==="
 check_fmt
 check_tflint
 check_checkov
