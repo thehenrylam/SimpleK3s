@@ -39,6 +39,8 @@ env:
   SHELLCHECK_VERSION: "0.11.0"
   CHECKOV_VERSION: "3.2.530"
   RUFF_VERSION: "0.15.17"
+  TOFU_VERSION: "1.11.2"
+  TERRAFORM_VERSION: "1.14.3"
 
 jobs:
   python:
@@ -77,29 +79,19 @@ jobs:
       - name: Run shellcheck
         run: bash testcases/test-out_shellscripts.sh
 
-  terraform:
-    name: Terraform Checks
+  terraform-lint:
+    name: Terraform Lint (fmt, tflint, checkov)
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # fmt is identical between OpenTofu and Terraform; run it once via OpenTofu.
       - name: Setup OpenTofu
         uses: opentofu/setup-opentofu@v1
         with:
-          tofu_version: "1.11.2"
-
-      - name: Create provider plugin cache dir
-        run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
-
-      - name: Cache provider plugins
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
-          key: ${{ runner.os }}-tofu-providers-${{ hashFiles('**/.terraform.lock.hcl') }}
-          restore-keys: |
-            ${{ runner.os }}-tofu-providers-
+          tofu_version: ${{ env.TOFU_VERSION }}
 
       - name: Format check
         run: tofu fmt -check -recursive
@@ -138,32 +130,61 @@ jobs:
       - name: Run checkov
         run: checkov -d . --config-file .checkov.yaml
 
-      - name: Validate k3s_cluster
-        working-directory: k3s_cluster
-        run: |
-          tofu init -backend=false
-          tofu validate
+  terraform-validate:
+    name: Terraform Validate (${{ matrix.tool }})
+    runs-on: ubuntu-latest
 
-      - name: Validate examples/modules/vpc_cloud
-        working-directory: examples/modules/vpc_cloud
-        run: |
-          tofu init -backend=false
-          tofu validate
+    strategy:
+      fail-fast: false
+      matrix:
+        tool: [opentofu, terraform]
 
-      - name: Validate examples/modules/idp_cognito
-        working-directory: examples/modules/idp_cognito
-        run: |
-          tofu init -backend=false
-          tofu validate
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Validate examples/ex_basic
-        working-directory: examples/ex_basic
-        run: |
-          tofu init -backend=false
-          tofu validate
+      - name: Setup OpenTofu
+        if: matrix.tool == 'opentofu'
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
 
-      - name: Validate examples/ex_idp
-        working-directory: examples/ex_idp
+      - name: Setup Terraform
+        if: matrix.tool == 'terraform'
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Select binary
         run: |
-          tofu init -backend=false
-          tofu validate
+          if [ "${{ matrix.tool }}" = "opentofu" ]; then
+            echo "TF_BIN=tofu" >> "$GITHUB_ENV"
+          else
+            echo "TF_BIN=terraform" >> "$GITHUB_ENV"
+          fi
+
+      - name: Create provider plugin cache dir
+        run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+
+      - name: Cache provider plugins
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TF_PLUGIN_CACHE_DIR }}
+          key: ${{ runner.os }}-${{ matrix.tool }}-providers-${{ hashFiles('**/.terraform.lock.hcl') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.tool }}-providers-
+
+      - name: Validate all modules
+        run: |
+          set -e
+          for mod in \
+            k3s_cluster \
+            examples/modules/vpc_cloud \
+            examples/modules/idp_cognito \
+            examples/ex_basic \
+            examples/ex_idp; do
+            echo "::group::${TF_BIN} validate: ${mod}"
+            ( cd "${mod}" && "${TF_BIN}" init -backend=false && "${TF_BIN}" validate )
+            echo "::endgroup::"
+          done

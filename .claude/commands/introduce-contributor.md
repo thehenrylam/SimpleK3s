@@ -86,7 +86,9 @@ Present this to the user:
 
 ---
 
-**Locally** (run from an example directory, e.g. `examples/ex_basic/`):
+**Locally** (run from an example directory, e.g. `examples/ex_basic/`). These use
+`tofu`; substitute `terraform` if that is what you have installed — the config
+works with both:
 ```bash
 # Format check
 tofu fmt -check -recursive
@@ -109,7 +111,7 @@ The `Static Analysis` workflow (`.github/workflows/static-analysis.yml`) runs:
 - `tofu fmt` — format check
 - `tflint` — linting
 - `checkov` — security scanning
-- `tofu validate` — validation across all modules and examples
+- `validate` — validation across all modules and examples, run under **both** OpenTofu and Terraform (matrix)
 
 PRs must pass this workflow before merging. You can watch it in the **Actions** tab on GitHub.
 
@@ -121,10 +123,10 @@ Run the following checks and report results to the user in a clear pass/fail sum
 
 **a) Base dependency — OpenTofu/Terraform**
 ```bash
-tofu version
+tofu version || terraform version
 ```
-- PASS if the command succeeds and reports v1.11.2 or higher.
-- FAIL (warn only) if only `terraform` is found — note it should work but OpenTofu is preferred.
+- PASS if either `tofu` (v1.11.2+) or `terraform` (v1.14.3+) is found — the configuration supports both.
+- FAIL if neither is found.
 - FAIL if neither is found.
 
 **b) Linter — tflint**

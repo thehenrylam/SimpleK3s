@@ -44,9 +44,9 @@ Estimated monthly costs for common deployment profiles, plus a side-by-side comp
 
 # CI and Testing
 Every pull request and push to `main` runs a static analysis pipeline (no AWS credentials required):
-- **`tofu fmt`** — enforces consistent formatting
+- **`tofu fmt` / `terraform fmt`** — enforces consistent formatting
 - **`tflint`** — lint rules for naming, versioning, and AWS best practices
-- **`tofu validate`** — type-checks all five root modules
+- **`tofu validate` / `terraform validate`** — type-checks all five root modules (CI runs this under both tools)
 - **`checkov`** — security and compliance scan of Terraform resources
 - **`shellcheck`** — checks linting, syntax, validity of shell scripts
 
@@ -84,6 +84,7 @@ There are two main methods of easily testing changes locally:
 
 # Requirements
 - OpenTofu v1.11.2 or Terraform v1.14.3
+    - The commands below use `tofu`; substitute `terraform` if you use Terraform — the configuration is compatible with both.
 - AWS account
 - AWS profile with the correct IAM rights that can use Terraform
     - [How to set up AWS Credentials for Terraform](https://www.sudeepa.com/?p=382)

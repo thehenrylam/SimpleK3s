@@ -1,4 +1,4 @@
-# OPENTOFU : VPC Cloud
+# OpenTofu / Terraform : VPC Cloud
 
 terraform {
   required_version = "~> 1.11"
@@ -7,14 +7,6 @@ terraform {
     aws = {
       source  = "hashicorp/aws"
       version = "~> 6.0"
-    }
-    assert = {
-      source  = "opentofu/assert"
-      version = "0.14.0"
-    }
-    cloudinit = {
-      source  = "opentofu/cloudinit"
-      version = "~> 2.3"
     }
   }
 }

@@ -8,7 +8,9 @@ SimpleK3s is an opinionated Terraform/OpenTofu module that deploys a production-
 
 ## Common Commands
 
-All commands are run from an example directory (e.g., `examples/ex_basic/`):
+All commands are run from an example directory (e.g., `examples/ex_basic/`). The
+examples below use `tofu`; the configuration is compatible with Terraform too, so
+`terraform` can be substituted for `tofu` in any command:
 
 ```bash
 # Set up git hooks (required for contributors)
@@ -157,7 +159,7 @@ These versions are hardcoded defaults in the module. Check here first when inves
 | Type            | Dependency | Version | Defined In |
 |-----------------|------------|---|---|
 | Tooling         | OpenTofu | `1.11.2` | `.github/workflows/static-analysis.yml`, `toolchain/tc_standard_macos_install.sh` |
-| Tooling         | Terraform | `1.14.3` | `toolchain/tc_standard_macos_install.sh` |
+| Tooling         | Terraform | `1.14.3` | `.github/workflows/static-analysis.yml`, `toolchain/tc_standard_macos_install.sh` |
 | Tooling         | Python | `3.13.x` | `.github/workflows/static-analysis.yml`, `k3s_cluster/cluster_app/bootstrap/data/py/pyproject.toml`, `k3s_cluster/cluster_app/bootstrap/data/py/.python-version`, `toolchain/tc_standard_macos_install.sh` |
 | Tooling         | uv | `0.11.20` | `k3s_cluster/cluster_app/bootstrap/data/bts_01_install_packages.sh`, `toolchain/tc_standard_macos_install.sh` |
 | Platform        | K3s        | `v1.35.1+k3s1` | `k3s_cluster/variables.tf` |

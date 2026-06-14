@@ -45,6 +45,7 @@ Search the following locations and patterns. For each finding record the depende
 - Lines under `env:` matching `*_VERSION: "..."`
 - `tflint_version:` action input
 - `tofu_version:` action input
+- `terraform_version:` action input
 - `python-version:` action input
 - `pip install ...` or `apt-get install ...` without a version pin (flag as unpinned)
 

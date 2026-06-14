@@ -1,4 +1,4 @@
-# OPENTOFU : IdP (Identification Provider) Standalone
+# OpenTofu / Terraform : IdP (Identification Provider) Standalone
 
 terraform {
   required_version = "~> 1.11"
@@ -7,10 +7,6 @@ terraform {
     aws = {
       source  = "hashicorp/aws"
       version = "~> 6.0"
-    }
-    assert = {
-      source  = "opentofu/assert"
-      version = "0.14.0"
     }
   }
 }
