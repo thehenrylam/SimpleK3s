@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 
 # Builtin Modules
-import subprocess
-import shlex
 import json
+import shlex
+import subprocess
 from dataclasses import dataclass
+
 
 # This class + function is meant to help make SHELL commands easier to execute
 @dataclass
 class CommandResult:
-    stdout:     str
-    stderr:     str
+    stdout: str
+    stderr: str
     returncode: int
 
     @property
     def ok(self) -> bool:
         return self.returncode == 0
+
 
 def run_command(cmd: str | list, timeout: int = 30) -> CommandResult:
     if isinstance(cmd, str):
@@ -86,10 +88,12 @@ def get_failing_conditions(obj: dict) -> list:
         if cond.get("type") == "Ready":
             continue
         if cond.get("status") != "True":
-            failing.append({
-                "type": cond.get("type", ""),
-                "status": cond.get("status", ""),
-                "reason": cond.get("reason", ""),
-                "message": cond.get("message", ""),
-            })
+            failing.append(
+                {
+                    "type": cond.get("type", ""),
+                    "status": cond.get("status", ""),
+                    "reason": cond.get("reason", ""),
+                    "message": cond.get("message", ""),
+                }
+            )
     return failing

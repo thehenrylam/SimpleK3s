@@ -2,14 +2,13 @@
 
 # Builtin Modules
 import importlib.util
-import os
 import json
+import os
 import sys
 
 _dir = os.path.dirname(os.path.abspath(__file__))
 _spec = importlib.util.spec_from_file_location(
-    "fetch_UTILITIES",
-    os.path.join(_dir, "fetch_UTILITIES.py")
+    "fetch_UTILITIES", os.path.join(_dir, "fetch_UTILITIES.py")
 )
 _utils = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_utils)

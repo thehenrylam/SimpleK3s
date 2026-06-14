@@ -1,0 +1,15 @@
+line-length = 100
+
+[lint]
+# E, F: default pycodestyle + pyflakes rules
+# I: import sorting (isort)
+# B: common bugs (flake8-bugbear)
+# UP: modernize Python syntax (pyupgrade)
+select = ["E", "F", "I", "B", "UP"]
+
+[lint.per-file-ignores]
+# venv and generated files are never linted (excluded via find in test scripts),
+# but guard here too in case ruff is run directly from the repo root.
+"venv/**" = ["ALL"]
+"**/.venv/**" = ["ALL"]
+"_tmp/**" = ["ALL"]

@@ -43,17 +43,36 @@ run_check() {
 
 # --- ruff ---
 
-ruff_check_all() {
-    find "${REPO_ROOT}" -name "*.py" \
+RUFF_PY_FILES=()
+
+collect_py_files() {
+    while IFS= read -r -d '' f; do
+        RUFF_PY_FILES+=("$f")
+    done < <(find "${REPO_ROOT}" -name "*.py" \
         -not -path "${REPO_ROOT}/_tmp/*" \
         -not -path "${REPO_ROOT}/venv/*" \
         -not -path "${REPO_ROOT}/*/.venv/*" \
-        -print0 \
-        | xargs -0 ruff check
+        -print0)
+}
+
+list_py_files() {
+    echo "Collected ${#RUFF_PY_FILES[@]} Python file(s):"
+    printf '  %s\n' "${RUFF_PY_FILES[@]}"
+}
+
+ruff_check_all() {
+    ruff check "${RUFF_PY_FILES[@]}"
+}
+
+ruff_format_check_all() {
+    ruff format --check "${RUFF_PY_FILES[@]}"
 }
 
 check_ruff() {
+    collect_py_files
+    # list_py_files (Disabled, enable if we need to check the contents of RUFF_PY_FILES)
     run_check "ruff check (all *.py)" ruff_check_all
+    run_check "ruff format --check (all *.py)" ruff_format_check_all
 }
 
 # --- main ---
