@@ -41,7 +41,18 @@ function wait_generic() {
 function wait_grafana() {
     local NS="monitoring"
     local DEPLOY_NAME="prometheus-grafana"
+    local OIDC_SECRET="grafana-sso"
     wait_generic "${NS}" "${DEPLOY_NAME}" || return 1
+
+    # Assert the OIDC value actually landed in the ESO-owned secret (see #95). Grafana's
+    # ExternalSecret already uses creationPolicy: Owner so this normally passes, but fail
+    # loudly if a sync regression leaves the secret empty. jsonpath avoids a jq dependency.
+    log_info "Asserting OIDC client value is populated in secret '$OIDC_SECRET'..."
+    wait_for_cmd_3min bash -c "sudo kubectl -n '$NS' get secret '$OIDC_SECRET' --ignore-not-found -o jsonpath='{.data.oidc\.cognito\.client}' | grep -q ." || {
+        log_fail "secret '$OIDC_SECRET' has empty 'oidc.cognito.client' — ESO did not sync the OIDC config"
+        sudo kubectl -n "$NS" describe externalsecret grafana-oidc-into-secret || true
+        return 1
+    }
 }
 
 function wait_prometheus_operator() {

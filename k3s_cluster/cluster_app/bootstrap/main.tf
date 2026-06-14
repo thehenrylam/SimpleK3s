@@ -166,6 +166,30 @@ module "aws_s3obj" {
       key      = "${var.s3_config.keyroot}/py/fetch_app-traefik.py",
       src      = "${path.module}/data/py/fetch_app-traefik.py",
       template = null
+    },
+    {
+      desc     = "Helper Script (Python - fetch_app-argocd.py)"
+      key      = "${var.s3_config.keyroot}/py/fetch_app-argocd.py",
+      src      = "${path.module}/data/py/fetch_app-argocd.py",
+      template = null
+    },
+    {
+      desc     = "Helper Script (Python - fetch_app-grafana.py)"
+      key      = "${var.s3_config.keyroot}/py/fetch_app-grafana.py",
+      src      = "${path.module}/data/py/fetch_app-grafana.py",
+      template = null
+    },
+    {
+      desc     = "Helper Script (Python - fetch_app-prometheus.py)"
+      key      = "${var.s3_config.keyroot}/py/fetch_app-prometheus.py",
+      src      = "${path.module}/data/py/fetch_app-prometheus.py",
+      template = null
+    },
+    {
+      desc     = "Helper Script (Python - fetch_app-descheduler.py)"
+      key      = "${var.s3_config.keyroot}/py/fetch_app-descheduler.py",
+      src      = "${path.module}/data/py/fetch_app-descheduler.py",
+      template = null
     }
   ]
 }

@@ -4,6 +4,8 @@
 import json
 import shlex
 import subprocess
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 
 
@@ -41,9 +43,54 @@ def run_command(cmd: str | list, timeout: int = 30) -> CommandResult:
         return CommandResult(stdout="", stderr=f"command timed out after {timeout}s", returncode=-1)
 
 
+# --- HTTP helper (shared by the in-cluster endpoint probes) ---
+
+
+def http_get(url: str, timeout: int = 10, follow_redirects: bool = True) -> dict:
+    # GET a URL and report {"status", "body", "error"}. Used by probes that must
+    # check a Service's HTTP behaviour from a node (e.g. ArgoCD's /auth/login
+    # redirect, Grafana /api/health) — signals that aren't visible via kubectl.
+    # follow_redirects=False keeps the 3xx so callers can assert on it directly.
+    handlers = []
+    if not follow_redirects:
+
+        class _NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, *args, **kwargs):
+                return None
+
+        handlers.append(_NoRedirect())
+
+    opener = urllib.request.build_opener(*handlers)
+    try:
+        resp = opener.open(url, timeout=timeout)
+        body = resp.read(512).decode("utf-8", "replace")
+        return {"status": resp.status, "body": body, "error": None}
+    except urllib.error.HTTPError as exc:
+        return {"status": exc.code, "body": "", "error": None}
+    except Exception as exc:  # noqa: BLE001 - any transport failure is the signal
+        return {"status": None, "body": "", "error": repr(exc)}
+
+
 # --- Kubernetes helpers (shared by the per-service fetch_*.py scripts) ---
 
 KUBECTL = "kubectl"
+
+
+def get_resource(
+    resource: str, namespace: str, name: str, timeout: int = 20, kubectl: str = KUBECTL
+):
+    # Fetch a single named resource as parsed JSON. Returns (obj_or_None, error).
+    # Complements get_resources() (which lists across all namespaces) for the
+    # probes that need one specific object (a Service's clusterIP, a CR's status).
+    result = run_command(f"{kubectl} -n {namespace} get {resource} {name} -o json", timeout=timeout)
+    if not result.ok:
+        return None, result.stderr or result.stdout
+    if not result.stdout:
+        return None, "empty output"
+    try:
+        return json.loads(result.stdout), None
+    except json.JSONDecodeError as exc:
+        return None, f"failed to parse json: {exc}"
 
 
 def get_resources(resource: str, timeout: int = 20, kubectl: str = KUBECTL) -> dict:

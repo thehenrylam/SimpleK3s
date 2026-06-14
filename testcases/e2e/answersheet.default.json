@@ -88,6 +88,57 @@
         "external_secrets": { "$ignore": true },
         "secret_stores": { "$ignore": true },
         "errors": { "$ignore": true }
+      },
+      "argocd": {
+        "ready": true,
+        "status": { "$ignore": true },
+        "summary": {
+          "sso_configured": true,
+          "issuer_resolved": true,
+          "login_route_ok": true,
+          "login_route_status": { "$ignore": true }
+        },
+        "details": { "$ignore": true },
+        "errors": { "$ignore": true },
+        "note": { "$ignore": true }
+      },
+      "grafana": {
+        "ready": true,
+        "status": { "$ignore": true },
+        "summary": {
+          "health_ok": true,
+          "sso_configured": true,
+          "sso_keys_ok": true
+        },
+        "details": { "$ignore": true },
+        "errors": { "$ignore": true },
+        "note": { "$ignore": true }
+      },
+      "prometheus": {
+        "ready": true,
+        "status": { "$ignore": true },
+        "summary": {
+          "prometheus_crs_ready": { "$ignore": true },
+          "prometheus_crs_total": { "$ignore": true },
+          "healthy_ok": true,
+          "ready_ok": true
+        },
+        "details": { "$ignore": true },
+        "errors": { "$ignore": true },
+        "note": { "$ignore": true }
+      },
+      "descheduler": {
+        "ready": true,
+        "status": { "$ignore": true },
+        "summary": {
+          "suspended": false,
+          "jobs_total": { "$ignore": true },
+          "jobs_failed": { "$ignore": true },
+          "latest_job_ok": true
+        },
+        "details": { "$ignore": true },
+        "errors": { "$ignore": true },
+        "note": { "$ignore": true }
       }
     }
   }

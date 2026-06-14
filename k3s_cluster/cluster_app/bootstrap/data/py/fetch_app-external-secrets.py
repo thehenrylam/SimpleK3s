@@ -39,15 +39,18 @@ def _collect(resource: str, kind: str, extra=None) -> tuple:
 
 
 def fetch_external_secrets() -> dict:
-    # ExternalSecret: Ready=True with reason "SecretSynced" means the secret was
-    # pulled from AWS Parameter Store successfully. A failed sync (bad IAM,
-    # missing parameter) leaves a workload running but non-functional — the gap
-    # the generic workload check can't see.
+    # ExternalSecret: only reason "SecretSynced" means the secret was actually pulled
+    # from AWS Parameter Store. Ready=True alone is NOT sufficient — a creationPolicy:
+    # Merge ExternalSecret whose target secret doesn't exist yet parks at reason
+    # "SecretMissing" but still reports Ready=True (the #95 race). Treat anything other
+    # than SecretSynced as not-synced so that false positive can never slip through.
     external_secrets, es_err = _collect(
         "externalsecrets",
         "ExternalSecret",
         lambda o: {"refresh_time": o.get("status", {}).get("refreshTime")},
     )
+    for e in external_secrets:
+        e["synced"] = e["ready"] and e["reason"] == "SecretSynced"
     # SecretStore / ClusterSecretStore: Ready=True (reason "Valid") means the
     # provider connection (AWS auth) is configured correctly.
     secret_stores, ss_err = _collect("secretstores", "SecretStore")
@@ -55,14 +58,16 @@ def fetch_external_secrets() -> dict:
 
     stores = secret_stores + cluster_stores
     errors = es_err + ss_err + css_err
-    not_ready = [e for e in external_secrets + stores if not e["ready"]]
+    not_ready = [e for e in external_secrets if not e["synced"]] + [
+        e for e in stores if not e["ready"]
+    ]
     ready = not errors and len(not_ready) == 0
 
     return {
         "ready": ready,
         "summary": {
             "external_secrets_total": len(external_secrets),
-            "external_secrets_ready": len([e for e in external_secrets if e["ready"]]),
+            "external_secrets_ready": len([e for e in external_secrets if e["synced"]]),
             "secret_stores_total": len(stores),
             "secret_stores_ready": len([e for e in stores if e["ready"]]),
             "not_ready": len(not_ready),
