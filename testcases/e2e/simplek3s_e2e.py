@@ -50,6 +50,10 @@ APP_PROBES = [
     ("karpenter", "fetch_app-karpenter.py"),
     ("kyverno", "fetch_app-kyverno.py"),
     ("external_secrets", "fetch_app-external-secrets.py"),
+    ("argocd", "fetch_app-argocd.py"),
+    ("grafana", "fetch_app-grafana.py"),
+    ("prometheus", "fetch_app-prometheus.py"),
+    ("descheduler", "fetch_app-descheduler.py"),
 ]
 
 # probe_key -> script, used to rerun a single probe during reconciliation. App

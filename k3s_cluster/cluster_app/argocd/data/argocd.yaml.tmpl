@@ -18,8 +18,10 @@ spec:
       region: ${region_idp_config}
 
 ---
-# ExternalSecret: pulls 3 SSM SecureString params into a single Kubernetes Secret
-# The label app.kubernetes.io/part-of: argocd is required for Argo CD secret substitution
+# ExternalSecret: pulls 3 SSM SecureString params into a dedicated, ESO-owned Secret (argocd-oidc)
+# creationPolicy: Owner means ESO creates the Secret outright — no ordering dependency on the
+# Helm-managed argocd-secret existing first (the Merge race that left OIDC empty on fresh deploys).
+# The label app.kubernetes.io/part-of: argocd is required for Argo CD $<secret>:<key> substitution.
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -31,9 +33,12 @@ spec:
     name: parameterstore
     kind: SecretStore
   target:
-    name: argocd-secret
-    creationPolicy: Merge
+    name: argocd-oidc
+    creationPolicy: Owner
     template:
+      metadata:
+        labels:
+          app.kubernetes.io/part-of: argocd
       engineVersion: v2
       type: Opaque
   data:
@@ -165,7 +170,8 @@ spec:
 
 ---
 # ConfigMap (argocd-cm): Argo CD "main config" — sets the external URL and OIDC SSO settings
-# oidc.config enables Cognito login and references secret values via $oidc.cognito.* substitution
+# oidc.config enables Cognito login and references the ESO-owned argocd-oidc secret via the
+# named-secret form $<secret>:<key> (e.g. $argocd-oidc:oidc.cognito.issuer)
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -182,9 +188,9 @@ data:
   url: "https://${domain_name}/argocd"
   oidc.config: |
     name: Cognito
-    issuer: $oidc.cognito.issuer
-    clientID: $oidc.cognito.client
-    clientSecret: $oidc.cognito.secret
+    issuer: $argocd-oidc:oidc.cognito.issuer
+    clientID: $argocd-oidc:oidc.cognito.client
+    clientSecret: $argocd-oidc:oidc.cognito.secret
     requestedScopes: ["openid", "profile", "email"]
 
 ---

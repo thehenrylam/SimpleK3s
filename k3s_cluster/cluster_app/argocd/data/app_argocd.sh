@@ -45,6 +45,17 @@ function wait_argocd() {
         sudo kubectl -n "$NS" get all || true
         return 1
     }
+
+    # Ready=True alone is a false positive (a Merge ExternalSecret parks at SecretMissing
+    # but still reports Ready). Assert the OIDC value actually landed in the secret before
+    # proceeding. jsonpath avoids a jq dependency; the base64 value just needs to be non-empty.
+    local OIDC_SECRET="argocd-oidc"
+    log_info "Asserting OIDC issuer value is populated in secret '$OIDC_SECRET'..."
+    wait_for_cmd_3min bash -c "sudo kubectl -n '$NS' get secret '$OIDC_SECRET' --ignore-not-found -o jsonpath='{.data.oidc\.cognito\.issuer}' | grep -q ." || {
+        log_fail "secret '$OIDC_SECRET' has empty 'oidc.cognito.issuer' — ESO did not sync the OIDC config"
+        sudo kubectl -n "$NS" describe externalsecret argocd-oidc-into-argocd-secret || true
+        return 1
+    }
 }
 
 function apply_argocd() {
@@ -62,18 +73,25 @@ function apply_argocd() {
     sudo cp "$PENDING_FILEPATH" "$MANIFEST_FILEPATH" || return 1
     log_okay "ArgoCD module written to $MANIFEST_FILEPATH"
 
-    # Wait for ArgoCD to be ready
+    # Wait for ArgoCD to be ready (incl. the assert that argocd-oidc is actually populated)
     wait_argocd || return 1
 
-    # Re-roll the rollout of the ArgoCD module 
-    # Why: 
-    #   - This is to help work around a weird issue with the argocd.yaml file
-    #   - The weird issue is where the SecretStore variables won't properly template unless it rolls out a second time
-    #   - Likely due to an ordering issue; Multiple attempts to order the installation didn't solve it (We'll check back on it at a later date)
-    log_info "Restarting rollout of the ArgoCD module"
-    sudo kubectl -n argocd rollout restart deployment   # Restart all pods in ArgoCD (except for Redis)
-    sudo kubectl -n argocd rollout restart statefulset  # Restart Redis in ArgoCD (a statefulset)
-    log_okay "Completed rollout of the ArgoCD module"
+    # Restart argocd-server now that the OIDC secret is confirmed populated.
+    # Why (see #95): argocd-server mounts the /auth/login and /auth/callback OIDC HTTP
+    # routes ONCE at startup, and only when SSO resolves as configured at that instant.
+    # On a fresh deploy it boots before ESO populates the argocd-oidc secret, so SSO looks
+    # unconfigured and those routes are never registered (they 404 — the SSO button
+    # dead-ends on a blank page). Token validation reloads from settings live, but the
+    # HTTP mux does not, so only a restart re-registers the routes. The value-assert in
+    # wait_argocd() above guarantees the secret is present before we restart here.
+    # Only argocd-server matters; the repo-server/redis do not gate OIDC route registration.
+    # Readiness after the restart is re-validated by the wait_argocd() call that main()
+    # runs right after apply_argocd() returns: its `rollout status deployment` step blocks
+    # on the new ReplicaSet (rollout restart bumps the deployment generation), so we don't
+    # repeat that check here.
+    log_info "Restarting argocd-server so it registers OIDC routes against the synced secret"
+    sudo kubectl -n argocd rollout restart deployment argocd-server || return 1
+    log_okay "argocd-server restart requested (readiness re-checked by wait_argocd)"
 
     log_okay "Applied ArgoCD module"
 }
