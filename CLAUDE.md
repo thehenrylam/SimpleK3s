@@ -173,6 +173,7 @@ These versions are hardcoded defaults in the module. Check here first when inves
 | CI (Testing)    | tflint | `0.62.1` | `toolchain/tc_testing_macos_install.sh`, `.github/workflows/static-analysis.yml` |
 | CI (Testing)    | shellcheck | `0.11.0` | `toolchain/tc_testing_macos_install.sh`, `.github/workflows/static-analysis.yml` |
 | CI (Testing)    | checkov | `3.2.530` | `toolchain/tc_testing_macos_install.sh`, `.github/workflows/static-analysis.yml` |
+| CI (Testing)    | ruff | `0.15.17` | `toolchain/tc_testing_macos_install.sh`, `.github/workflows/static-analysis.yml` |
 
 ## Conventions
 

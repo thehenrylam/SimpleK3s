@@ -3,15 +3,14 @@
 # Builtin Modules
 import argparse
 import importlib.util
-import os
 import json
-import time
+import os
 import sys
+import time
 
 _dir = os.path.dirname(os.path.abspath(__file__))
 _spec = importlib.util.spec_from_file_location(
-    "fetch_UTILITIES",
-    os.path.join(_dir, "fetch_UTILITIES.py")
+    "fetch_UTILITIES", os.path.join(_dir, "fetch_UTILITIES.py")
 )
 _utils = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_utils)
@@ -63,11 +62,7 @@ def _eval_deployment(obj: dict) -> dict:
     desired = _spec_replicas(obj)
     available = status.get("availableReplicas", 0)
     updated = status.get("updatedReplicas", 0)
-    ready = (
-        _generation_synced(obj)
-        and updated == desired
-        and available == desired
-    )
+    ready = _generation_synced(obj) and updated == desired and available == desired
     return {
         "desired": desired,
         "ready_replicas": status.get("readyReplicas", 0),
@@ -141,12 +136,14 @@ def fetch_workloads() -> dict:
             if evaluator is None:
                 continue
             metrics = evaluator(obj)
-            workloads.append({
-                "kind": kind,
-                "namespace": obj.get("metadata", {}).get("namespace", ""),
-                "name": obj.get("metadata", {}).get("name", ""),
-                **metrics,
-            })
+            workloads.append(
+                {
+                    "kind": kind,
+                    "namespace": obj.get("metadata", {}).get("namespace", ""),
+                    "name": obj.get("metadata", {}).get("name", ""),
+                    **metrics,
+                }
+            )
     return {"workloads": workloads, "errors": errors}
 
 
@@ -190,13 +187,15 @@ def fetch_unhealthy_pods() -> dict:
 
         is_unhealthy = phase == "Failed" or bool(reasons)
         if is_unhealthy:
-            unhealthy.append({
-                "namespace": pod.get("metadata", {}).get("namespace", ""),
-                "name": pod.get("metadata", {}).get("name", ""),
-                "phase": phase,
-                "reasons": sorted(set(reasons)),
-                "restarts": total_restarts,
-            })
+            unhealthy.append(
+                {
+                    "namespace": pod.get("metadata", {}).get("namespace", ""),
+                    "name": pod.get("metadata", {}).get("name", ""),
+                    "phase": phase,
+                    "reasons": sorted(set(reasons)),
+                    "restarts": total_restarts,
+                }
+            )
 
     return {"unhealthy_pods": unhealthy, "errors": errors}
 
@@ -220,17 +219,17 @@ def fetch_cronjobs() -> dict:
     failed_by_owner = {}
     for job in job_payload.get("items", []):
         owner = next(
-            (o for o in job.get("metadata", {}).get("ownerReferences", [])
-             if o.get("kind") == "CronJob"),
+            (
+                o
+                for o in job.get("metadata", {}).get("ownerReferences", [])
+                if o.get("kind") == "CronJob"
+            ),
             None,
         )
         if owner is None:
             continue
         conditions = job.get("status", {}).get("conditions", [])
-        failed = any(
-            c.get("type") == "Failed" and c.get("status") == "True"
-            for c in conditions
-        )
+        failed = any(c.get("type") == "Failed" and c.get("status") == "True" for c in conditions)
         if failed:
             key = (job.get("metadata", {}).get("namespace", ""), owner.get("name", ""))
             failed_by_owner[key] = failed_by_owner.get(key, 0) + 1
@@ -244,16 +243,18 @@ def fetch_cronjobs() -> dict:
         suspended = bool(obj.get("spec", {}).get("suspend", False))
         failed_jobs = failed_by_owner.get((namespace, name), 0)
         ready = (not suspended) and failed_jobs == 0
-        cronjobs.append({
-            "kind": "CronJob",
-            "namespace": namespace,
-            "name": name,
-            "suspended": suspended,
-            "failed_jobs": failed_jobs,
-            "last_schedule_time": status.get("lastScheduleTime"),
-            "last_successful_time": status.get("lastSuccessfulTime"),
-            "ready": ready,
-        })
+        cronjobs.append(
+            {
+                "kind": "CronJob",
+                "namespace": namespace,
+                "name": name,
+                "suspended": suspended,
+                "failed_jobs": failed_jobs,
+                "last_schedule_time": status.get("lastScheduleTime"),
+                "last_successful_time": status.get("lastSuccessfulTime"),
+                "ready": ready,
+            }
+        )
 
     return {"cronjobs": cronjobs, "errors": errors}
 

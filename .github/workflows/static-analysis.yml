@@ -8,6 +8,7 @@ on:
       - "**/*.tftpl"
       - "**/*.tmpl"
       - "**/*.sh"
+      - "**/*.py"
       - "**/*.yml"
       - "**/*.yaml"
       - "**/*.env"
@@ -23,6 +24,7 @@ on:
       - "**/*.tftpl"
       - "**/*.tmpl"
       - "**/*.sh"
+      - "**/*.py"
       - "**/*.yml"
       - "**/*.yaml"
       - "**/*.env"
@@ -36,8 +38,28 @@ env:
   TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
   SHELLCHECK_VERSION: "0.11.0"
   CHECKOV_VERSION: "3.2.530"
+  RUFF_VERSION: "0.15.17"
 
 jobs:
+  python:
+    name: Python Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install ruff
+        run: pip install "ruff==${RUFF_VERSION}"
+
+      - name: Run ruff check
+        run: bash testcases/test-out_python.sh
+
   shellcheck:
     name: ShellCheck
     runs-on: ubuntu-latest

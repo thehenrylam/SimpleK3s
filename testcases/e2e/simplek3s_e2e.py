@@ -63,11 +63,16 @@ _SCRIPT_BY_KEY.update({f"app:{k}": s for k, s in APP_PROBES})
 # text). Stripped before cross-node comparison and marked $ignore by --capture.
 NOISE_KEYS = {
     "waited_seconds",
-    "refresh_time", "refreshTime",
-    "last_schedule_time", "last_successful_time",
-    "lastScheduleTime", "lastSuccessfulTime",
-    "response", "message",
-    "node_name", "provider_id",
+    "refresh_time",
+    "refreshTime",
+    "last_schedule_time",
+    "last_successful_time",
+    "lastScheduleTime",
+    "lastSuccessfulTime",
+    "response",
+    "message",
+    "node_name",
+    "provider_id",
 }
 
 # Keys whose values are live/per-node measurements (CPU + memory + disk usage).
@@ -90,7 +95,7 @@ SECTION_ORDER = ["Nodes / Hardware", "K3s Platform", "K3s Apps", "Subsystems", "
 # call) is ever hit faster than 1/interval. This matches "poll every node ~once
 # a second, concurrently" rather than one global call per second.
 
-_RATE_INTERVAL = 1.0          # seconds between consecutive calls *for a given key*
+_RATE_INTERVAL = 1.0  # seconds between consecutive calls *for a given key*
 _RATE_STATE_LOCK = threading.Lock()
 _rate_locks: dict[str, threading.Lock] = {}
 _last_call_at: dict[str, float] = {}
@@ -104,8 +109,13 @@ def _rate_lock_for(key: str) -> threading.Lock:
         return lock
 
 
-def aws(args: list[str], region: str, profile: str, timeout: int = 90,
-        rate_key: str = "global") -> subprocess.CompletedProcess:
+def aws(
+    args: list[str],
+    region: str,
+    profile: str,
+    timeout: int = 90,
+    rate_key: str = "global",
+) -> subprocess.CompletedProcess:
     """Run an ``aws`` CLI call, throttled per ``rate_key``.
 
     The per-key lock is held across the sleep, so only *this key's* calls are
@@ -125,6 +135,7 @@ def aws(args: list[str], region: str, profile: str, timeout: int = 90,
 
 # --- node discovery --------------------------------------------------------
 
+
 def _role_from_name(name: str) -> str:
     # cluster_ec2.tf names nodes "<...>_controlplane-<suffix>" / "<...>_agentplane-<suffix>".
     if "controlplane" in name:
@@ -138,15 +149,19 @@ def discover_nodes(region: str, profile: str, nickname: str) -> list[dict]:
     """Return running instances tagged Nickname=<nickname> as {id, name, role}."""
     result = aws(
         [
-            "ec2", "describe-instances",
+            "ec2",
+            "describe-instances",
             "--filters",
             f"Name=tag:Nickname,Values={nickname}",
             "Name=instance-state-name,Values=running",
         ],
-        region, profile,
+        region,
+        profile,
     )
     if result.returncode != 0:
-        raise RuntimeError(f"describe-instances failed: {result.stderr.strip() or result.stdout.strip()}")
+        raise RuntimeError(
+            f"describe-instances failed: {result.stderr.strip() or result.stdout.strip()}"
+        )
 
     nodes = []
     data = json.loads(result.stdout or "{}")
@@ -156,11 +171,13 @@ def discover_nodes(region: str, profile: str, nickname: str) -> list[dict]:
                 (t["Value"] for t in inst.get("Tags", []) if t.get("Key") == "Name"),
                 "",
             )
-            nodes.append({
-                "id": inst["InstanceId"],
-                "name": name,
-                "role": _role_from_name(name),
-            })
+            nodes.append(
+                {
+                    "id": inst["InstanceId"],
+                    "name": name,
+                    "role": _role_from_name(name),
+                }
+            )
     nodes.sort(key=lambda n: (n["role"], n["name"], n["id"]))
     return nodes
 
@@ -201,7 +218,7 @@ def _build_batch_command(probes: list[tuple[str, str]], remote_dir: str) -> list
     lines = [f"cd {remote_dir}"]
     for key, script in probes:
         lines.append(f"echo '{_MARKER_BEGIN} {key}@@'")
-        lines.append(f"sudo uv run ./{script}; echo \"{_MARKER_END} {key} $?@@\"")
+        lines.append(f'sudo uv run ./{script}; echo "{_MARKER_END} {key} $?@@"')
     return lines
 
 
@@ -213,16 +230,30 @@ def _parse_batch_output(stdout: str, expected_keys: list[str]) -> dict:
     for m in _MARKER_RE.finditer(stdout):
         key, body, code = m.group("key"), m.group("body"), int(m.group("code"))
         parsed = _extract_json(body)
-        results[key] = parsed if parsed is not None else {
-            "__error__": f"no JSON output (exit {code})", "__raw__": body.strip()[:500]}
+        results[key] = (
+            parsed
+            if parsed is not None
+            else {
+                "__error__": f"no JSON output (exit {code})",
+                "__raw__": body.strip()[:500],
+            }
+        )
     for key in expected_keys:
-        results.setdefault(key, {
-            "__error__": "no output marker (probe crashed, or SSM output truncated?)"})
+        results.setdefault(
+            key,
+            {"__error__": "no output marker (probe crashed, or SSM output truncated?)"},
+        )
     return results
 
 
-def run_batch(instance_id: str, probes: list[tuple[str, str]], region: str,
-              profile: str, remote_dir: str, probe_timeout: int) -> dict:
+def run_batch(
+    instance_id: str,
+    probes: list[tuple[str, str]],
+    region: str,
+    profile: str,
+    remote_dir: str,
+    probe_timeout: int,
+) -> dict:
     """Run every probe for one node in a single SSM command. Returns
     {probe_key: parsed-JSON-or-error} — one send + one poll-loop per node."""
     expected = [key for key, _ in probes]
@@ -232,9 +263,19 @@ def run_batch(instance_id: str, probes: list[tuple[str, str]], region: str,
 
     params = json.dumps({"commands": _build_batch_command(probes, remote_dir)})
     send = aws(
-        ["ssm", "send-command", "--instance-ids", instance_id,
-         "--document-name", "AWS-RunShellScript", "--parameters", params],
-        region, profile, rate_key=instance_id,
+        [
+            "ssm",
+            "send-command",
+            "--instance-ids",
+            instance_id,
+            "--document-name",
+            "AWS-RunShellScript",
+            "--parameters",
+            params,
+        ],
+        region,
+        profile,
+        rate_key=instance_id,
     )
     if send.returncode != 0:
         return fail_all(f"send-command failed: {send.stderr.strip() or send.stdout.strip()}")
@@ -247,9 +288,17 @@ def run_batch(instance_id: str, probes: list[tuple[str, str]], region: str,
     data = {}
     while True:
         inv = aws(
-            ["ssm", "get-command-invocation",
-             "--command-id", command_id, "--instance-id", instance_id],
-            region, profile, rate_key=instance_id,
+            [
+                "ssm",
+                "get-command-invocation",
+                "--command-id",
+                command_id,
+                "--instance-id",
+                instance_id,
+            ],
+            region,
+            profile,
+            rate_key=instance_id,
         )
         if inv.returncode != 0:
             # Right after send-command the invocation may not be registered yet
@@ -278,18 +327,32 @@ def run_batch(instance_id: str, probes: list[tuple[str, str]], region: str,
     return parsed
 
 
-def run_probe(instance_id: str, probe_key: str, script: str, region: str,
-              profile: str, remote_dir: str, probe_timeout: int) -> dict:
+def run_probe(
+    instance_id: str,
+    probe_key: str,
+    script: str,
+    region: str,
+    profile: str,
+    remote_dir: str,
+    probe_timeout: int,
+) -> dict:
     """Run a single probe (used for reconciliation reruns), via run_batch."""
-    return run_batch(instance_id, [(probe_key, script)], region, profile,
-                     remote_dir, probe_timeout).get(
-        probe_key, {"__error__": "rerun produced no result"})
+    return run_batch(
+        instance_id, [(probe_key, script)], region, profile, remote_dir, probe_timeout
+    ).get(probe_key, {"__error__": "rerun produced no result"})
 
 
 # --- collection ------------------------------------------------------------
 
-def collect(nodes: list[dict], region: str, profile: str, remote_dir: str,
-            probe_timeout: int, max_workers: int) -> dict:
+
+def collect(
+    nodes: list[dict],
+    region: str,
+    profile: str,
+    remote_dir: str,
+    probe_timeout: int,
+    max_workers: int,
+) -> dict:
     """Run all probes across all nodes in parallel. Returns a nested map:
     raw[instance_id][probe_key] = parsed-result-or-error."""
     control_planes = [n for n in nodes if n["role"] == "controlplane"]
@@ -309,17 +372,24 @@ def collect(nodes: list[dict], region: str, profile: str, remote_dir: str,
 
     def _do(instance_id: str):
         return instance_id, run_batch(
-            instance_id, probes_by_node[instance_id], region, profile,
-            remote_dir, probe_timeout,
+            instance_id,
+            probes_by_node[instance_id],
+            region,
+            profile,
+            remote_dir,
+            probe_timeout,
         )
 
     # One worker per node so all nodes run concurrently (each is throttled
     # independently to ≤1 call/interval).
     workers = max(max_workers, len(nodes))
     total_probes = sum(len(p) for p in probes_by_node.values())
-    print(f"  Running {total_probes} probe(s) across {len(nodes)} node(s) — "
-          f"one SSM command per node, nodes polled concurrently "
-          f"(≤1 call/{_RATE_INTERVAL:.1f}s each)...", file=sys.stderr)
+    print(
+        f"  Running {total_probes} probe(s) across {len(nodes)} node(s) — "
+        f"one SSM command per node, nodes polled concurrently "
+        f"(≤1 call/{_RATE_INTERVAL:.1f}s each)...",
+        file=sys.stderr,
+    )
     with ThreadPoolExecutor(max_workers=workers) as pool:
         for future in as_completed(pool.submit(_do, n["id"]) for n in nodes):
             instance_id, node_results = future.result()
@@ -327,8 +397,14 @@ def collect(nodes: list[dict], region: str, profile: str, remote_dir: str,
     return raw
 
 
-def rerun_probe(instance_id: str, probe_key: str, region: str, profile: str,
-                remote_dir: str, probe_timeout: int) -> dict:
+def rerun_probe(
+    instance_id: str,
+    probe_key: str,
+    region: str,
+    profile: str,
+    remote_dir: str,
+    probe_timeout: int,
+) -> dict:
     script = _SCRIPT_BY_KEY.get(probe_key)
     if script is None:
         return {"__error__": f"unknown probe key {probe_key}"}
@@ -336,6 +412,7 @@ def rerun_probe(instance_id: str, probe_key: str, region: str, profile: str,
 
 
 # --- cross-node comparison + stitching -------------------------------------
+
 
 def normalize(obj):
     """Strip noisy keys and sort lists so equivalent results compare equal."""
@@ -351,16 +428,26 @@ def _canonical_key(obj) -> str:
     return json.dumps(normalize(obj), sort_keys=True)
 
 
-def reconcile_cluster_probe(probe_key: str, raw: dict, control_planes: list[dict],
-                            region: str, profile: str, remote_dir: str,
-                            probe_timeout: int, agreement_path: list[str]):
+def reconcile_cluster_probe(
+    probe_key: str,
+    raw: dict,
+    control_planes: list[dict],
+    region: str,
+    profile: str,
+    remote_dir: str,
+    probe_timeout: int,
+    agreement_path: list[str],
+):
     """Stringently reconcile one cluster-wide probe across control-plane nodes.
 
     Returns (canonical_result, agreement_check). On disagreement the minority
     node(s) are rerun once to absorb flukes; persistent disagreement is RED."""
+
     def results():
-        return {n["id"]: raw[n["id"]].get(probe_key, {"__error__": "not collected"})
-                for n in control_planes}
+        return {
+            n["id"]: raw[n["id"]].get(probe_key, {"__error__": "not collected"})
+            for n in control_planes
+        }
 
     current = results()
     errored = {i: r for i, r in current.items() if isinstance(r, dict) and "__error__" in r}
@@ -368,8 +455,10 @@ def reconcile_cluster_probe(probe_key: str, raw: dict, control_planes: list[dict
 
     if not good:
         msgs = "; ".join(f"{i[:19]}: {r['__error__']}" for i, r in errored.items())
-        return ({"__error__": f"all control-plane probes failed ({msgs})"},
-                _check(agreement_path, RED, f"all {len(errored)} CP node(s) failed this probe"))
+        return (
+            {"__error__": f"all control-plane probes failed ({msgs})"},
+            _check(agreement_path, RED, f"all {len(errored)} CP node(s) failed this probe"),
+        )
 
     def grouped(d):
         groups: dict[str, list[str]] = {}
@@ -393,12 +482,17 @@ def reconcile_cluster_probe(probe_key: str, raw: dict, control_planes: list[dict
 
     if len(groups) > 1:
         sizes = ", ".join(f"{len(ids)}×" for ids in groups.values())
-        check = _check(agreement_path, RED,
-                       f"control-plane nodes disagree{rerun_note}: {len(groups)} variants ({sizes})")
+        check = _check(
+            agreement_path,
+            RED,
+            f"control-plane nodes disagree{rerun_note}: {len(groups)} variants ({sizes})",
+        )
     elif errored:
-        check = _check(agreement_path, YELLOW,
-                       f"{len(good)} CP node(s) agree{rerun_note}; "
-                       f"{len(errored)} node(s) errored")
+        check = _check(
+            agreement_path,
+            YELLOW,
+            f"{len(good)} CP node(s) agree{rerun_note}; {len(errored)} node(s) errored",
+        )
     elif rerun_note:
         check = _check(agreement_path, GREEN, f"control-plane nodes agree{rerun_note}")
     else:
@@ -409,33 +503,60 @@ def reconcile_cluster_probe(probe_key: str, raw: dict, control_planes: list[dict
 def hardware_agreement(raw: dict, nodes: list[dict]) -> list[dict]:
     """Lax cross-node hardware sanity. Warns (never fails) on structural drift."""
     checks = []
-    good = {n["id"]: raw[n["id"]].get("hardware")
-            for n in nodes
-            if isinstance(raw[n["id"]].get("hardware"), dict)
-            and "__error__" not in raw[n["id"]]["hardware"]}
+    good = {
+        n["id"]: raw[n["id"]].get("hardware")
+        for n in nodes
+        if isinstance(raw[n["id"]].get("hardware"), dict)
+        and "__error__" not in raw[n["id"]]["hardware"]
+    }
     if len(good) < 2:
         return checks
 
     path = ["nodes", "__agreement__"]
     core_counts = {len(r.get("cpu", {}).get("usage", {})) for r in good.values()}
     if len(core_counts) > 1:
-        checks.append(_check(path + ["cpu_cores"], YELLOW,
-                             f"CPU core counts differ across nodes: {sorted(core_counts)}"))
+        checks.append(
+            _check(
+                path + ["cpu_cores"],
+                YELLOW,
+                f"CPU core counts differ across nodes: {sorted(core_counts)}",
+            )
+        )
 
     # Total RAM / disk should be uniform within a node pool; warn (don't fail) on drift.
-    ram_totals = [r["memory"]["ram"]["total (MB)"] for r in good.values()
-                  if r.get("memory", {}).get("ram", {}).get("total (MB)") is not None]
-    disk_totals = [r["disk"]["total (MB)"] for r in good.values()
-                   if r.get("disk", {}).get("total (MB)") is not None]
-    for label, vals in (("RAM total (MB)", ram_totals), ("disk total (MB)", disk_totals)):
+    ram_totals = [
+        r["memory"]["ram"]["total (MB)"]
+        for r in good.values()
+        if r.get("memory", {}).get("ram", {}).get("total (MB)") is not None
+    ]
+    disk_totals = [
+        r["disk"]["total (MB)"]
+        for r in good.values()
+        if r.get("disk", {}).get("total (MB)") is not None
+    ]
+    for label, vals in (
+        ("RAM total (MB)", ram_totals),
+        ("disk total (MB)", disk_totals),
+    ):
         if len(vals) >= 2 and min(vals) > 0 and (max(vals) - min(vals)) / max(vals) > 0.10:
-            checks.append(_check(path + [label], YELLOW,
-                                 f"{label} varies >10% across nodes: {min(vals)}–{max(vals)}"))
+            checks.append(
+                _check(
+                    path + [label],
+                    YELLOW,
+                    f"{label} varies >10% across nodes: {min(vals)}–{max(vals)}",
+                )
+            )
     return checks
 
 
-def stitch(raw: dict, nodes: list[dict], region: str, profile: str,
-           remote_dir: str, probe_timeout: int) -> tuple[dict, list[dict]]:
+def stitch(
+    raw: dict,
+    nodes: list[dict],
+    region: str,
+    profile: str,
+    remote_dir: str,
+    probe_timeout: int,
+) -> tuple[dict, list[dict]]:
     """Build the deduplicated cluster snapshot and the cross-node agreement checks."""
     control_planes = [n for n in nodes if n["role"] == "controlplane"]
     snapshot = {"nodes": {}, "cluster": {"apps": {}}}
@@ -451,7 +572,13 @@ def stitch(raw: dict, nodes: list[dict], region: str, profile: str,
 
     for key, _ in CLUSTER_PROBES:
         canonical, check = reconcile_cluster_probe(
-            key, raw, control_planes, region, profile, remote_dir, probe_timeout,
+            key,
+            raw,
+            control_planes,
+            region,
+            profile,
+            remote_dir,
+            probe_timeout,
             ["cluster", key, "__agreement__"],
         )
         snapshot["cluster"][key] = canonical
@@ -459,7 +586,13 @@ def stitch(raw: dict, nodes: list[dict], region: str, profile: str,
 
     for key, _ in APP_PROBES:
         canonical, check = reconcile_cluster_probe(
-            f"app:{key}", raw, control_planes, region, profile, remote_dir, probe_timeout,
+            f"app:{key}",
+            raw,
+            control_planes,
+            region,
+            profile,
+            remote_dir,
+            probe_timeout,
             ["cluster", "apps", key, "__agreement__"],
         )
         snapshot["cluster"]["apps"][key] = canonical
@@ -469,6 +602,7 @@ def stitch(raw: dict, nodes: list[dict], region: str, profile: str,
 
 
 # --- answer-sheet matcher --------------------------------------------------
+
 
 def _check(path: list[str], status: str, message: str) -> dict:
     return {"path": list(path), "status": status, "message": message}
@@ -486,8 +620,10 @@ def _is_directive(d) -> bool:
 def _match_value(rule: dict, actual) -> tuple[str, str]:
     if "$regex" in rule:
         ok = re.fullmatch(rule["$regex"], str(actual)) is not None
-        return (GREEN if ok else RED,
-                f"{'matches' if ok else 'no match'} /{rule['$regex']}/ (got {_fmt(actual)})")
+        return (
+            GREEN if ok else RED,
+            f"{'matches' if ok else 'no match'} /{rule['$regex']}/ (got {_fmt(actual)})",
+        )
     if "$range" in rule:
         lo, hi = rule["$range"]
         try:
@@ -495,7 +631,10 @@ def _match_value(rule: dict, actual) -> tuple[str, str]:
         except (TypeError, ValueError):
             return RED, f"not numeric: {_fmt(actual)}"
         ok = lo <= n <= hi
-        return (GREEN if ok else RED, f"{_fmt(actual)} {'in' if ok else 'out of'} [{lo}, {hi}]")
+        return (
+            GREEN if ok else RED,
+            f"{_fmt(actual)} {'in' if ok else 'out of'} [{lo}, {hi}]",
+        )
     if "$gte" in rule or "$lte" in rule:
         try:
             n = float(actual)
@@ -508,20 +647,34 @@ def _match_value(rule: dict, actual) -> tuple[str, str]:
         if "$lte" in rule:
             ok = ok and n <= rule["$lte"]
             parts.append(f"<= {rule['$lte']}")
-        return (GREEN if ok else RED,
-                f"{_fmt(actual)} {'satisfies' if ok else 'violates'} {' and '.join(parts)}")
+        return (
+            GREEN if ok else RED,
+            f"{_fmt(actual)} {'satisfies' if ok else 'violates'} {' and '.join(parts)}",
+        )
     if "$in" in rule:
         ok = actual in rule["$in"]
-        return (GREEN if ok else RED, f"{_fmt(actual)} {'in' if ok else 'not in'} {rule['$in']}")
+        return (
+            GREEN if ok else RED,
+            f"{_fmt(actual)} {'in' if ok else 'not in'} {rule['$in']}",
+        )
     return RED, f"unsupported directive {list(rule)}"
 
 
 def evaluate(expected, actual, path: list[str], checks: list[dict], force_warn: bool = False):
     """Walk the expected (answer-sheet) tree against the actual snapshot."""
     # A failed probe surfaces as one finding for the whole subtree.
-    if isinstance(actual, dict) and "__error__" in actual and not (
-            isinstance(expected, dict) and "$ignore" in expected):
-        checks.append(_check(path, YELLOW if force_warn else RED, f"probe error: {actual['__error__']}"))
+    if (
+        isinstance(actual, dict)
+        and "__error__" in actual
+        and not (isinstance(expected, dict) and "$ignore" in expected)
+    ):
+        checks.append(
+            _check(
+                path,
+                YELLOW if force_warn else RED,
+                f"probe error: {actual['__error__']}",
+            )
+        )
         return
 
     if isinstance(expected, dict) and _is_directive(expected):
@@ -533,7 +686,13 @@ def evaluate(expected, actual, path: list[str], checks: list[dict], force_warn: 
             return
         if "$each" in expected:
             if not isinstance(actual, dict):
-                checks.append(_check(path, RED, f"expected object for $each, got {type(actual).__name__}"))
+                checks.append(
+                    _check(
+                        path,
+                        RED,
+                        f"expected object for $each, got {type(actual).__name__}",
+                    )
+                )
                 return
             if not actual:
                 checks.append(_check(path, YELLOW, "no entries to match"))
@@ -548,7 +707,13 @@ def evaluate(expected, actual, path: list[str], checks: list[dict], force_warn: 
 
     if isinstance(expected, dict):
         if not isinstance(actual, dict):
-            checks.append(_check(path, RED, f"expected object, got {type(actual).__name__}: {_fmt(actual)}"))
+            checks.append(
+                _check(
+                    path,
+                    RED,
+                    f"expected object, got {type(actual).__name__}: {_fmt(actual)}",
+                )
+            )
             return
         for key, sub in expected.items():
             if key not in actual:
@@ -566,11 +731,17 @@ def evaluate(expected, actual, path: list[str], checks: list[dict], force_warn: 
     if expected == actual:
         checks.append(_check(path, GREEN, f"= {_fmt(actual)}"))
     else:
-        checks.append(_check(path, YELLOW if force_warn else RED,
-                             f"expected {_fmt(expected)}, got {_fmt(actual)}"))
+        checks.append(
+            _check(
+                path,
+                YELLOW if force_warn else RED,
+                f"expected {_fmt(expected)}, got {_fmt(actual)}",
+            )
+        )
 
 
 # --- report card -----------------------------------------------------------
+
 
 def _section_for(path: list[str]) -> str:
     if path and path[0] == "nodes":
@@ -592,8 +763,7 @@ def print_report(checks: list[dict], failures_only: bool) -> int:
     print("\n=== SimpleK3s E2E Report Card ===\n")
     for section in SECTION_ORDER:
         section_checks = by_section.get(section, [])
-        shown = [c for c in section_checks
-                 if not failures_only or c["status"] in (YELLOW, RED)]
+        shown = [c for c in section_checks if not failures_only or c["status"] in (YELLOW, RED)]
         if not section_checks:
             continue
         if not shown:
@@ -607,16 +777,20 @@ def print_report(checks: list[dict], failures_only: bool) -> int:
     greens = sum(1 for c in checks if c["status"] == GREEN)
     yellows = sum(1 for c in checks if c["status"] == YELLOW)
     reds = sum(1 for c in checks if c["status"] == RED)
-    print(f"Summary: {EMOJI[GREEN]} {greens} passed   "
-          f"{EMOJI[YELLOW]} {yellows} warnings   {EMOJI[RED]} {reds} failures")
+    print(
+        f"Summary: {EMOJI[GREEN]} {greens} passed   "
+        f"{EMOJI[YELLOW]} {yellows} warnings   {EMOJI[RED]} {reds} failures"
+    )
     return 1 if reds else 0
 
 
 # --- capture mode ----------------------------------------------------------
 
+
 def generate_sheet(snapshot: dict) -> dict:
     """Turn a snapshot from a known-good cluster into an answer sheet, marking
     noisy leaves $ignore. The result is a starting point meant to be edited."""
+
     def gen(obj, key=None):
         if key in NOISE_KEYS or key in CAPTURE_IGNORE_KEYS:
             return {"$ignore": True}
@@ -649,29 +823,62 @@ def generate_sheet(snapshot: dict) -> dict:
 
 # --- main ------------------------------------------------------------------
 
+
 def parse_args(argv=None) -> argparse.Namespace:
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     p.add_argument("--region", help="AWS region")
     p.add_argument("--profile", help="AWS profile")
     p.add_argument("--nickname", help="cluster Nickname tag to discover nodes by")
-    default_sheet = os.path.join(os.path.dirname(os.path.abspath(__file__)), "answersheet.default.json")
-    p.add_argument("-a", "--answersheet", default=default_sheet,
-                   help="answer sheet to compare against (default: %(default)s)")
-    p.add_argument("--failures-only", action="store_true",
-                   help="show only warnings and failures in the report")
-    p.add_argument("--capture", action="store_true",
-                   help="generate an answer sheet from the current cluster instead of grading")
+    default_sheet = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "answersheet.default.json"
+    )
+    p.add_argument(
+        "-a",
+        "--answersheet",
+        default=default_sheet,
+        help="answer sheet to compare against (default: %(default)s)",
+    )
+    p.add_argument(
+        "--failures-only",
+        action="store_true",
+        help="show only warnings and failures in the report",
+    )
+    p.add_argument(
+        "--capture",
+        action="store_true",
+        help="generate an answer sheet from the current cluster instead of grading",
+    )
     p.add_argument("-o", "--out", help="where --capture writes the sheet (default: stdout)")
-    p.add_argument("--rate-interval", type=float, default=1.0,
-                   help="min seconds between AWS call starts (default: %(default)s)")
-    p.add_argument("--probe-timeout", type=int, default=300,
-                   help="per-probe timeout in seconds (default: %(default)s)")
-    p.add_argument("--max-workers", type=int, default=8,
-                   help="parallel probe workers (default: %(default)s)")
-    p.add_argument("--remote-py-dir", default=REMOTE_PY_DIR,
-                   help="on-node directory holding the fetch_*.py probes")
+    p.add_argument(
+        "--rate-interval",
+        type=float,
+        default=1.0,
+        help="min seconds between AWS call starts (default: %(default)s)",
+    )
+    p.add_argument(
+        "--probe-timeout",
+        type=int,
+        default=300,
+        help="per-probe timeout in seconds (default: %(default)s)",
+    )
+    p.add_argument(
+        "--max-workers",
+        type=int,
+        default=8,
+        help="parallel probe workers (default: %(default)s)",
+    )
+    p.add_argument(
+        "--remote-py-dir",
+        default=REMOTE_PY_DIR,
+        help="on-node directory holding the fetch_*.py probes",
+    )
     # Debug / offline hooks.
-    p.add_argument("--snapshot-file", help="grade a saved snapshot JSON instead of collecting via AWS")
+    p.add_argument(
+        "--snapshot-file",
+        help="grade a saved snapshot JSON instead of collecting via AWS",
+    )
     p.add_argument("--dump-snapshot", help="write the collected snapshot to this path")
     return p.parse_args(argv)
 
@@ -689,20 +896,41 @@ def main(argv=None) -> int:
     else:
         for required in ("region", "profile", "nickname"):
             if not getattr(args, required):
-                print(f"error: --{required} is required (or pass --snapshot-file)", file=sys.stderr)
+                print(
+                    f"error: --{required} is required (or pass --snapshot-file)",
+                    file=sys.stderr,
+                )
                 return 2
-        print(f"Discovering nodes for Nickname={args.nickname} in {args.region}...", file=sys.stderr)
+        print(
+            f"Discovering nodes for Nickname={args.nickname} in {args.region}...",
+            file=sys.stderr,
+        )
         nodes = discover_nodes(args.region, args.profile, args.nickname)
         if not nodes:
-            print(f"error: no running instances tagged Nickname={args.nickname}", file=sys.stderr)
+            print(
+                f"error: no running instances tagged Nickname={args.nickname}",
+                file=sys.stderr,
+            )
             return 2
         for n in nodes:
             print(f"  - {n['id']}  {n['role']:<13} {n['name']}", file=sys.stderr)
 
-        raw = collect(nodes, args.region, args.profile, args.remote_py_dir,
-                      args.probe_timeout, args.max_workers)
+        raw = collect(
+            nodes,
+            args.region,
+            args.profile,
+            args.remote_py_dir,
+            args.probe_timeout,
+            args.max_workers,
+        )
         snapshot, agreement_checks = stitch(
-            raw, nodes, args.region, args.profile, args.remote_py_dir, args.probe_timeout)
+            raw,
+            nodes,
+            args.region,
+            args.profile,
+            args.remote_py_dir,
+            args.probe_timeout,
+        )
 
     if args.dump_snapshot:
         with open(args.dump_snapshot, "w") as fh:

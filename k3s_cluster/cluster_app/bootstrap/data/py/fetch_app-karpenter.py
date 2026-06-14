@@ -2,14 +2,13 @@
 
 # Builtin Modules
 import importlib.util
-import os
 import json
+import os
 import sys
 
 _dir = os.path.dirname(os.path.abspath(__file__))
 _spec = importlib.util.spec_from_file_location(
-    "fetch_UTILITIES",
-    os.path.join(_dir, "fetch_UTILITIES.py")
+    "fetch_UTILITIES", os.path.join(_dir, "fetch_UTILITIES.py")
 )
 _utils = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_utils)
@@ -52,7 +51,8 @@ def fetch_karpenter() -> dict:
     # (a node mid-launch is briefly not-Ready by design), so they are reported
     # for visibility but do NOT factor into deployment validity.
     nodeclaims, ncl_err = _collect(
-        "nodeclaims", "NodeClaim",
+        "nodeclaims",
+        "NodeClaim",
         lambda o: {
             "node_name": o.get("status", {}).get("nodeName", ""),
             "provider_id": o.get("status", {}).get("providerID", ""),

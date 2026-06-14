@@ -8,6 +8,7 @@ set -euo pipefail
 readonly SHELLCHECK_VERSION="0.11.0"
 readonly TFLINT_VERSION="0.62.1"
 readonly CHECKOV_VERSION="3.2.530"
+readonly RUFF_VERSION="0.15.17"
 readonly BIN_DIR="/opt/homebrew/bin"
 
 # --- shellcheck ---
@@ -154,6 +155,55 @@ install_checkov() {
     fi
 }
 
+# --- ruff ---
+
+install_ruff() {
+    echo "==> Installing ruff"
+
+    local bin_name="ruff-${RUFF_VERSION}"
+    local bin_path="${BIN_DIR}/${bin_name}"
+    local symlink_path="${BIN_DIR}/ruff"
+
+    local arch
+    case "$(uname -m)" in
+        arm64)  arch="aarch64" ;;
+        x86_64) arch="x86_64" ;;
+        *) echo "ERROR: Unsupported architecture: $(uname -m)" >&2; return 1 ;;
+    esac
+
+    mkdir -p "$BIN_DIR"
+
+    local url="https://github.com/astral-sh/ruff/releases/download/${RUFF_VERSION}/ruff-${arch}-apple-darwin.tar.gz"
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+
+    echo "  Downloading ruff v${RUFF_VERSION} (${arch})..."
+    curl -fsSL "$url" | tar -xz -C "$tmpdir"
+    install -m 755 "${tmpdir}/ruff-${arch}-apple-darwin/ruff" "$bin_path"
+    rm -rf "$tmpdir"
+
+    echo "  Installed: ${bin_path}"
+
+    if [[ -L "$symlink_path" ]]; then
+        local current_target
+        current_target="$(readlink "$symlink_path")"
+        echo "  Symlink 'ruff' already exists -> ${current_target}"
+        printf "  Point 'ruff' to %s instead? [y/N] " "$bin_name"
+        read -r answer
+        if [[ "$answer" == "y" ]] || [[ "$answer" == "Y" ]]; then
+            ln -sf "$bin_path" "$symlink_path"
+            echo "  Updated symlink: ruff -> ${bin_name}"
+        else
+            echo "  Keeping existing symlink."
+        fi
+    elif [[ -e "$symlink_path" ]]; then
+        echo "  WARNING: ${symlink_path} exists but is not a symlink — skipping symlink creation."
+    else
+        ln -s "$bin_path" "$symlink_path"
+        echo "  Created symlink: ruff -> ${bin_name}"
+    fi
+}
+
 # --- main ---
 
 if ! command -v brew &>/dev/null; then
@@ -164,6 +214,7 @@ fi
 install_shellcheck
 install_tflint
 install_checkov
+install_ruff
 
 echo ""
 echo "All tools installed. Run ./toolchain/tc_testing_macos_check.sh to verify."

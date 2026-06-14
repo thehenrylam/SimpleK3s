@@ -2,14 +2,13 @@
 
 # Builtin Modules
 import importlib.util
-import os
 import json
+import os
 import sys
 
 _dir = os.path.dirname(os.path.abspath(__file__))
 _spec = importlib.util.spec_from_file_location(
-    "fetch_UTILITIES",
-    os.path.join(_dir, "fetch_UTILITIES.py")
+    "fetch_UTILITIES", os.path.join(_dir, "fetch_UTILITIES.py")
 )
 _utils = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_utils)
@@ -45,7 +44,8 @@ def fetch_external_secrets() -> dict:
     # missing parameter) leaves a workload running but non-functional — the gap
     # the generic workload check can't see.
     external_secrets, es_err = _collect(
-        "externalsecrets", "ExternalSecret",
+        "externalsecrets",
+        "ExternalSecret",
         lambda o: {"refresh_time": o.get("status", {}).get("refreshTime")},
     )
     # SecretStore / ClusterSecretStore: Ready=True (reason "Valid") means the
