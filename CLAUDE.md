@@ -200,3 +200,20 @@ Each subsystem or application directory contains:
 - A Terraform module (`*.tf`) that renders Kubernetes manifests and uploads them to S3.
 - Shell scripts consumed by the bootstrap layer to apply those manifests via `kubectl`.
 - Values from `utils/common_values/` for consistent resource sizing.
+
+### Security Group Rules
+
+Use the modern single-rule resources `aws_vpc_security_group_ingress_rule` /
+`aws_vpc_security_group_egress_rule` for all security group rules — **not** the
+legacy `aws_security_group_rule`. The legacy resource identifies a rule by
+hashing its attributes, so a manually edited rule no longer matches the hash in
+state and `apply` adds a duplicate instead of correcting it in place. The modern
+resources track each rule by its AWS-assigned `security_group_rule_id`, which is
+stable across edits. Reuse the `k3s_securitygrouprule/{cidr,self,sgroup}`
+submodules, which already wrap these resources (the single-CIDR resources take
+one CIDR each, so `cidr` fans a CIDR list out via `for_each`).
+
+Note these resources are **non-authoritative**: they reconcile rules they
+created, but do not remove rules added out-of-band. Detecting/removing manual
+additions is a separate governance concern (CloudTrail/EventBridge, IAM denies)
+and intentionally out of scope for the module.
