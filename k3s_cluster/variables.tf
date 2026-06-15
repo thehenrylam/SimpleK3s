@@ -42,6 +42,18 @@ variable "ssm_agent_version" {
   default     = "3.3.4515.0"
 }
 
+# Default EC2 AMI Name (Debian 13 ARM64)
+# Pinned to an exact build so `tofu plan` stays idempotent: a newly published
+# Debian AMI no longer resolves as "most_recent" and forces node replacement.
+# The name is resolved to the correct per-region AMI ID by data.aws_ami.default
+# (see cluster_ec2.tf), so it stays portable across regions. Bump this default
+# deliberately to roll nodes onto a newer image.
+variable "ec2_ami_name" {
+  description = "Exact Debian 13 ARM64 AMI name used as the default node image (resolved to a per-region AMI ID). Pinned for plan idempotency."
+  type        = string
+  default     = "debian-13-arm64-20260601-2496"
+}
+
 # K3s Specific Config: K3s Version
 variable "k3s_version" {
   description = "The K3s version to install across the cluster (control plane, agent nodes, and Karpenter-provisioned nodes)"

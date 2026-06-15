@@ -6,10 +6,6 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.0"
     }
-    local = {
-      source  = "hashicorp/local"
-      version = "~> 2.0"
-    }
   }
 }
 
@@ -18,47 +14,38 @@ locals {
     Nickname = var.nickname
     Module   = var.module_name
   }
+
+  # Render every object's content in-memory, up front:
+  #   - templated entries (template != null) -> rendered from their "<src>.tmpl" companion
+  #   - plain entries      (template == null) -> read directly from "<src>"
+  #
+  # Uploading the rendered content directly (rather than writing it to disk via a
+  # local_file resource and uploading it by `source`) keeps `tofu plan` idempotent.
+  # Previously, the rendered files were gitignored build artifacts; on a fresh clone
+  # or after `git clean` they were "missing", which made local_file plan a recreate
+  # and cascaded into re-uploading every S3 object. Computing content from the
+  # committed source / ".tmpl" files removes that working-directory dependency. (issue #85)
+  s3obj_rendered = [
+    for o in var.s3obj_data : {
+      key     = o.key
+      content = o.template == null ? file(o.src) : templatefile("${o.src}.tmpl", jsondecode(o.template))
+    }
+  ]
 }
 
 ###################################
 #    S3 Files : Bootstrapping     #
 ###################################
-# plan-time checks
-resource "terraform_data" "s3obj_check" {
-  # Make sure that all of the files set within var.s3obj_data is present and templatable (if applicable)
-  # each.key      : Filepaths to be transferred over to the s3 bucket (if templated, assume to have ".tmpl" extension)
-  # each.value    : Template object to use for templating (determines what types of checks we will use)
-  for_each = { for i, o in var.s3obj_data : o.src => o.template }
-
-  input = {
-    # IF template IS null       : Check if file exists
-    # IF template ISN'T null    : Check if file can be templated
-    sha_check = (
-      each.value == null ? filesha256(each.key) : sha256(templatefile("${each.key}.tmpl", jsondecode(each.value)))
-    )
-  }
-}
-
-# Upload the data files to S3
+# Upload the (rendered) data files to S3.
 resource "aws_s3_object" "s3obj" {
-  count  = length(var.s3obj_data)
-  bucket = var.s3_bucket_id
-  key    = var.s3obj_data[count.index].key
-  source = var.s3obj_data[count.index].src
+  count   = length(local.s3obj_rendered)
+  bucket  = var.s3_bucket_id
+  key     = local.s3obj_rendered[count.index].key
+  content = local.s3obj_rendered[count.index].content
+  # Explicit content hash so the provider only re-uploads on a real content change.
+  etag = md5(local.s3obj_rendered[count.index].content)
 
-  tags = merge(var.tags, merge(local.tags_default), {
-    Name = var.s3obj_data[count.index].key
+  tags = merge(var.tags, local.tags_default, {
+    Name = local.s3obj_rendered[count.index].key
   })
-
-  # Allow templating to execute before the files are uploaded to s3 bucket 
-  depends_on = [
-    local_file.s3obj_tmpl
-  ]
-}
-
-# Template the data files (if applicable)
-resource "local_file" "s3obj_tmpl" {
-  for_each = { for obj in var.s3obj_data : obj.src => obj.template if obj.template != null }
-  content  = templatefile("${each.key}.tmpl", jsondecode(each.value))
-  filename = each.key
 }

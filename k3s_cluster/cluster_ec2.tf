@@ -11,8 +11,11 @@ locals {
   controller_private_ip = coalesce(var.controlplane.controller_private_ip_override, cidrhost(local.controller_subnet_cidr, local.controller_private_ip_hostnum))
 
   # Pin default AMI version in text form
-  default_ami_owner        = "136693071363"      # Debian's official AWS account
-  default_ami_name_pattern = "debian-13-arm64-*" # Target Debian v13 (ARM)
+  default_ami_owner = "136693071363" # Debian's official AWS account
+  # Exact, pinned AMI name (sourced from var.ec2_ami_name). Using an exact name
+  # instead of a "debian-13-arm64-*" wildcard keeps the resolved AMI stable across
+  # plans, so a new Debian release does not trigger EC2 replacement.
+  default_ami_name_pattern = var.ec2_ami_name
 
   default_controlplane = {
     node_count        = 3
@@ -75,8 +78,11 @@ data "aws_subnet" "controller" {
   id = local.controller_subnet_id
 }
 
-# Dynamically determine the default AMI ID 
-# This is in case the user uses a different region, which the AMI ID will change
+# Resolve the pinned AMI name to a region-specific AMI ID.
+# The name (var.ec2_ami_name) is exact, so this stays stable across plans; the
+# lookup only exists so the same pinned image resolves correctly in any region.
+# most_recent is kept as a defensive tie-breaker in the unlikely event a name
+# matches more than one image.
 data "aws_ami" "default" {
   most_recent = true
   owners      = [local.default_ami_owner]
@@ -114,7 +120,7 @@ resource "aws_instance" "controlplane_ec2_node" {
   subnet_id                   = var.subnet_ids[count.index % length(var.subnet_ids)]
   key_name                    = aws_key_pair.tls_key.key_name
   iam_instance_profile        = aws_iam_instance_profile.iprofile_ec2.name
-  security_groups             = [aws_security_group.sg_instances.id]
+  vpc_security_group_ids      = [aws_security_group.sg_instances.id]
   associate_public_ip_address = true
   # The first node will have the controller private IP, the rest get dynamic IPs
   private_ip = count.index == 0 ? local.controlplane.controller_private_ip_override : null
@@ -171,7 +177,7 @@ resource "aws_instance" "agentplane_ec2_node" {
   subnet_id                   = var.subnet_ids[count.index % length(var.subnet_ids)]
   key_name                    = aws_key_pair.tls_key.key_name
   iam_instance_profile        = aws_iam_instance_profile.iprofile_ec2.name
-  security_groups             = [aws_security_group.sg_instances.id]
+  vpc_security_group_ids      = [aws_security_group.sg_instances.id]
   associate_public_ip_address = true
   # All agentplane ec2 nodes will get dynamic IPs
   private_ip = null
