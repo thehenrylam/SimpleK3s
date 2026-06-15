@@ -163,6 +163,7 @@ These versions are hardcoded defaults in the module. Check here first when inves
 | Tooling         | Python | `3.13.x` | `.github/workflows/static-analysis.yml`, `k3s_cluster/cluster_app/bootstrap/data/py/pyproject.toml`, `k3s_cluster/cluster_app/bootstrap/data/py/.python-version`, `toolchain/tc_standard_macos_install.sh` |
 | Tooling         | uv | `0.11.20` | `k3s_cluster/cluster_app/bootstrap/data/bts_01_install_packages.sh`, `toolchain/tc_standard_macos_install.sh` |
 | Platform        | K3s        | `v1.35.1+k3s1` | `k3s_cluster/variables.tf` |
+| Platform        | Node AMI (Debian 13 ARM64) | `debian-13-arm64-20260601-2496` | `k3s_cluster/variables.tf` |
 | Platform Access | AWS CLI | `2.34.63` | `k3s_cluster/variables.tf`, `k3s_cluster/cluster_app/karpenter/main.tf`, `toolchain/tc_standard_macos_install.sh` |
 | Platform Access | SSM Agent (`amazon-ssm-agent`) | `3.3.4515.0` | `k3s_cluster/variables.tf`, `k3s_cluster/cluster_app/karpenter/main.tf` |
 | Platform App    | Traefik          | `37.1.0` | `k3s_cluster/cluster_app/traefik/main.tf` |
