@@ -16,14 +16,16 @@ resource "aws_security_group" "sg_instances" {
 #############################
 #   SSH Access for Admins   #
 #############################
-# Allow SSH from admin IPs
-resource "aws_security_group_rule" "sgr_ssh_admin" {
-  type              = "ingress"
+# Allow SSH from admin IPs (one rule per CIDR — the single-rule resource takes
+# a single CIDR, so we fan out the admin_ip_list here)
+resource "aws_vpc_security_group_ingress_rule" "sgr_ssh_admin" {
+  for_each          = toset(var.admin_ip_list)
   from_port         = 22
   to_port           = 22
-  protocol          = "tcp"
-  cidr_blocks       = var.admin_ip_list
+  ip_protocol       = "tcp"
+  cidr_ipv4         = each.value
   security_group_id = aws_security_group.sg_instances.id
+  description       = "SSH from admin (${each.value})"
 }
 
 # Warn (non-fatal) if SSH is open to the world — lets the developer consciously proceed
@@ -88,21 +90,21 @@ module "k3s_sgr_traefik_https" {
 #   Foundational Kubernetes Cluster External Communication Ports   #
 ####################################################################
 # Allow DNS queries for UDP and TCP (This is so that nodes can resolve domain names (e.g., for package downloads))
-resource "aws_security_group_rule" "sgr_dns_udp" {
-  type              = "egress"
+resource "aws_vpc_security_group_egress_rule" "sgr_dns_udp" {
   from_port         = 53
   to_port           = 53
-  protocol          = "udp"
-  cidr_blocks       = [local.vpc_dns_resolver_cidr] # VPC DNS Resolver CIDR block is used instead of "0.0.0.0/0"
+  ip_protocol       = "udp"
+  cidr_ipv4         = local.vpc_dns_resolver_cidr # VPC DNS Resolver CIDR block is used instead of "0.0.0.0/0"
   security_group_id = aws_security_group.sg_instances.id
+  description       = "DNS egress (UDP)"
 }
-resource "aws_security_group_rule" "sgr_dns_tcp" {
-  type              = "egress"
+resource "aws_vpc_security_group_egress_rule" "sgr_dns_tcp" {
   from_port         = 53
   to_port           = 53
-  protocol          = "tcp"
-  cidr_blocks       = [local.vpc_dns_resolver_cidr] # VPC DNS Resolver CIDR block is used instead of "0.0.0.0/0"
+  ip_protocol       = "tcp"
+  cidr_ipv4         = local.vpc_dns_resolver_cidr # VPC DNS Resolver CIDR block is used instead of "0.0.0.0/0"
   security_group_id = aws_security_group.sg_instances.id
+  description       = "DNS egress (TCP)"
 }
 
 ###############################################################################################
