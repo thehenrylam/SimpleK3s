@@ -13,9 +13,9 @@ nickname   = "pvc-standalone" # Must match the nickname used in examples/ex_basi
 pools = [
   {
     # Platform pool: hosts SimpleK3s built-in apps (ArgoCD, Grafana, Prometheus, AlertManager)
-    # Usable capacity = 32 GB. Built-in apps consume 32 GB total (5 + 5 + 20 + 2).
+    # Usable capacity = 28 GB. Built-in apps consume ~27 GB total, we add +1GB as a safety precaution (5 + 20 + 2).
     name               = "platform"
     availability_zones = ["us-east-1a", "us-east-1b", "us-east-1c"]
-    volume_size_gb     = 32
+    volume_size_gb     = 28
   },
 ]
