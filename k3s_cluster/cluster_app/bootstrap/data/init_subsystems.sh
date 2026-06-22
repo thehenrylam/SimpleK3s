@@ -41,6 +41,11 @@ if [[ "$COUNT_INDEX" -eq 0 ]]; then
         "$SCRIPT_DIR/sub_apply_external-secrets.sh" || exit 1
     fi
 
+    # Apply Longhorn (Must be initialized before Karpenter/Descheduler so storage is ready)
+    if [ -f "$SCRIPT_DIR/sub_apply_longhorn.sh" ]; then
+        "$SCRIPT_DIR/sub_apply_longhorn.sh" || exit 1
+    fi
+
     # Apply Karpenter (Must be initialized before descheduler)
     if [ -f "$SCRIPT_DIR/sub_apply_karpenter.sh" ]; then
         "$SCRIPT_DIR/sub_apply_karpenter.sh" || exit 1

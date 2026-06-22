@@ -222,7 +222,10 @@ def _build_batch_command(probes: list[tuple[str, str]], remote_dir: str) -> list
     lines = [f"cd {remote_dir}"]
     for key, script in probes:
         lines.append(f"echo '{_MARKER_BEGIN} {key}@@'")
-        lines.append(f'sudo uv run ./{script}; echo "{_MARKER_END} {key} $?@@"')
+        # --compact: every probe emits compact JSON here so the combined stdout of
+        # all probes stays under SSM's ~24KB get-command-invocation truncation
+        # limit (a manual run without the flag still prints indented JSON).
+        lines.append(f'sudo uv run ./{script} --compact; echo "{_MARKER_END} {key} $?@@"')
     return lines
 
 

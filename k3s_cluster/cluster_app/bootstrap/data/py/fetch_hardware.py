@@ -1,10 +1,19 @@
 #!/usr/bin/env python3
 
 # Builtin Modules
-import json
+import importlib.util
+import os
 
 # Installed Modules
 import psutil
+
+_dir = os.path.dirname(os.path.abspath(__file__))
+_spec = importlib.util.spec_from_file_location(
+    "fetch_UTILITIES", os.path.join(_dir, "fetch_UTILITIES.py")
+)
+_utils = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_utils)
+emit = _utils.emit
 
 
 # HELPER FUNCTION: Convert B -> MB (Round to 2 decimal places)
@@ -103,4 +112,4 @@ def fetch_hardware():
 
 if __name__ == "__main__":
     output = fetch_hardware()
-    print(json.dumps(output, indent=4))
+    emit(output)

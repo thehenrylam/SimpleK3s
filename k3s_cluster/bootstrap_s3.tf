@@ -3,7 +3,8 @@
 #############################
 # Initialize s3 bucket to set up bootstrap configs
 resource "aws_s3_bucket" "bootstrap" {
-  bucket = local.s3_bstrap_name
+  bucket        = local.s3_bstrap_name
+  force_destroy = true
 
   tags = {
     Name     = local.s3_bstrap_name

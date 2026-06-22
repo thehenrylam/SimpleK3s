@@ -89,6 +89,12 @@ spec:
           limits:
             cpu: ${cfg.grafana.resources.lmt.cpu} # 300m
             memory: ${cfg.grafana.resources.lmt.mem} # 512Mi
+%{ if storage.grafana_enabled ~}
+        persistence:
+          enabled: true
+          storageClassName: "${storage.storage_class_name}"
+          size: "${storage.grafana_pvc_size}Gi"
+%{ endif ~}
         grafana.ini:
           server:
             root_url: "https://${domain_name}/grafana"
@@ -124,7 +130,7 @@ spec:
               name: grafana-sso
               key: oidc.cognito.client
           # Same as setting auth.generic_oauth.client_secret
-          GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET: 
+          GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
             secretKeyRef:
               name: grafana-sso
               key: oidc.cognito.secret
@@ -140,6 +146,16 @@ spec:
             limits:
               cpu: ${cfg.prometheus.resources.lmt.cpu} # 1000m
               memory: ${cfg.prometheus.resources.lmt.mem} # 2Gi
+%{ if storage.prometheus_enabled ~}
+          storageSpec:
+            volumeClaimTemplate:
+              spec:
+                storageClassName: "${storage.storage_class_name}"
+                accessModes: ["ReadWriteOnce"]
+                resources:
+                  requests:
+                    storage: "${storage.prometheus_pvc_size}Gi"
+%{ endif ~}
 
       alertmanager:
         alertmanagerSpec:
@@ -150,6 +166,16 @@ spec:
             limits:
               cpu: ${cfg.alertmanager.resources.lmt.cpu} # 200m
               memory: ${cfg.alertmanager.resources.lmt.mem} # 256Mi
+%{ if storage.alertmanager_enabled ~}
+          storage:
+            volumeClaimTemplate:
+              spec:
+                storageClassName: "${storage.storage_class_name}"
+                accessModes: ["ReadWriteOnce"]
+                resources:
+                  requests:
+                    storage: "${storage.alertmanager_pvc_size}Gi"
+%{ endif ~}
 
       prometheusOperator:
         resources:

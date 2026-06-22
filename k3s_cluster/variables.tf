@@ -138,6 +138,19 @@ variable "subsystems" {
       memory_limit           = optional(string)
       consolidate_after      = optional(string)
     }))
+    longhorn = optional(object({
+      version = optional(string)
+      pools = list(object({
+        name                    = string
+        default                 = optional(bool, false)
+        ebs_volumes_pstore_name = string
+        node_target             = optional(string, "controlplane")
+        disk_path               = optional(string)
+        reclaim_policy          = optional(string, "Retain")
+        data_locality           = optional(string, "disabled")
+        backup_s3_prefix        = optional(string)
+      }))
+    }))
   })
   default = {}
 }
@@ -155,6 +168,14 @@ variable "applications" {
       version           = optional(string)
       pstore_idp_config = string
       domain_name       = string
+      storage = optional(object({
+        pool_name = optional(string)
+        components = optional(object({
+          grafana      = optional(object({ pvc_size = optional(number, 5) }), { pvc_size = 5 })
+          prometheus   = optional(object({ pvc_size = optional(number, 20) }), { pvc_size = 20 })
+          alertmanager = optional(object({ pvc_size = optional(number, 2) }), { pvc_size = 2 })
+        }), { grafana = { pvc_size = 5 }, prometheus = { pvc_size = 20 }, alertmanager = { pvc_size = 2 } })
+      }))
     }))
   })
   default = {}

@@ -54,6 +54,8 @@ function setup_control_plane() {
     NODE_TYPE=$([ "$COUNT_INDEX" -eq 0 ] && echo "controller" || echo "server")
     "$SCRIPT_DIR/bts_03_install_k3s.sh" "$NODE_TYPE" || exit 1
 
+    "$SCRIPT_DIR/bts_04_longhorn_disks.sh" "controlplane" || exit 1
+
     "$SCRIPT_DIR/init_subsystems.sh" "$COUNT_INDEX" || exit 1
 
     "$SCRIPT_DIR/init_applications.sh" "$COUNT_INDEX" || exit 1
@@ -72,6 +74,8 @@ function setup_agent_plane() {
     # Setup the k3s (agent)
     local NODE_TYPE="agent"
     "$SCRIPT_DIR/bts_03_install_k3s.sh" "$NODE_TYPE" || exit 1
+
+    "$SCRIPT_DIR/bts_04_longhorn_disks.sh" "agentplane" || exit 1
 }
 
 

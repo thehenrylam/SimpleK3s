@@ -9,6 +9,15 @@ locals {
     version           = coalesce(try(var.settings.version, null), "0.1.0-alpha.0")
     pstore_idp_config = var.settings.pstore_idp_config
     domain_name       = var.settings.domain_name
+    storage = {
+      storage_class_name    = var.storage_class_name != null ? var.storage_class_name : ""
+      grafana_enabled       = var.storage_class_name != null && try(var.settings.storage.components.grafana.pvc_size, 0) > 0
+      grafana_pvc_size      = try(var.settings.storage.components.grafana.pvc_size, 0)
+      prometheus_enabled    = var.storage_class_name != null && try(var.settings.storage.components.prometheus.pvc_size, 0) > 0
+      prometheus_pvc_size   = try(var.settings.storage.components.prometheus.pvc_size, 0)
+      alertmanager_enabled  = var.storage_class_name != null && try(var.settings.storage.components.alertmanager.pvc_size, 0) > 0
+      alertmanager_pvc_size = try(var.settings.storage.components.alertmanager.pvc_size, 0)
+    }
   }
 
   # Resource presets (to put into performance profiles)
@@ -59,6 +68,7 @@ module "aws_s3obj" {
         pstore_idp_config = local.settings.pstore_idp_config
         region_idp_config = module.aws_pstore.processed_pstores[local.settings.pstore_idp_config].region
         cfg               = merge({}, local.performance_profile["standard"])
+        storage           = local.settings.storage
       })
     },
     {

@@ -170,6 +170,7 @@ These versions are hardcoded defaults in the module. Check here first when inves
 | Platform App    | Karpenter        | `1.9.0` | `k3s_cluster/cluster_app/karpenter/main.tf` |
 | Platform App    | Kyverno          | `3.7.1` | `k3s_cluster/cluster_app/kyverno/main.tf` |
 | Platform App    | External Secrets | `2.0.1` | `k3s_cluster/cluster_app/external-secrets/main.tf` |
+| Platform App    | Longhorn         | `1.12.0` | `k3s_cluster/cluster_app/longhorn/main.tf` |
 | Platform App    | Descheduler      | `0.35.0` | `k3s_cluster/cluster_app/descheduler/main.tf` |
 | Platform App    | ArgoCD           | `9.4.5` | `k3s_cluster/cluster_app/argocd/main.tf` |
 | Platform App    | Monitoring / kube-prometheus-stack | `0.1.0-alpha.0` | `k3s_cluster/cluster_app/monitoring/main.tf` |

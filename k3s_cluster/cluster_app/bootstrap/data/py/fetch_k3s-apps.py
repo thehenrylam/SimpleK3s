@@ -15,6 +15,7 @@ _spec = importlib.util.spec_from_file_location(
 _utils = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_utils)
 run_command = _utils.run_command
+emit = _utils.emit
 
 KUBECTL = "kubectl"
 
@@ -331,6 +332,11 @@ def _parse_args(argv=None) -> argparse.Namespace:
             "0 (default) returns an immediate snapshot of current state."
         ),
     )
+    parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="Emit compact JSON instead of indented (used by the E2E orchestrator).",
+    )
     args = parser.parse_args(argv)
     if args.wait_time < 0:
         parser.error("--wait-time must be a non-negative integer")
@@ -340,7 +346,7 @@ def _parse_args(argv=None) -> argparse.Namespace:
 if __name__ == "__main__":
     args = _parse_args()
     output = fetch_k8s_apps(wait_time=args.wait_time)
-    print(json.dumps(output, indent=4))
+    emit(output, compact=args.compact)
     # Non-zero exit when not ready so E2E callers can branch on the result
     # without re-parsing the JSON.
     sys.exit(0 if output["ready"] else 1)

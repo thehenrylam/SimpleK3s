@@ -22,7 +22,7 @@ locals {
     ec2_ami_id        = data.aws_ami.default.id
     ec2_instance_type = "t4g.medium"
     ec2_swapfile_size = "1G"
-    ebs_volume_size   = 12
+    ebs_volume_size   = 16
     ebs_volume_type   = "gp3"
   }
 
@@ -31,7 +31,7 @@ locals {
     ec2_ami_id        = data.aws_ami.default.id
     ec2_instance_type = "t4g.medium"
     ec2_swapfile_size = "1G"
-    ebs_volume_size   = 12
+    ebs_volume_size   = 16
     ebs_volume_type   = "gp3"
   }
 

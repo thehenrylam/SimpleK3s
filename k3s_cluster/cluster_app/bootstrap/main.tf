@@ -190,6 +190,12 @@ module "aws_s3obj" {
       key      = "${var.s3_config.keyroot}/py/fetch_app-descheduler.py",
       src      = "${path.module}/data/py/fetch_app-descheduler.py",
       template = null
+    },
+    {
+      desc     = "Init Script (Setup Longhorn EBS Disks)",
+      key      = "${var.s3_config.keyroot}/bts_04_longhorn_disks.sh",
+      src      = "${path.module}/data/bts_04_longhorn_disks.sh",
+      template = null
     }
   ]
 }

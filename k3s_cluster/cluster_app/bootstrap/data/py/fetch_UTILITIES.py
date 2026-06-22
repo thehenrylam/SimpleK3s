@@ -4,9 +4,25 @@
 import json
 import shlex
 import subprocess
+import sys
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+
+
+def emit(output: dict, compact: bool | None = None) -> None:
+    # Print a probe's result as JSON. The default is indented (human-readable)
+    # so manual runs stay legible. Pass --compact (or compact=True) for compact
+    # JSON: the E2E orchestrator batches every probe's stdout into one SSM
+    # command, and SSM's get-command-invocation truncates StandardOutputContent
+    # at ~24 KB — compact output keeps the batch under that limit so the trailing
+    # probes' markers are not cut off.
+    if compact is None:
+        compact = "--compact" in sys.argv
+    if compact:
+        print(json.dumps(output, separators=(",", ":")))
+    else:
+        print(json.dumps(output, indent=4))
 
 
 # This class + function is meant to help make SHELL commands easier to execute

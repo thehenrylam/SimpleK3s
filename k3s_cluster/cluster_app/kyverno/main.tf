@@ -11,6 +11,7 @@ locals {
     control_plane_toleration_ns_list = [
       "kyverno",
       "external-secrets",
+      "longhorn-system",
       "argocd",
       "monitoring",
       "jenkins"

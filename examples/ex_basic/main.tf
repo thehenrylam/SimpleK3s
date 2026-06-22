@@ -39,6 +39,8 @@ locals {
   # }
   # Use the module within ../modules/idp_cognito to create this config
   pstore_idp_config = "/idp-standalone/idp-standalone/idp_config"
+
+  pvc_pool_platform = "/pvc-standalone/pvc-standalone/pvc_pool_platform"
 }
 
 module "vpc_cloud" {
@@ -77,16 +79,40 @@ module "k3s_cluster" {
       memory_limit           = "128Gi"
       consolidate_after      = "5m"
     }
+
+    # Persistent storage — deploy examples/ex_pvc first to create the EBS volumes.
+    # ebs_volumes_pstore_name must match the SSM parameter created by ex_pvc.
+    longhorn = {
+      pools = [
+        {
+          name                    = "platform"
+          default                 = true
+          ebs_volumes_pstore_name = local.pvc_pool_platform
+          node_target             = "controlplane"
+          reclaim_policy          = "Retain"
+          data_locality           = "disabled"
+          backup_s3_prefix        = "longhorn-backups/platform/"
+        }
+      ]
+    }
   }
 
   applications = {
-    argocd = { # Deployer: ArgoCD   
+    argocd = { # Deployer: ArgoCD
       pstore_idp_config = local.pstore_idp_config
       domain_name       = local.domain_name
     }
     monitoring = { # Monitoring: Prometheus & Grafana
       pstore_idp_config = local.pstore_idp_config
       domain_name       = local.domain_name
+      storage = {
+        pool_name = "platform"
+        components = {
+          grafana      = { pvc_size = 5 }
+          prometheus   = { pvc_size = 20 }
+          alertmanager = { pvc_size = 2 }
+        }
+      }
     }
   }
 }

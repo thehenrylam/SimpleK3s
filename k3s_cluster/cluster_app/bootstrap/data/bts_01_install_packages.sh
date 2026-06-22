@@ -36,6 +36,14 @@ function apt_install_essential() {
         gettext-base \
         unzip || return 1
 
+    # Longhorn compatibility: open-iscsi provides iscsid/iscsiadm so Longhorn can present replicated
+    # volumes to pods via iSCSI; nfs-common provides NFS client tools checked by Longhorn at startup.
+    # Both must be on the host OS — Longhorn reaches them via nsenter into the host mount namespace.
+    # check-versions: ignore - open-iscsi and nfs-commonn are OS-level packages tied to the Debian release
+    apt-get install -y \
+        open-iscsi \
+        nfs-common || return 1
+
     # Install python3 environment and our required modules
     log_info "Installing Python packages via uv"
     local PYTHON_DIR="${SCRIPT_DIR}/py"

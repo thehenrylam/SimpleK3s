@@ -31,11 +31,11 @@ module "cluster_app_argocd" {
   settings = var.applications.argocd
   # S3 settings
   s3_config = local.s3_config_applications
-  # IAM settings 
+  # IAM settings
   iam_config = local.iam_config_applications
 }
 
-# IF ENABLED: Check and Set up all of the needed files for Monitoring (Prometheus & Grafana) 
+# IF ENABLED: Check and Set up all of the needed files for Monitoring (Prometheus & Grafana)
 # Handles:
 #   - S3 object upload
 #   - IAM rights settings (e.g. role name of the EC2 env to allow getting secret settings from the ParameterStore)
@@ -47,6 +47,12 @@ module "cluster_app_monitoring" {
   settings = var.applications.monitoring
   # S3 settings
   s3_config = local.s3_config_applications
-  # IAM settings 
+  # IAM settings
   iam_config = local.iam_config_applications
+  # Resolved Longhorn StorageClass (null when no storage block or Longhorn not enabled)
+  storage_class_name = (
+    try(var.applications.monitoring.storage, null) != null && local.monitoring_pool_name != null
+    ? "longhorn-${local.monitoring_pool_name}"
+    : null
+  )
 }

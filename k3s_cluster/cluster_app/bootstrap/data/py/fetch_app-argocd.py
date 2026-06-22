@@ -3,7 +3,6 @@
 # Builtin Modules
 import base64
 import importlib.util
-import json
 import os
 import re
 import sys
@@ -14,6 +13,7 @@ _spec = importlib.util.spec_from_file_location(
 )
 _utils = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_utils)
+emit = _utils.emit
 get_resource = _utils.get_resource
 http_get = _utils.http_get
 
@@ -160,5 +160,5 @@ def fetch_argocd() -> dict:
 
 if __name__ == "__main__":
     output = fetch_argocd()
-    print(json.dumps(output, indent=4))
+    emit(output)
     sys.exit(0 if output["ready"] else 1)
