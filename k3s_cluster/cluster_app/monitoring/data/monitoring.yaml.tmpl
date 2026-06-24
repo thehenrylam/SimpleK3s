@@ -64,24 +64,19 @@ spec:
   targetNamespace: "monitoring"
   createNamespace: true
 
-  # Keep this minimal; put most config in HelmChartConfig
+  # ALL chart values live here, NOT in a separate HelmChartConfig. The K3s
+  # helm-controller can run the HelmChart's install before a sibling
+  # HelmChartConfig is merged in; that first install would then render the
+  # Prometheus/Alertmanager CRs WITHOUT their storageSpec. The operator builds
+  # their StatefulSets on emptyDir, and StatefulSet volumeClaimTemplates are
+  # immutable — so the storage values can never be applied afterward (the CRs
+  # stay storage-less even though the release record later shows them). Keeping
+  # every value in the HelmChart's own valuesContent guarantees the first (and
+  # only) install carries storage, so the StatefulSets are born with PVCs.
   valuesContent: |-
     kube-prometheus-stack:
       grafana:
         enabled: true
-
----
-# HelmChartConfig: configures the already-installed HelmChart release ("prometheus")
-# (name+namespace MUST match the HelmChart above)
-apiVersion: helm.cattle.io/v1
-kind: HelmChartConfig
-metadata:
-  name: prometheus
-  namespace: kube-system
-spec:
-  valuesContent: |-
-    kube-prometheus-stack:
-      grafana:
         resources:
           requests:
             cpu: ${cfg.grafana.resources.req.cpu} # 50m
