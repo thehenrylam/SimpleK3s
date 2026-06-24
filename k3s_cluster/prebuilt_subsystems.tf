@@ -36,6 +36,10 @@ locals {
     null
   )
 
+  # Source of truth for pool-reference validation: every Longhorn pool name that
+  # actually exists (empty list when the Longhorn subsystem is disabled).
+  longhorn_pool_names = try([for p in var.subsystems.longhorn.pools : p.name], [])
+
   monitoring_pool_name = try(
     coalesce(var.applications.monitoring.storage.pool_name, local.longhorn_default_pool_name),
     null
@@ -49,6 +53,28 @@ locals {
       local.monitoring_pool_name == pool_name ? try(var.applications.monitoring.storage.components.prometheus.pvc_size, 0) : null,
       local.monitoring_pool_name == pool_name ? try(var.applications.monitoring.storage.components.alertmanager.pvc_size, 0) : null,
     ]))
+  }
+}
+
+# Longhorn pool-reference validation (subsystems)
+# Register here any SUBSYSTEM that is wired to a Longhorn pool: "<ref-label>" => <pool_name>.
+# The check below fails the plan when a referenced pool is not defined in
+# subsystems.longhorn.pools. null entries are ignored (the subsystem isn't using storage).
+locals {
+  longhorn_pool_refs_subsystems = {
+    # Example: "myservice" = local.myservice_pool_name
+    # (no subsystem currently references a Longhorn pool)
+  }
+}
+
+resource "terraform_data" "longhorn_pool_check_subsystems" {
+  for_each = { for ref_label, pool_name in local.longhorn_pool_refs_subsystems : ref_label => pool_name if pool_name != null }
+
+  lifecycle {
+    precondition {
+      condition     = contains(local.longhorn_pool_names, each.value)
+      error_message = "Subsystem '${each.key}' references Longhorn pool '${each.value}', which is not defined in subsystems.longhorn.pools (available pools: ${length(local.longhorn_pool_names) > 0 ? join(", ", local.longhorn_pool_names) : "none — is the Longhorn subsystem enabled?"})."
+    }
   }
 }
 

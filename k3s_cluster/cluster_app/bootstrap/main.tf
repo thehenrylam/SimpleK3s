@@ -150,6 +150,12 @@ module "aws_s3obj" {
       template = null
     },
     {
+      desc     = "Helper Script (Python - fetch_app-longhorn.py)"
+      key      = "${var.s3_config.keyroot}/py/fetch_app-longhorn.py",
+      src      = "${path.module}/data/py/fetch_app-longhorn.py",
+      template = null
+    },
+    {
       desc     = "Helper Script (Python - fetch_app-karpenter.py)"
       key      = "${var.s3_config.keyroot}/py/fetch_app-karpenter.py",
       src      = "${path.module}/data/py/fetch_app-karpenter.py",
@@ -180,9 +186,21 @@ module "aws_s3obj" {
       template = null
     },
     {
+      desc     = "Helper Script (Python - fetch_app-grafana-pvc.py)"
+      key      = "${var.s3_config.keyroot}/py/fetch_app-grafana-pvc.py",
+      src      = "${path.module}/data/py/fetch_app-grafana-pvc.py",
+      template = null
+    },
+    {
       desc     = "Helper Script (Python - fetch_app-prometheus.py)"
       key      = "${var.s3_config.keyroot}/py/fetch_app-prometheus.py",
       src      = "${path.module}/data/py/fetch_app-prometheus.py",
+      template = null
+    },
+    {
+      desc     = "Helper Script (Python - fetch_app-prometheus-pvc.py)"
+      key      = "${var.s3_config.keyroot}/py/fetch_app-prometheus-pvc.py",
+      src      = "${path.module}/data/py/fetch_app-prometheus-pvc.py",
       template = null
     },
     {

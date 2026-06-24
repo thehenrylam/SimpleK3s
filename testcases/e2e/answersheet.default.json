@@ -89,6 +89,25 @@
         "secret_stores": { "$ignore": true },
         "errors": { "$ignore": true }
       },
+      "longhorn": {
+        "ready": true,
+        "status": { "$ignore": true },
+        "summary": {
+          "manager_ok": true,
+          "csi_plugin_ok": true,
+          "csi_deployments_ready": { "$gte": 4 },
+          "csi_deployments_total": { "$ignore": true },
+          "csinodes_registered": { "$gte": 1 },
+          "csinodes_expected": { "$ignore": true },
+          "all_csi_registered": true,
+          "storage_classes": { "$gte": 1 },
+          "longhorn_nodes_schedulable": { "$gte": 1 },
+          "longhorn_nodes_total": { "$ignore": true }
+        },
+        "details": { "$ignore": true },
+        "errors": { "$ignore": true },
+        "note": { "$ignore": true }
+      },
       "argocd": {
         "ready": true,
         "status": { "$ignore": true },
@@ -114,6 +133,18 @@
         "errors": { "$ignore": true },
         "note": { "$ignore": true }
       },
+      "grafana_pvc": {
+        "ready": true,
+        "status": { "$ignore": true },
+        "summary": {
+          "pvcs_total": { "$gte": 1 },
+          "pvcs_bound": { "$gte": 1 },
+          "pvcs_unbound": 0
+        },
+        "details": { "$ignore": true },
+        "errors": { "$ignore": true },
+        "note": { "$ignore": true }
+      },
       "prometheus": {
         "ready": true,
         "status": { "$ignore": true },
@@ -122,6 +153,19 @@
           "prometheus_crs_total": { "$ignore": true },
           "healthy_ok": true,
           "ready_ok": true
+        },
+        "details": { "$ignore": true },
+        "errors": { "$ignore": true },
+        "note": { "$ignore": true }
+      },
+      "prometheus_pvc": {
+        "ready": true,
+        "status": { "$ignore": true },
+        "summary": {
+          "pvcs_total": { "$gte": 1 },
+          "pvcs_bound": { "$gte": 1 },
+          "pvcs_unbound": 0,
+          "components_with_pvc": { "$ignore": true }
         },
         "details": { "$ignore": true },
         "errors": { "$ignore": true },

@@ -124,6 +124,35 @@ def get_resources(resource: str, timeout: int = 20, kubectl: str = KUBECTL) -> d
         return {"items": [], "error": f"failed to parse json: {exc}"}
 
 
+def get_pvcs(namespace: str, kubectl: str = KUBECTL) -> tuple:
+    # List PersistentVolumeClaims in a namespace as normalized dicts
+    # (name/phase/bound/storage_class/capacity/volume). Returns (pvcs, error);
+    # error is non-None when the kubectl call failed. Shared by the per-component
+    # storage probes (grafana/prometheus) so their collection logic can't drift.
+    payload = get_resources("pvc", kubectl=kubectl)
+    if "error" in payload:
+        return [], payload["error"]
+    pvcs = []
+    for obj in payload.get("items", []):
+        meta = obj.get("metadata", {})
+        if meta.get("namespace") != namespace:
+            continue
+        spec = obj.get("spec", {})
+        status = obj.get("status", {})
+        phase = status.get("phase", "")
+        pvcs.append(
+            {
+                "name": meta.get("name", ""),
+                "phase": phase,
+                "bound": phase == "Bound",
+                "storage_class": spec.get("storageClassName"),
+                "capacity": status.get("capacity", {}).get("storage"),
+                "volume": spec.get("volumeName"),
+            }
+        )
+    return pvcs, None
+
+
 def get_ready_condition(obj: dict) -> dict:
     # Extract the standard status.conditions[type=Ready] entry shared by ESO,
     # Kyverno, and Karpenter CRDs. Returns a not-ready verdict when no such

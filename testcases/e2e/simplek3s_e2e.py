@@ -50,9 +50,12 @@ APP_PROBES = [
     ("karpenter", "fetch_app-karpenter.py"),
     ("kyverno", "fetch_app-kyverno.py"),
     ("external_secrets", "fetch_app-external-secrets.py"),
+    ("longhorn", "fetch_app-longhorn.py"),
     ("argocd", "fetch_app-argocd.py"),
     ("grafana", "fetch_app-grafana.py"),
+    ("grafana_pvc", "fetch_app-grafana-pvc.py"),
     ("prometheus", "fetch_app-prometheus.py"),
+    ("prometheus_pvc", "fetch_app-prometheus-pvc.py"),
     ("descheduler", "fetch_app-descheduler.py"),
 ]
 
