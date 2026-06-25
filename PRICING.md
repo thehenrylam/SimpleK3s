@@ -1,5 +1,11 @@
 # Pricing
 
+<style>
+ylw {
+    color: yellow;
+}
+</style>
+
 This document provides estimated monthly costs for running SimpleK3s across common deployment profiles, along with a comparison against equivalent EKS setups.
 
 > **Disclaimer:** All prices are estimates based on AWS `us-east-1` on-demand rates as of May 2026.<br/>
@@ -10,23 +16,24 @@ This document provides estimated monthly costs for running SimpleK3s across comm
 
 ## Reference Rates (us-east-1)
 
-| Resource       | Rate (Hourly)   | Rate (Monthly)                 | 
-| -------------: | :-------------- | :----------------------------- |
-| t4g.small      |  $0.0168/hr     | ~$12/mo                        |
-| t4g.medium     |  $0.0336/hr     | ~$25/mo                        |
-| t4g.large      |  $0.0672/hr     | ~$49/mo                        |
-| t4g.xlarge     |  $0.1344/hr     | ~$98/mo                        |
-| m6g.medium     |  $0.039/hr      | ~$28/mo                        |
-| m6g.large      |  $0.077/hr      | ~$55/mo                        |
-| m6g.xlarge     |  $0.154/hr      | ~$111/mo                       |
-| c6g.medium     |  $0.034/hr      | ~$24/mo                        |
-| c6g.large      |  $0.068/hr      | ~$49/mo                        |
-| c6g.xlarge     |  $0.136/hr      | ~$98/mo                        |
-| db.r6g.2xlarge |  $0.899/hr      | ~$647/mo                       |
-| db.r6g.4xlarge |  $1.798/hr      | ~$1295/mo                      |
-| EBS gp3        | ~$0.00001/GB/hr | $0.08/GB/mo                    |
-| ELB (Network)  | --N/A--         | ~$16/mo (low traffic baseline) |
-| Public IPv4    |  $0.005/hr      | ~$3.65/mo per address          |
+| Resource          | Rate (Hourly)      | Rate (Monthly)                 | 
+| ----------------: | :----------------- | :----------------------------- |
+| t4g.small         |  $0.0168/hr        | ~$12/mo                        |
+| t4g.medium        |  $0.0336/hr        | ~$25/mo                        |
+| t4g.large         |  $0.0672/hr        | ~$49/mo                        |
+| t4g.xlarge        |  $0.1344/hr        | ~$98/mo                        |
+| m6g.medium        |  $0.039/hr         | ~$28/mo                        |
+| m6g.large         |  $0.077/hr         | ~$55/mo                        |
+| m6g.xlarge        |  $0.154/hr         | ~$111/mo                       |
+| c6g.medium        |  $0.034/hr         | ~$24/mo                        |
+| c6g.large         |  $0.068/hr         | ~$49/mo                        |
+| c6g.xlarge        |  $0.136/hr         | ~$98/mo                        |
+| db.r6g.2xlarge    |  $0.899/hr         | ~$647/mo                       |
+| db.r6g.4xlarge    |  $1.798/hr         | ~$1295/mo                      |
+| EBS gp3           | ~$0.00001/GB/hr    | $0.08/GB/mo                    |
+| ELB (Network)     | --N/A--            | ~$16/mo (low traffic baseline) |
+| Cross AZ Transfer |  $0.01/GB Each Way | --N/A--                        |
+| Public IPv4       |  $0.005/hr         | ~$3.65/mo per address          |
 
 *NOTE: Spot instances (for the t4g family) can provide up to ~60-70% savings compared to on-demand instances.
 - The discount rates are completely dependent on the current market demand for instances
@@ -40,10 +47,30 @@ This document provides estimated monthly costs for running SimpleK3s across comm
 
 These are the scenarios to help provide a clear picture of how much SimpleK3s would cost, so developers can properly estimate and budget these kinds of Kubernetes setups.
 
-**Assumptions for all Scenarios:**
+**Assumptions for all Scenarios:** (unless otherwise specified under **Additional Assumptions**)
+
 - This setup is used 24/7 (typical uptime of a SaaS service)
-- Only control plane costs are calculated (unless otherwise specified under **Additional Assumptions**)
+- All of the scenarios assume that the cluster exists in the SAME region and operates in 3 AZs
+- Only control plane costs are calculated
 - AWS Cognito used as IdP and is free via the free-tier condition (under 50K MAU)
+- PVCs must have replicas in all the AZs that the cluster operates in
+- For AZ Cross Transfer Calculations, we assume the following formula to determine cross AZ data transfer costs via LongHorn
+    - Complete Formula: `GB_MONTHLY_WRITES` * (`NUM_AZ` - 1) * (`COST_CROSS_AZ_TRANSFER_EACH_WAY` * 2)
+    - Simplified Formula: `GB_MONTHLY_WRITES` * $0.04/GB 
+        - Assumption: AZs = 3, Cross AZ Transfer = $0.01/GB
+- For AZ Cross Transfer Calculations, we assume the following apps' monthly writes and costs under the following table:
+
+| Application             | Est. Monthly Writes | Est. Monthly Cost | Details                                                   |
+| :---------------------- | :------------------ | :---------------- | :-------------------------------------------------------- |
+| ArgoCD                  | 0.5 GB/mo           | $0.00/mo          | App writes into its ephemeral storage, no cross AZ needed |
+| Grafana                 | 0.5 GB/mo           | $0.02/mo          | App's data writes is negligible                           |
+| Prometheus Alertmanager | 0.5 GB/mo           | $0.02/mo          | App's data writes is negligible                           |
+| Prometheus (light)      | 6.5 GB/mo           | $0.26/mo          | 25K Active Series, 60s Scrape Interval, 450 Samples/s     |
+| Prometheus (standard)   | 60.0 GB/mo          | $2.40/mo          | 150K Active Series, 30s Scrape Interval, 5K Samples/s     |
+| Prometheus (heavy)      | 1500.0 GB/mo        | $60.00/mo         | 2M Active Series, 15s Scrape Interval, 125K Samples/s     |
+| <ylw>TOTAL COST</ylw> (light)    | 7.5 GB/mo    | $0.30/mo          | Exclude ArgoCD and use Prometheus (light)               |
+| <ylw>TOTAL COST</ylw> (standard) | 61.0 GB/mo   | $2.44/mo          | Exclude ArgoCD and use Prometheus (standard)            |
+| <ylw>TOTAL COST</ylw> (heavy)    | 1501.0 GB/mo | $60.04/mo         | Exclude ArgoCD and use Prometheus (heavy)               |
 
 ### Scenario 0 — Control Group (EKS with Feature Parity to SimpleK3s)
 
@@ -54,6 +81,7 @@ A cost baseline of an EKS setup with the same platform capabilities that SimpleK
 - Ingress (Traefik)
 - Policy enforcement (Kyverno)
 - Secrets management (External Secrets)
+- Persistent Volume Claims (LongHorn)
 
 **Additional Assumptions:**
 - 2 × t4g.large worker nodes to host all system pods with adequate headroom (Represented as `Workers (System)`)
