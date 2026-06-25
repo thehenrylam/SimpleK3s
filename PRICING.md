@@ -315,6 +315,7 @@ EKS charges a flat **$73/mo** for the managed control plane regardless of cluste
 - **Set up CDN before you need it:** Cloudflare's free and Pro tiers handle meaningful traffic with zero bandwidth fees. Getting CDN in place early (Scenarios 3–4) avoids an expensive emergency migration when traffic spikes in Scenario 5.
 - **Verify Bandwidth Alliance eligibility early:** At Scenario 5 scale, whether EC2 → Cloudflare egress is waived under the AWS Bandwidth Alliance is worth confirming with both AWS and Cloudflare — the difference is potentially tens of millions of dollars per month.
 - **Turn dev/staging clusters off overnight:** For non-production environments with predictable off-hours, `tofu destroy` and `tofu apply` on a schedule eliminates the control plane cost entirely during downtime — Karpenter alone won't help if the control plane stays running.
+- **Offload Data Storage from EBS to S3:** EBS is deceptively expensive and is trickier to scale than S3. Especially when using them as PVCs, which you'll need to pay extra for HA and cross AZ transfers.
 
 # Sources:
   - https://dev.to/ocodista/under-pressure-benchmarking-nodejs-on-a-single-core-ec2-5ghe
