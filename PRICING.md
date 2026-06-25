@@ -1,11 +1,5 @@
 # Pricing
 
-<style>
-ylw {
-    color: yellow;
-}
-</style>
-
 This document provides estimated monthly costs for running SimpleK3s across common deployment profiles, along with a comparison against equivalent EKS setups.
 
 > **Disclaimer:** All prices are estimates based on AWS `us-east-1` on-demand rates as of May 2026.<br/>
@@ -16,24 +10,24 @@ This document provides estimated monthly costs for running SimpleK3s across comm
 
 ## Reference Rates (us-east-1)
 
-| Resource          | Rate (Hourly)      | Rate (Monthly)                 | 
-| ----------------: | :----------------- | :----------------------------- |
-| t4g.small         |  $0.0168/hr        | ~$12/mo                        |
-| t4g.medium        |  $0.0336/hr        | ~$25/mo                        |
-| t4g.large         |  $0.0672/hr        | ~$49/mo                        |
-| t4g.xlarge        |  $0.1344/hr        | ~$98/mo                        |
-| m6g.medium        |  $0.039/hr         | ~$28/mo                        |
-| m6g.large         |  $0.077/hr         | ~$55/mo                        |
-| m6g.xlarge        |  $0.154/hr         | ~$111/mo                       |
-| c6g.medium        |  $0.034/hr         | ~$24/mo                        |
-| c6g.large         |  $0.068/hr         | ~$49/mo                        |
-| c6g.xlarge        |  $0.136/hr         | ~$98/mo                        |
-| db.r6g.2xlarge    |  $0.899/hr         | ~$647/mo                       |
-| db.r6g.4xlarge    |  $1.798/hr         | ~$1295/mo                      |
-| EBS gp3           | ~$0.00001/GB/hr    | $0.08/GB/mo                    |
-| ELB (Network)     | --N/A--            | ~$16/mo (low traffic baseline) |
-| Cross AZ Transfer |  $0.01/GB Each Way | --N/A--                        |
-| Public IPv4       |  $0.005/hr         | ~$3.65/mo per address          |
+| Resource          | Rate (Hourly)   | Rate (Monthly)  | Comment |
+| ----------------: | :-------------- | :-------------- | :------ |
+| t4g.small         |  $0.0168/hr     | $12.27/mo       |         |
+| t4g.medium        |  $0.0336/hr     | $24.54/mo       |         |
+| t4g.large         |  $0.0672/hr     | $49.09/mo       |         |
+| t4g.xlarge        |  $0.1344/hr     | $98.18/mo       |         |
+| m6g.medium        |  $0.039/hr      | $28.49/mo       |         |
+| m6g.large         |  $0.077/hr      | $56.25/mo       |         |
+| m6g.xlarge        |  $0.154/hr      | $112.50/mo      |         |
+| c6g.medium        |  $0.034/hr      | $24.84/mo       |         |
+| c6g.large         |  $0.068/hr      | $49.67/mo       |         |
+| c6g.xlarge        |  $0.136/hr      | $99.35/mo       |         |
+| db.r6g.2xlarge    |  $0.899/hr      | $656.72/mo      | for DB instances only |
+| db.r6g.4xlarge    |  $1.798/hr      | $1,313.44/mo    | for DB instances only |
+| EBS gp3 (per GB)  |  $0.00011/hr    | $0.08/mo        | charges still incur if unused (unlike EC2s) |
+| ELB (Network)     | --N/A--         | $16.43/mo       | low traffic baseline |
+| Cross AZ Transfer (per GB) |  $0.01/transfer       | $0.02/round-trip         | round trip cost == 2 × transfer cost |
+| Public IPv4       |  $0.005/mo      | $3.65/mo        |        | 
 
 *NOTE: Spot instances (for the t4g family) can provide up to ~60-70% savings compared to on-demand instances.
 - The discount rates are completely dependent on the current market demand for instances
@@ -68,9 +62,9 @@ These are the scenarios to help provide a clear picture of how much SimpleK3s wo
 | Prometheus (light)      | 6.5 GB/mo           | $0.26/mo          | 25K Active Series, 60s Scrape Interval, 450 Samples/s     |
 | Prometheus (standard)   | 60.0 GB/mo          | $2.40/mo          | 150K Active Series, 30s Scrape Interval, 5K Samples/s     |
 | Prometheus (heavy)      | 1500.0 GB/mo        | $60.00/mo         | 2M Active Series, 15s Scrape Interval, 125K Samples/s     |
-| <ylw>TOTAL COST</ylw> (light)    | 7.5 GB/mo    | $0.30/mo          | Exclude ArgoCD and use Prometheus (light)               |
-| <ylw>TOTAL COST</ylw> (standard) | 61.0 GB/mo   | $2.44/mo          | Exclude ArgoCD and use Prometheus (standard)            |
-| <ylw>TOTAL COST</ylw> (heavy)    | 1501.0 GB/mo | $60.04/mo         | Exclude ArgoCD and use Prometheus (heavy)               |
+| **Total** (light)       | 7.5 GB/mo           | $0.30/mo          | Exclude ArgoCD and use Prometheus (light)               |
+| **Total** (standard)    | 61.0 GB/mo          | $2.44/mo          | Exclude ArgoCD and use Prometheus (standard)            |
+| **Total** (heavy)       | 1501.0 GB/mo        | $60.04/mo         | Exclude ArgoCD and use Prometheus (heavy)               |
 
 ### Scenario 0 — Control Group (EKS with Feature Parity to SimpleK3s)
 
