@@ -86,11 +86,13 @@ A cost baseline of an EKS setup with the same platform capabilities that SimpleK
 | Line Item              | Est. Monthly Cost | Detail                    | 
 | :--------------------- | :---------------- | :------------------------ | 
 | EKS Control Plane      | $73.00            | AWS managed, flat fee     |
-| EC2 — Workers (System) | $98.11            | 2 × t4g.large (on-demand) |
-| EBS — Workers (System) | $1.92             | 2 × 12 GB gp3             |
+| EC2 — Workers (System) | $98.18            | 2 × t4g.large (on-demand) |
+| EBS — Workers (System) | $2.56             | 2 × 16 GB gp3             |
+| EBS — PVC (light)      | $6.72             | 3 × 28 GB gp3             |
+| Cross AZ — PVC (light) | $0.30             | Referred to the Cross AZ usage table above |
 | Network Load Balancer  | $16.43            | 1 NLB (low traffic)       |
 | Public IPv4 (System)   | $7.30             | 2 addresses × $3.65/mo    |
-| **Total**              | **$196.76**       |                           |
+| **Total**              | **$204.49**       |                           |
 
 > ***Reminder***: Although EKS helps simplify the creation of a Kubernetes cluster, installation and configuration of each tool like ArgoCD still needs to be done by the developer. Not to mention the requirement to stay on the AWS's EKS upgrade cycle.
 
@@ -100,13 +102,15 @@ The out-of-the-box configuration: 3 control-plane nodes running K3s, all system 
 
 | Line Item                   | Est. Monthly Cost | Detail                        |
 | --------------------------: | :---------------- | :---------------------------- |
-| EC2 — Control Plane         | $73.58            | 3 × t4g.medium (on-demand)    |
-| EBS — Control Plane         | $2.88             | 3 × 12 GB gp3                 |
-| Public IPv4 - Control Plane | $10.95            | 3 addresses × $3.65/mo        |
+| EC2 — Control Plane         | $73.63            | 3 × t4g.medium (on-demand)    |
+| EBS — Control Plane         | $3.84             | 3 × 16 GB gp3                 |
+| EBS — PVC (light)           | $6.72             | 3 × 28 GB gp3                 |
+| Cross AZ — PVC (light)      | $0.30             | Referred to the Cross AZ usage table above |
 | Network Load Balancer       | $16.43            | 1 NLB (low traffic)           |
-| **Total**                   | **$103.84**       |                               |
+| Public IPv4 - Control Plane | $10.95            | 3 addresses × $3.65/mo        |
+| **Total**                   | **$111.87**       |                               |
 
-> SimpleK3s is ***47%*** cheaper than a comparable EKS setup without changing anything
+> SimpleK3s is ***45%*** cheaper than a comparable EKS setup without changing anything
 
 ---
 
@@ -115,13 +119,15 @@ The out-of-the-box configuration: 3 control-plane nodes running K3s, all system 
 Minimizes spend while keeping the full platform (ArgoCD, Grafana, monitoring) operational.
 Optimization Philosophy: Change the default settings while not compromising on deployment and observability (which would immediately cost the startup in terms of lost productivity and potential downtime)
 
-| Line Item             | Est. Monthly Cost | Detail                      |
-| --------------------: | :---------------- | :-------------------------- |
-| EC2 — Control Plane   | $49.00            | 1 × t4g.large (on-demand)   |
-| EBS — Control Plane   | $0.96             | 1 × 12 GB gp3               |
-| Network Load Balancer | $16.43            | 1 NLB (low traffic)         |
-| Public IPv4           | $3.65             | 1 address × $3.65/mo        |
-| **Total**             | **$70.04**        |                             |
+| Line Item                   | Est. Monthly Cost | Detail                      |
+| --------------------------: | :---------------- | :-------------------------- |
+| EC2 — Control Plane         | $49.09            | 1 × t4g.large (on-demand)   |
+| EBS — Control Plane         | $1.92             | 1 × 24 GB gp3               |
+| EBS — PVC (light)           | $2.24             | 3 × 28 GB gp3               |
+| Cross AZ — PVC (light)      | $0.00             | No multi AZ setup, so no cross AZ costs |
+| Network Load Balancer       | $16.43            | 1 NLB (low traffic)         |
+| Public IPv4 - Control Plane | $3.65             | 1 address × $3.65/mo        |
+| **Total**                   | **$73.33**        |                             |
 
 > Cost Optimized SimpleK3s is ***64%*** cheaper than a comparable EKS setup (without HA)<br/>
 > Cost Optimized SimpleK3s is ***33%*** cheaper than a SimpleK3s default setup
@@ -155,20 +161,22 @@ Scenario that illustrates a standard deployment of a startup that is between mon
 
 | Line Item                  | Est. Monthly Cost | Detail                                               |
 | -------------------------: | :---------------- | :--------------------------------------------------- |
-| SimpleK3s Control Plane    | $70.04            | Pricing metrics of Scenario 2                        |
-| EC2 — Workers (On-Demand)  | $18.14            | 1.5 × t4g.small (1.5 x $0.0168/hr)                   |
+| SimpleK3s Control Plane    | $73.33            | Pricing metrics of Scenario 2                        |
+| EC2 — Workers (On-Demand)  | $18.41            | 1.5 × t4g.small (1.5 x $0.0168/hr)                   |
 | EBS — Workers              | $2.88             | 1.5 × 24 GB gp3                                      |
+| EBS — PVC (light)          | $7.68             | 3 × 32 GB gp3 (Full HA multi-AZ)                     |
+| Cross AZ — PVC (light)     | $0.30             | Referred to the Cross AZ usage table above           |
 | Public IPv4 - Workers      | $5.48             | 1.5 × addresses                                      |
 | Database (Supabase Free)   | $0.00             | 500MB disk, 5 GB egress, 50K MAU                     |
-| **Total**                  | **$96.54**        |                                                      |
-| **Comparable EKS Setup**   | **$223.26**       | EKS baseline cost + Scenario 3 worker resources + DB |
+| **Total**                  | **$108.07**       |                                                      |
+| **Comparable EKS Setup**   | **$239.23**       | EKS baseline cost + Scenario 3 worker resources + DB |
 
 > With the following assumptions, this can comfortably handle ~1000 users without breaking a sweat.<br/>
 > In addition, this setup is protected from traffic spikes due to Karpenter's dynamic provisioning.
 
 > **Caution**: Please be careful, although we have sources stating that t2.micros can handle 2000 RPS, `t*` type instances primarily use burst credits to drive their performance, if the workload is consistently high, it will deplete its burst credits and throttle hard. Please be prepared to use `t4g.medium` instances, or `m*`/`c*` type instances the moment slow response times are detected.
 
-> ***Reminder***: This setup is cheaper than a SimpleK3s control plane only setup (default settings)! (**$96.54/mo** vs **$103.84/mo**)
+> ***Reminder***: This setup is cheaper than a SimpleK3s control plane only setup (default settings)! (**$108.07/mo** vs **$111.87/mo**)
 
 ---
 
@@ -194,18 +202,20 @@ Scenario that illustrates a standard deployment of a startup that is between mon
 
 | Line Item                  | Est. Monthly Cost | Detail                                               |
 | -------------------------: | :---------------- | :--------------------------------------------------- |
-| SimpleK3s Control Plane    | $103.84           | Pricing metrics of Scenario 1                        |
-| EC2 — Workers (On-Demand)  | $42.12            | 1.5 × m6g.medium (1.5 x $0.039/hr)                   |
+| SimpleK3s Control Plane    | $111.87           | Pricing metrics of Scenario 1                        |
+| EC2 — Workers (On-Demand)  | $42.73            | 1.5 × m6g.medium (1.5 x $0.039/hr)                   |
 | EBS — Workers              | $2.88             | 1.5 × 24 GB gp3                                      |
+| EBS — PVC (standard)       | $15.36            | 3 × 64 GB gp3 (Full HA multi-AZ)                     |
+| Cross AZ — PVC (standard)  | $2.44             | Referred to the Cross AZ usage table above           |
 | Public IPv4 - Workers      | $5.48             | 1.5 × addresses                                      |
 | Database (Supabase PRO)    | $25.00            | 8GB disk, 250 GB egress, 100K MAU                    |
-| **Total**                  | **$179.32**       |                                                      |
-| **Comparable EKS Setup**   | **$272.24**       | EKS baseline cost + Scenario 4 worker resources + DB |
+| **Total**                  | **$205.76**       |                                                      |
+| **Comparable EKS Setup**   | **$298.38**       | EKS baseline cost + Scenario 4 worker resources + DB |
 
 > With the following assumptions, this can comfortably handle ~2500 users without breaking a sweat.<br/>
 > In addition, this setup is protected from traffic spikes due to Karpenter's dynamic provisioning.
 
-> ***Reminder***: This complete setup is STILL cheaper than an EKS control plane only setup! (**$179.32/mo** vs **$196.76/mo**)
+> ***Reminder***: This complete setup is STILL cheaper than an EKS control plane only setup! (**$205.76/mo** vs **$204.49/mo**)
 
 ---
 
@@ -237,20 +247,22 @@ Scenario that illustrates a standard deployment of a startup that is >2 years of
 
 | Line Item                       | Est. Monthly Cost | Detail                                                        |
 | ------------------------------: | :---------------- | :------------------------------------------------------------ |
-| EC2 — Control Plane             | $294.34           | 3 × t4g.xlarge (high workload for ArgoCD + monitoring)        |
-| EBS — Control Plane             | $2.88             | 3 × 12 GB gp3                                                 |
+| EC2 — Control Plane             | $294.54           | 3 × t4g.xlarge (high workload for ArgoCD + monitoring)        |
+| EBS — Control Plane             | $5.76             | 3 × 24 GB gp3                                                 |
 | Public IPv4 - Control Plane     | $10.95            | 3 × IPv4 for Control Plane                                    |
-| Network Load Balancer           | $33.00            | 1–2 NLBs                                                      |
-| EC2 — Workers (On-Demand)       | $9,792.00         | 100 × c6g.xlarge (4vCPU/8GB) ($97.92/mo)                      |
+| Network Load Balancer           | $32.86            | 1–2 NLBs                                                      |
+| EC2 — Workers (On-Demand)       | $9,934.80         | 100 × c6g.xlarge (4vCPU/8GB) ($97.92/mo)                      |
 | EBS — Workers                   | $256.00           | 100 × 32 GB gp3                                               |
+| EBS — Workers (PVCs)            | $245.76           | 3 × 1024 GB gp3 (Full HA multi-AZ)                            |
+| Cross AZ — PVC (standard)       | $60.04            | Referred to the Cross AZ usage table above                    |
 | Public IPv4  - Workers          | $365.00           | 100 × Workers                                                 |
 | CDN — Cloudflare Enterprise     | $10,000.00        | Flat fee, unmetered bandwidth, ~95% cache hit rate            |
 | Database (RDS Aurora)           | $3,686.40         | 1 × db.r6g.4xlarge writer + 3 × db.r6g.2xlarge readers + 2TB I/O Optimized storage |
-| EC2 Data Transfer (5% miss)     | $162,003,791.00 (worst case) | 3.24 PB EC2 egress @ AWS tiers; **~$0 if AWS Bandwidth Alliance applies** |
-| **Total**                       | **$24,440.57**    | Excludes EC2 data transfer (see note below)                   |
-| **Comparable EKS Setup**        | **$24,312.73**    | EKS baseline cost + 1 NLB + Scenario 5 worker resources + DB  |
+| EC2 Data Transfer (5% miss)     | $162,003,791.00   | (Worst case) 3.24 PB EC2 egress @ AWS tiers; **~$0 if AWS Bandwidth Alliance applies** |
+| **Total**                       | **$24,892.11**    | Excludes EC2 data transfer (see note below)                   |
+| **Comparable EKS Setup**        | **$24,768.92**    | EKS baseline cost + 1 NLB + Scenario 5 worker resources + DB  |
 
-> **Data Transfer Note:** The EC2 egress line (~$162M/mo) represents the worst-case cost if AWS Bandwidth Alliance does **not** apply. If Cloudflare's Bandwidth Alliance agreement with AWS waives EC2 → Cloudflare egress (which it commonly does), the effective data transfer cost drops to **~$0**, making the total **$24,440.57/mo**. At this scale, confirming Bandwidth Alliance eligibility with both AWS and Cloudflare is essential before budgeting.
+> **Data Transfer Note:** The EC2 egress line (~$162M/mo) represents the worst-case cost if AWS Bandwidth Alliance does **not** apply. If Cloudflare's Bandwidth Alliance agreement with AWS waives EC2 → Cloudflare egress (which it commonly does), the effective data transfer cost drops to **~$0**, making the total **$24,892.11/mo**. At this scale, confirming Bandwidth Alliance eligibility with both AWS and Cloudflare is essential before budgeting.
 
 > 1M users w/ 1% conversion rate where each paying customer pays $10/mo, it will generate $100K/mo of revenue (covers infra cost)<br/>
 > At this point, you wouldn't be worried much about burn rate, if you are for some reason, then you should have a dedicated FinOps team to optimize the cost for you.
@@ -259,7 +271,7 @@ Scenario that illustrates a standard deployment of a startup that is >2 years of
 
 ## How Does This Compare to EKS?
 
-**Scenario 0** establishes the control group: an EKS cluster with the same platform capabilities (ArgoCD, Grafana, Prometheus, Karpenter, Traefik, Kyverno, External Secrets) self-installed via Helm, running on 2 × t4g.large worker nodes — the minimum to host all system pods comfortably. That comes to **$196.76/mo** before a single workload pod is deployed.
+**Scenario 0** establishes the control group: an EKS cluster with the same platform capabilities (ArgoCD, Grafana, Prometheus, Karpenter, Traefik, Kyverno, External Secrets) self-installed via Helm, running on 2 × t4g.large worker nodes — the minimum to host all system pods comfortably. That comes to **$204.49/mo** before a single workload pod is deployed.
 
 EKS charges a flat **$73/mo** for the managed control plane regardless of cluster size. Everything else — workers, storage, networking, and all the tooling — is on you. SimpleK3s bundles all of that tooling and automates the bootstrap, so the comparison below reflects the true cost of achieving feature parity, not just raw infrastructure.
 
@@ -267,12 +279,12 @@ EKS charges a flat **$73/mo** for the managed control plane regardless of cluste
 
 | Scenario                            | SimpleK3s     | EKS Equivalent | Difference             |
 | :---------------------------------- | :------------ | :------------- | :--------------------- |
-| 0 — Control Group                   | N/A           | $196.76/mo     | N/A                    |
-| 1 — Default Settings                | $103.84/mo    | $196.76/mo     | SimpleK3s ~47% cheaper |
-| 2 — Cost Optimized                  | $70.04/mo     | $196.76/mo     | SimpleK3s ~64% cheaper |
-| 3 — Minimal Workload (~1K users)    | $96.54/mo     | $223.26/mo     | SimpleK3s ~57% cheaper |
-| 4 — Standard Workload (~2.5K users) | $179.32/mo    | $272.24/mo     | SimpleK3s ~34% cheaper |
-| 5 — Full Traction (~1M users)       | $24,440.57/mo | $24,312.73/mo* | Roughly equivalent     |
+| 0 — Control Group                   | N/A           | $204.49/mo     | N/A                    |
+| 1 — Default Settings                | $111.87/mo    | $204.49/mo     | SimpleK3s ~45% cheaper |
+| 2 — Cost Optimized                  | $73.33/mo     | $204.49/mo     | SimpleK3s ~64% cheaper |
+| 3 — Minimal Workload (~1K users)    | $108.07/mo    | $239.23/mo     | SimpleK3s ~54% cheaper |
+| 4 — Standard Workload (~2.5K users) | $205.76/mo    | $298.38/mo     | SimpleK3s ~31% cheaper |
+| 5 — Full Traction (~1M users)       | $24,892.11/mo | $24,768.92/mo* | Roughly equivalent     |
 
 > EKS equivalents assume the same worker and storage configuration as the corresponding SimpleK3s scenario, replacing the SimpleK3s control-plane EC2 costs with the $73/mo EKS flat fee. Managed add-on costs (CloudWatch Container Insights, managed Karpenter, etc.) are excluded from EKS estimates — including them would widen the gap further in SimpleK3s's favour at lower scenarios.
 
