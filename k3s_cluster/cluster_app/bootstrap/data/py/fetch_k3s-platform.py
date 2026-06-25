@@ -11,6 +11,7 @@ _spec = importlib.util.spec_from_file_location(
 )
 _utils = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_utils)
+emit = _utils.emit
 run_command = _utils.run_command
 
 KUBECTL = "kubectl"
@@ -160,4 +161,4 @@ def fetch_k8s_platform() -> dict:
 
 if __name__ == "__main__":
     output = fetch_k8s_platform()
-    print(json.dumps(output, indent=4))
+    emit(output)

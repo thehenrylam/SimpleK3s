@@ -19,6 +19,27 @@ locals {
 locals {
 }
 
+# Longhorn pool-reference validation (applications)
+# Register here any APPLICATION that is wired to a Longhorn pool: "<ref-label>" => <pool_name>.
+# The check below fails the plan when a referenced pool is not defined in
+# subsystems.longhorn.pools. null entries are ignored (the app isn't using storage).
+locals {
+  longhorn_pool_refs_applications = {
+    monitoring = local.monitoring_pool_name
+  }
+}
+
+resource "terraform_data" "longhorn_pool_check_applications" {
+  for_each = { for ref_label, pool_name in local.longhorn_pool_refs_applications : ref_label => pool_name if pool_name != null }
+
+  lifecycle {
+    precondition {
+      condition     = contains(local.longhorn_pool_names, each.value)
+      error_message = "Application '${each.key}' references Longhorn pool '${each.value}', which is not defined in subsystems.longhorn.pools (available pools: ${length(local.longhorn_pool_names) > 0 ? join(", ", local.longhorn_pool_names) : "none — is the Longhorn subsystem enabled?"})."
+    }
+  }
+}
+
 # IF ENABLED: Check and Set up all of the needed files for ArgoCD 
 # Handles:
 #   - S3 object upload
@@ -31,11 +52,11 @@ module "cluster_app_argocd" {
   settings = var.applications.argocd
   # S3 settings
   s3_config = local.s3_config_applications
-  # IAM settings 
+  # IAM settings
   iam_config = local.iam_config_applications
 }
 
-# IF ENABLED: Check and Set up all of the needed files for Monitoring (Prometheus & Grafana) 
+# IF ENABLED: Check and Set up all of the needed files for Monitoring (Prometheus & Grafana)
 # Handles:
 #   - S3 object upload
 #   - IAM rights settings (e.g. role name of the EC2 env to allow getting secret settings from the ParameterStore)
@@ -47,6 +68,12 @@ module "cluster_app_monitoring" {
   settings = var.applications.monitoring
   # S3 settings
   s3_config = local.s3_config_applications
-  # IAM settings 
+  # IAM settings
   iam_config = local.iam_config_applications
+  # Resolved Longhorn StorageClass (null when no storage block or Longhorn not enabled)
+  storage_class_name = (
+    try(var.applications.monitoring.storage, null) != null && local.monitoring_pool_name != null
+    ? "longhorn-${local.monitoring_pool_name}"
+    : null
+  )
 }

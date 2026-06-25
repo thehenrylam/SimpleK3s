@@ -4,9 +4,25 @@
 import json
 import shlex
 import subprocess
+import sys
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+
+
+def emit(output: dict, compact: bool | None = None) -> None:
+    # Print a probe's result as JSON. The default is indented (human-readable)
+    # so manual runs stay legible. Pass --compact (or compact=True) for compact
+    # JSON: the E2E orchestrator batches every probe's stdout into one SSM
+    # command, and SSM's get-command-invocation truncates StandardOutputContent
+    # at ~24 KB — compact output keeps the batch under that limit so the trailing
+    # probes' markers are not cut off.
+    if compact is None:
+        compact = "--compact" in sys.argv
+    if compact:
+        print(json.dumps(output, separators=(",", ":")))
+    else:
+        print(json.dumps(output, indent=4))
 
 
 # This class + function is meant to help make SHELL commands easier to execute
@@ -106,6 +122,35 @@ def get_resources(resource: str, timeout: int = 20, kubectl: str = KUBECTL) -> d
         return json.loads(result.stdout) if result.stdout else {"items": []}
     except json.JSONDecodeError as exc:
         return {"items": [], "error": f"failed to parse json: {exc}"}
+
+
+def get_pvcs(namespace: str, kubectl: str = KUBECTL) -> tuple:
+    # List PersistentVolumeClaims in a namespace as normalized dicts
+    # (name/phase/bound/storage_class/capacity/volume). Returns (pvcs, error);
+    # error is non-None when the kubectl call failed. Shared by the per-component
+    # storage probes (grafana/prometheus) so their collection logic can't drift.
+    payload = get_resources("pvc", kubectl=kubectl)
+    if "error" in payload:
+        return [], payload["error"]
+    pvcs = []
+    for obj in payload.get("items", []):
+        meta = obj.get("metadata", {})
+        if meta.get("namespace") != namespace:
+            continue
+        spec = obj.get("spec", {})
+        status = obj.get("status", {})
+        phase = status.get("phase", "")
+        pvcs.append(
+            {
+                "name": meta.get("name", ""),
+                "phase": phase,
+                "bound": phase == "Bound",
+                "storage_class": spec.get("storageClassName"),
+                "capacity": status.get("capacity", {}).get("storage"),
+                "volume": spec.get("volumeName"),
+            }
+        )
+    return pvcs, None
 
 
 def get_ready_condition(obj: dict) -> dict:

@@ -16,6 +16,7 @@ skip-path:
 #   CKV_AWS_18   - S3 access logging (requires a separate log bucket; adds cost)
 #   CKV_AWS_144  - S3 cross-region replication (bootstrap bucket is ephemeral; replication adds cost)
 #   CKV_AWS_145  - S3 KMS encryption (SSE-S3 is sufficient for a bootstrap bucket)
+#   CKV_AWS_189  - EBS KMS CMK encryption (AES-256 default key is sufficient; CMK adds ~$1/month per key)
 #   CKV2_AWS_61  - S3 lifecycle configuration (bootstrap bucket objects are managed by Terraform, not lifecycle rules)
 #   CKV2_AWS_62  - S3 event notifications (not needed for a bootstrap bucket)
 #   CKV_AWS_337  - SSM parameter KMS CMK (default SSM encryption is sufficient; CMK adds cost)
@@ -43,6 +44,7 @@ skip-check:
   - CKV_AWS_18
   - CKV_AWS_144
   - CKV_AWS_145
+  - CKV_AWS_189
   - CKV2_AWS_61
   - CKV2_AWS_62
   - CKV_AWS_337

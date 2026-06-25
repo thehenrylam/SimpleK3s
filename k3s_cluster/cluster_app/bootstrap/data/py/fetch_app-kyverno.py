@@ -2,7 +2,6 @@
 
 # Builtin Modules
 import importlib.util
-import json
 import os
 import sys
 
@@ -12,6 +11,7 @@ _spec = importlib.util.spec_from_file_location(
 )
 _utils = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_utils)
+emit = _utils.emit
 get_resources = _utils.get_resources
 get_ready_condition = _utils.get_ready_condition
 
@@ -76,5 +76,5 @@ def fetch_kyverno() -> dict:
 
 if __name__ == "__main__":
     output = fetch_kyverno()
-    print(json.dumps(output, indent=4))
+    emit(output)
     sys.exit(0 if output["ready"] else 1)

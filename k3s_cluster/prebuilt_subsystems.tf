@@ -30,6 +30,52 @@ locals {
 
 # Output data (Typically used for modules outside the file)
 locals {
+  # Resolve which Longhorn pool each application will use (defaults to the pool marked default=true)
+  longhorn_default_pool_name = try(
+    one([for p in var.subsystems.longhorn.pools : p.name if p.default]),
+    null
+  )
+
+  # Source of truth for pool-reference validation: every Longhorn pool name that
+  # actually exists (empty list when the Longhorn subsystem is disabled).
+  longhorn_pool_names = try([for p in var.subsystems.longhorn.pools : p.name], [])
+
+  monitoring_pool_name = try(
+    coalesce(var.applications.monitoring.storage.pool_name, local.longhorn_default_pool_name),
+    null
+  )
+
+  # Sum PVC sizes per pool for the capacity guardrail
+  longhorn_app_pvc_requirements = {
+    for pool_name in toset(compact([local.monitoring_pool_name])) :
+    pool_name => sum(compact([
+      local.monitoring_pool_name == pool_name ? try(var.applications.monitoring.storage.components.grafana.pvc_size, 0) : null,
+      local.monitoring_pool_name == pool_name ? try(var.applications.monitoring.storage.components.prometheus.pvc_size, 0) : null,
+      local.monitoring_pool_name == pool_name ? try(var.applications.monitoring.storage.components.alertmanager.pvc_size, 0) : null,
+    ]))
+  }
+}
+
+# Longhorn pool-reference validation (subsystems)
+# Register here any SUBSYSTEM that is wired to a Longhorn pool: "<ref-label>" => <pool_name>.
+# The check below fails the plan when a referenced pool is not defined in
+# subsystems.longhorn.pools. null entries are ignored (the subsystem isn't using storage).
+locals {
+  longhorn_pool_refs_subsystems = {
+    # Example: "myservice" = local.myservice_pool_name
+    # (no subsystem currently references a Longhorn pool)
+  }
+}
+
+resource "terraform_data" "longhorn_pool_check_subsystems" {
+  for_each = { for ref_label, pool_name in local.longhorn_pool_refs_subsystems : ref_label => pool_name if pool_name != null }
+
+  lifecycle {
+    precondition {
+      condition     = contains(local.longhorn_pool_names, each.value)
+      error_message = "Subsystem '${each.key}' references Longhorn pool '${each.value}', which is not defined in subsystems.longhorn.pools (available pools: ${length(local.longhorn_pool_names) > 0 ? join(", ", local.longhorn_pool_names) : "none — is the Longhorn subsystem enabled?"})."
+    }
+  }
 }
 
 module "cluster_app_traefik" {
@@ -91,4 +137,20 @@ module "cluster_app_descheduler" {
   settings = local.subsystems.descheduler
   # S3 settings
   s3_config = local.s3_config_subsystems
+}
+
+module "cluster_app_longhorn" {
+  count  = var.subsystems.longhorn != null ? 1 : 0
+  source = "./cluster_app/longhorn"
+  # General settings
+  nickname = var.nickname
+  settings = var.subsystems.longhorn
+  # S3 settings
+  s3_config = local.s3_config_subsystems
+  # Capacity guardrail: PVC totals per pool from built-in apps
+  app_pvc_requirements = local.longhorn_app_pvc_requirements
+  # Backup bucket (null when backups are disabled for all pools)
+  backup_bucket_name = try(aws_s3_bucket.longhorn_backup[0].bucket, null)
+  # AWS region (for S3 backup target URL)
+  aws_region = var.aws_region
 }
