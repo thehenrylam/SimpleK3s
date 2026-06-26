@@ -9,6 +9,8 @@ variable "settings" {
     version           = optional(string)
     pstore_idp_config = string
     domain_name       = string
+    scrape_interval   = optional(string) # Prometheus global scrape cadence (default 60s)
+    retention         = optional(string) # Time-based retention window (default 67d)
     storage = optional(object({
       pool_name = optional(string)
       components = optional(object({

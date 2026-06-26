@@ -31,3 +31,12 @@ spec:
       limits:
         cpu: ${resources.traefik.lmt.cpu} # 200m
         memory: ${resources.traefik.lmt.mem} # 256Mi
+
+    # Expose the Prometheus metrics endpoint as a Service (port "metrics", :9100)
+    # so the monitoring module's centralized ServiceMonitor can scrape it. We do
+    # NOT enable the chart's own ServiceMonitor here — the prometheus-operator
+    # CRDs don't exist yet when Traefik installs.
+    metrics:
+      prometheus:
+        service:
+          enabled: true

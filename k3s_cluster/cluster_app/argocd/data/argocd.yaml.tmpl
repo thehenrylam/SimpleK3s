@@ -77,6 +77,8 @@ spec:
     # Resource sizing (baseline)
     # Tune these over time based on kubectl top / VPA recommendations.
     controller:
+      metrics:
+        enabled: true
       resources:
         requests:
           cpu: ${cfg.controller.resources.req.cpu} # 100m
@@ -86,6 +88,8 @@ spec:
           memory: ${cfg.controller.resources.lmt.mem} # 512Mi
 
     repoServer:
+      metrics:
+        enabled: true
       resources:
         requests:
           cpu: ${cfg.repoServer.resources.req.cpu} # 100m
@@ -95,6 +99,8 @@ spec:
           memory: ${cfg.repoServer.resources.lmt.mem} # 512Mi
 
     applicationSet:
+      metrics:
+        enabled: true
       resources:
         requests:
           cpu: ${cfg.applicationSet.resources.req.cpu} # 50m
@@ -122,6 +128,8 @@ spec:
           memory: ${cfg.redis.resources.lmt.mem} # 256Mi
 
     notifications:
+      metrics:
+        enabled: true
       resources:
         requests:
           cpu: ${cfg.notifications.resources.req.cpu} # 25m
@@ -130,6 +138,8 @@ spec:
           cpu: ${cfg.notifications.resources.lmt.cpu} # 200m
           memory: ${cfg.notifications.resources.lmt.mem} # 256Mi
     server:
+      metrics:
+        enabled: true
       service:
         type: ClusterIP
       resources:

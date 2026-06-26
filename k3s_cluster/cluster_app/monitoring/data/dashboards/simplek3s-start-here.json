@@ -1,0 +1,28 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+      "type": "text",
+      "id": 1,
+      "title": "",
+      "gridPos": { "h": 22, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "# Recommended by SimpleK3s\n\nA curated starting set of dashboards for a quick read on cluster health.\nThis dashboard is tagged **Recommended-by-SimpleK3s** — filter the dashboard browser by that tag to find this set again.\n\n---\n\n#### Nodes & system resources\n- **[Node Exporter / Nodes](/grafana/d/7d57716318ee0dddbac5a7f451fb7753)** — per-node CPU, memory, disk & network utilization\n- **[Node Exporter / USE Method / Cluster](/grafana/d/3e97d1d02672cdd0861f4c97c64f89b2)** — utilization / saturation / errors across all nodes\n- **[Node Exporter / USE Method / Node](/grafana/d/fac67cfbe174d3ef53eb473d73d9212f)** — USE breakdown for a single node\n\n#### Kubernetes workloads & resource allocation\n- **[Compute Resources / Cluster](/grafana/d/efa86fd1d0c121a26444b636a3f509a8)** — requests & limits vs capacity, cluster-wide\n- **[Compute Resources / Namespace (Workloads)](/grafana/d/a87fb0d919ec0ea5f6543124e16c42a5)** — per-workload CPU & memory by namespace\n\n#### Storage\n- **[Persistent Volumes](/grafana/d/919b92a8e8041bd567af9edab12c840c)** — PV / PVC capacity & usage\n\n#### Cluster services\n- **[Kubelet](/grafana/d/3138fa155d5915769fbded898ac09fd9)** — kubelet health, pods & containers per node\n- **[CoreDNS](/grafana/d/vkQ0UHxik)** — cluster DNS query rate, latency & errors\n"
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["Recommended-by-SimpleK3s"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "SimpleK3s - Start Here",
+  "uid": "simplek3s-start-here",
+  "version": 1,
+  "weekStart": ""
+}

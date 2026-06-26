@@ -9,6 +9,8 @@ locals {
     version           = coalesce(try(var.settings.version, null), "0.1.0-alpha.0")
     pstore_idp_config = var.settings.pstore_idp_config
     domain_name       = var.settings.domain_name
+    scrape_interval   = coalesce(try(var.settings.scrape_interval, null), "60s")
+    retention         = coalesce(try(var.settings.retention, null), "67d")
     storage = {
       storage_class_name    = var.storage_class_name != null ? var.storage_class_name : ""
       grafana_enabled       = var.storage_class_name != null && try(var.settings.storage.components.grafana.pvc_size, 0) > 0
@@ -63,12 +65,19 @@ module "aws_s3obj" {
       key  = "${var.s3_config.keyroot}/manifests/monitoring.yaml"
       src  = "${path.module}/data/monitoring.yaml"
       template = jsonencode({
-        version           = local.settings.version
-        domain_name       = local.settings.domain_name
-        pstore_idp_config = local.settings.pstore_idp_config
-        region_idp_config = module.aws_pstore.processed_pstores[local.settings.pstore_idp_config].region
-        cfg               = merge({}, local.performance_profile["standard"])
-        storage           = local.settings.storage
+        version                   = local.settings.version
+        domain_name               = local.settings.domain_name
+        pstore_idp_config         = local.settings.pstore_idp_config
+        region_idp_config         = module.aws_pstore.processed_pstores[local.settings.pstore_idp_config].region
+        cfg                       = merge({}, local.performance_profile["standard"])
+        storage                   = local.settings.storage
+        scrape_interval           = local.settings.scrape_interval
+        prometheus_retention      = local.settings.retention
+        prometheus_retention_size = "${floor(local.settings.storage.prometheus_pvc_size * 0.85)}GiB"
+        # Curated "Start Here" index dashboard (provisioned as a ConfigMap and set
+        # as Grafana's default home). Passed as a plain string so its JSON is never
+        # re-interpreted by templatefile.
+        recommended_dashboard_json = file("${path.module}/data/dashboards/simplek3s-start-here.json")
       })
     },
     {

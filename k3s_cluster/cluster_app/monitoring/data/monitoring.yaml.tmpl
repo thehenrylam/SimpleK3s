@@ -77,6 +77,9 @@ spec:
     kube-prometheus-stack:
       grafana:
         enabled: true
+        # Ship kube-prometheus-stack's built-in dashboards (node/pod/cluster health).
+        # Custom hand-authored dashboards are a later pass.
+        defaultDashboardsEnabled: true
         resources:
           requests:
             cpu: ${cfg.grafana.resources.req.cpu} # 50m
@@ -94,6 +97,12 @@ spec:
           server:
             root_url: "https://${domain_name}/grafana"
             serve_from_sub_path: true
+
+          # Land every user on the curated "SimpleK3s - Start Here" index dashboard.
+          # The dashboard sidecar writes provisioned dashboards into /tmp/dashboards,
+          # named after the ConfigMap data key (see ConfigMap below).
+          dashboards:
+            default_home_dashboard_path: /tmp/dashboards/simplek3s-start-here.json
 
           users:
             auto_assign_org_role: Viewer
@@ -134,6 +143,23 @@ spec:
         prometheusSpec:
           routePrefix: /prometheus
           externalUrl: https://${domain_name}/prometheus
+          # Global scrape cadence; ServiceMonitors below inherit it unless they
+          # pin their own interval.
+          scrapeInterval: ${scrape_interval}
+          # Time-based sliding window (e.g. 67d = 60d + a 1-week buffer).
+          retention: ${prometheus_retention}
+%{ if storage.prometheus_enabled ~}
+          # Size cap (~85% of the PVC) so the disk never fills hard; whichever of
+          # retention/retentionSize hits first trims the oldest blocks. Only set
+          # when backed by a PVC — meaningless/risky on emptyDir.
+          retentionSize: "${prometheus_retention_size}"
+%{ endif ~}
+          # Discover ServiceMonitors/PodMonitors that do NOT carry the chart's
+          # release label — our centralized monitors (added below) don't have it.
+          serviceMonitorSelectorNilUsesHelmValues: false
+          podMonitorSelectorNilUsesHelmValues: false
+          probeSelectorNilUsesHelmValues: false
+          ruleSelectorNilUsesHelmValues: false
           resources:
             requests:
               cpu: ${cfg.prometheus.resources.req.cpu} # 200m
@@ -199,6 +225,20 @@ spec:
             cpu: ${cfg.prometheus-node-exporter.resources.lmt.cpu} # 100m
             memory: ${cfg.prometheus-node-exporter.resources.lmt.mem} # 128Mi
 
+      # k3s binds these control-plane components' metrics to 127.0.0.1, so their
+      # stock ServiceMonitors would sit permanently "down". Disable them to keep
+      # dashboards clean. Cluster health is still covered by apiserver +
+      # kube-state-metrics + node-exporter + kubelet/cAdvisor + default alerts.
+      # (Exposing them via k3s --bind-address=0.0.0.0 flags is a later pass.)
+      kubeControllerManager:
+        enabled: false
+      kubeScheduler:
+        enabled: false
+      kubeProxy:
+        enabled: false
+      kubeEtcd:
+        enabled: false
+
 ---
 # Ingress: Prometheus UI at https://${domain_name}/prometheus/
 apiVersion: networking.k8s.io/v1
@@ -252,3 +292,132 @@ spec:
                 name: prometheus-grafana
                 port:
                   number: 80
+
+# ---------------------------------------------------------------------------
+# Centralized ServiceMonitors for the pre-built subsystems/apps.
+#
+# These live in the monitoring namespace and target each component's metrics
+# Service in its own namespace. They are defined here (not in each subsystem's
+# manifest) because the prometheus-operator CRDs only exist after this chart
+# installs LAST; a subsystem cannot create a ServiceMonitor at its own install
+# time. Discovery relies on the *SelectorNilUsesHelmValues: false gates set in
+# the Prometheus spec above. Descheduler is intentionally omitted (CronJob mode
+# = ephemeral Job pods, no stable scrape target).
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: traefik
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames: [kube-system]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: ${scrape_interval}
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kyverno
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames: [kyverno]
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: kyverno
+  endpoints:
+    - port: metrics-port
+      path: /metrics
+      interval: ${scrape_interval}
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: external-secrets
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames: [external-secrets]
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: external-secrets
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: ${scrape_interval}
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: longhorn
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames: [longhorn-system]
+  selector:
+    matchLabels:
+      app: longhorn-manager
+  endpoints:
+    - port: manager
+      path: /metrics
+      interval: ${scrape_interval}
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: karpenter
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames: [kube-system]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: karpenter
+  endpoints:
+    - port: http-metrics
+      path: /metrics
+      interval: ${scrape_interval}
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: argocd
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames: [argocd]
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: argocd
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: ${scrape_interval}
+
+---
+# Curated "SimpleK3s - Start Here" index dashboard. The grafana_dashboard label
+# makes the kube-prometheus-stack Grafana sidecar load it; it's tagged
+# Recommended-by-SimpleK3s and set as the default home dashboard (grafana.ini
+# above). The JSON is injected verbatim from data/dashboards/simplek3s-start-here.json.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-simplek3s-start-here
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  simplek3s-start-here.json: |-
+    ${indent(4, recommended_dashboard_json)}
