@@ -74,6 +74,10 @@ module "aws_s3obj" {
         scrape_interval           = local.settings.scrape_interval
         prometheus_retention      = local.settings.retention
         prometheus_retention_size = "${floor(local.settings.storage.prometheus_pvc_size * 0.85)}GiB"
+        # Curated "Start Here" index dashboard (provisioned as a ConfigMap and set
+        # as Grafana's default home). Passed as a plain string so its JSON is never
+        # re-interpreted by templatefile.
+        recommended_dashboard_json = file("${path.module}/data/dashboards/simplek3s-start-here.json")
       })
     },
     {

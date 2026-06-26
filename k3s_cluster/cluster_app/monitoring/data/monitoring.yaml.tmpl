@@ -98,6 +98,12 @@ spec:
             root_url: "https://${domain_name}/grafana"
             serve_from_sub_path: true
 
+          # Land every user on the curated "SimpleK3s - Start Here" index dashboard.
+          # The dashboard sidecar writes provisioned dashboards into /tmp/dashboards,
+          # named after the ConfigMap data key (see ConfigMap below).
+          dashboards:
+            default_home_dashboard_path: /tmp/dashboards/simplek3s-start-here.json
+
           users:
             auto_assign_org_role: Viewer
 
@@ -399,3 +405,19 @@ spec:
     - port: metrics
       path: /metrics
       interval: ${scrape_interval}
+
+---
+# Curated "SimpleK3s - Start Here" index dashboard. The grafana_dashboard label
+# makes the kube-prometheus-stack Grafana sidecar load it; it's tagged
+# Recommended-by-SimpleK3s and set as the default home dashboard (grafana.ini
+# above). The JSON is injected verbatim from data/dashboards/simplek3s-start-here.json.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-simplek3s-start-here
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  simplek3s-start-here.json: |-
+    ${indent(4, recommended_dashboard_json)}

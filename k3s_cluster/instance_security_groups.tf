@@ -131,6 +131,20 @@ module "k3s_sgr_kubelet_metrics" {
   description       = "Kubelet read-only metrics port"
 }
 
+# Allow node-exporter metrics scraping across nodes. node-exporter runs with
+# hostNetwork and is scraped at nodeIP:9100 (off the flannel overlay), so without
+# this self-rule Prometheus can only reach the node-exporter co-located on its own
+# node — every other node's target shows DOWN and Grafana's node dashboards list a
+# single instance.
+module "k3s_sgr_node_exporter_metrics" {
+  source            = "./k3s_securitygrouprule/self"
+  type              = "both" # Ingress + Egress
+  port              = 9100
+  protocol          = "tcp"
+  security_group_id = aws_security_group.sg_instances.id
+  description       = "node-exporter metrics port (cross-node Prometheus scraping)"
+}
+
 # Allow Flannel for cross-node cluster
 module "k3s_sgr_flannel" {
   source            = "./k3s_securitygrouprule/self"
