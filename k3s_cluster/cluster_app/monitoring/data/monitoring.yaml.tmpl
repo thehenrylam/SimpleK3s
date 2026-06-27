@@ -80,6 +80,13 @@ spec:
         # Ship kube-prometheus-stack's built-in dashboards (node/pod/cluster health).
         # Custom hand-authored dashboards are a later pass.
         defaultDashboardsEnabled: true
+        # Point Grafana's auto-provisioned default Prometheus datasource at the
+        # Thanos Querier instead of Prometheus directly, so dashboards see both
+        # recent (sidecar) and historical (S3 via Store Gateway) data through one
+        # endpoint.
+        sidecar:
+          datasources:
+            url: http://thanos-query.monitoring.svc.cluster.local:9090
         resources:
           requests:
             cpu: ${cfg.grafana.resources.req.cpu} # 50m
@@ -154,6 +161,27 @@ spec:
           # when backed by a PVC — meaningless/risky on emptyDir.
           retentionSize: "${prometheus_retention_size}"
 %{ endif ~}
+          # Hand block compaction to the Thanos Compactor: the sidecar uploads raw
+          # 2h blocks to S3 and all compaction/downsampling happens there. Required
+          # so local compaction never races the sidecar's uploads.
+          disableCompaction: true
+          # Thanos sidecar: ships completed TSDB blocks to S3 using the objstore
+          # config in the thanos-objstore-config Secret (defined below). The
+          # operator injects the sidecar container into the Prometheus pod.
+          thanos:
+            objectStorageConfig:
+              existingSecret:
+                name: thanos-objstore-config
+                key: objstore.yml
+            # Resource requests/limits for the operator-injected sidecar container
+            # (required by the cluster's require-requests-limits Kyverno policy).
+            resources:
+              requests:
+                cpu: ${thanos_sidecar.resources.req.cpu}
+                memory: ${thanos_sidecar.resources.req.mem}
+              limits:
+                cpu: ${thanos_sidecar.resources.lmt.cpu}
+                memory: ${thanos_sidecar.resources.lmt.mem}
           # Discover ServiceMonitors/PodMonitors that do NOT carry the chart's
           # release label — our centralized monitors (added below) don't have it.
           serviceMonitorSelectorNilUsesHelmValues: false
@@ -177,6 +205,11 @@ spec:
                   requests:
                     storage: "${storage.prometheus_pvc_size}Gi"
 %{ endif ~}
+        # Headless Service exposing the sidecar's gRPC StoreAPI (port 10901). The
+        # Thanos Querier discovers it via DNS SRV; the Service is named
+        # prometheus-kube-prometheus-thanos-discovery (chart fullname).
+        thanosService:
+          enabled: true
 
       alertmanager:
         alertmanagerSpec:
@@ -421,3 +454,235 @@ metadata:
 data:
   simplek3s-start-here.json: |-
     ${indent(4, recommended_dashboard_json)}
+
+# ---------------------------------------------------------------------------
+# Thanos: long-term metrics storage on S3.
+#
+# The Thanos sidecar (configured in the Prometheus spec above) ships TSDB
+# blocks to the S3 bucket described by this objstore Secret. The Store Gateway
+# reads those blocks back, the Compactor compacts/downsamples/expires them, and
+# the Querier fans out over both the sidecar (recent) and Store Gateway
+# (historical) so Grafana queries everything through one endpoint.
+#
+# S3 auth uses aws_sdk_auth (the EC2 node instance profile) — no access keys.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: thanos-objstore-config
+  namespace: monitoring
+type: Opaque
+stringData:
+  objstore.yml: |-
+    type: S3
+    config:
+      bucket: "${thanos_bucket}"
+      endpoint: "${thanos_endpoint}"
+      region: "${thanos_region}"
+      aws_sdk_auth: true
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: thanos-store
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: thanos-store
+    app.kubernetes.io/part-of: thanos
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: thanos-store
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: thanos-store
+        app.kubernetes.io/part-of: thanos
+    spec:
+      containers:
+        - name: thanos-store
+          image: "${thanos_image}"
+          args:
+            - store
+            - --data-dir=/var/thanos/store
+            - --objstore.config-file=/etc/thanos/objstore.yml
+            - --http-address=0.0.0.0:10902
+            - --grpc-address=0.0.0.0:10901
+          ports:
+            - name: grpc
+              containerPort: 10901
+            - name: http
+              containerPort: 10902
+          volumeMounts:
+            - name: objstore-config
+              mountPath: /etc/thanos
+              readOnly: true
+            - name: data
+              mountPath: /var/thanos/store
+          resources:
+            requests:
+              cpu: ${thanos_store.resources.req.cpu}
+              memory: ${thanos_store.resources.req.mem}
+            limits:
+              cpu: ${thanos_store.resources.lmt.cpu}
+              memory: ${thanos_store.resources.lmt.mem}
+      volumes:
+        - name: objstore-config
+          secret:
+            secretName: thanos-objstore-config
+        # Block cache is rebuildable from S3, so emptyDir keeps it off EBS.
+        - name: data
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: thanos-store
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: thanos-store
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: thanos-store
+  ports:
+    - name: grpc
+      port: 10901
+      targetPort: 10901
+    - name: http
+      port: 10902
+      targetPort: 10902
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: thanos-query
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: thanos-query
+    app.kubernetes.io/part-of: thanos
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: thanos-query
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: thanos-query
+        app.kubernetes.io/part-of: thanos
+    spec:
+      containers:
+        - name: thanos-query
+          image: "${thanos_image}"
+          args:
+            - query
+            - --http-address=0.0.0.0:9090
+            - --grpc-address=0.0.0.0:10901
+            # Operator-injected external label on every Prometheus replica; lets
+            # the Querier dedupe across replicas (and is harmless with one).
+            - --query.replica-label=prometheus_replica
+            # DNS SRV discovery of the sidecar StoreAPI and the Store Gateway.
+            # The sidecar Service is named by kube-prometheus-stack's fullname
+            # ("<release>-kube-prometheus-thanos-discovery"); the release here is
+            # "prometheus", matching the other prometheus-kube-prometheus-* svcs.
+            - --endpoint=dnssrv+_grpc._tcp.prometheus-kube-prometheus-thanos-discovery.monitoring.svc.cluster.local
+            - --endpoint=dnssrv+_grpc._tcp.thanos-store.monitoring.svc.cluster.local
+          ports:
+            - name: http
+              containerPort: 9090
+            - name: grpc
+              containerPort: 10901
+          resources:
+            requests:
+              cpu: ${thanos_query.resources.req.cpu}
+              memory: ${thanos_query.resources.req.mem}
+            limits:
+              cpu: ${thanos_query.resources.lmt.cpu}
+              memory: ${thanos_query.resources.lmt.mem}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: thanos-query
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: thanos-query
+spec:
+  selector:
+    app.kubernetes.io/name: thanos-query
+  ports:
+    - name: http
+      port: 9090
+      targetPort: 9090
+    - name: grpc
+      port: 10901
+      targetPort: 10901
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: thanos-compactor
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: thanos-compactor
+    app.kubernetes.io/part-of: thanos
+spec:
+  # Must stay a singleton — two compactors against the same bucket corrupt data.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: thanos-compactor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: thanos-compactor
+        app.kubernetes.io/part-of: thanos
+    spec:
+      containers:
+        - name: thanos-compactor
+          image: "${thanos_image}"
+          args:
+            - compact
+            - --data-dir=/var/thanos/compact
+            - --objstore.config-file=/etc/thanos/objstore.yml
+            - --http-address=0.0.0.0:10902
+            # Run continuously instead of one-shot.
+            - --wait
+            # S3 retention per resolution: keep raw 30d, 5m-downsampled 90d,
+            # 1h-downsampled 1y. This is what bounds long-term S3 growth.
+            - --retention.resolution-raw=30d
+            - --retention.resolution-5m=90d
+            - --retention.resolution-1h=365d
+          ports:
+            - name: http
+              containerPort: 10902
+          volumeMounts:
+            - name: objstore-config
+              mountPath: /etc/thanos
+              readOnly: true
+            - name: data
+              mountPath: /var/thanos/compact
+          resources:
+            requests:
+              cpu: ${thanos_compact.resources.req.cpu}
+              memory: ${thanos_compact.resources.req.mem}
+            limits:
+              cpu: ${thanos_compact.resources.lmt.cpu}
+              memory: ${thanos_compact.resources.lmt.mem}
+      volumes:
+        - name: objstore-config
+          secret:
+            secretName: thanos-objstore-config
+        # Scratch space for compaction; rebuildable, so emptyDir (off EBS).
+        - name: data
+          emptyDir: {}

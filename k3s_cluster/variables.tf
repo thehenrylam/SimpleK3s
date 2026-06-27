@@ -172,9 +172,9 @@ variable "applications" {
         pool_name = optional(string)
         components = optional(object({
           grafana      = optional(object({ pvc_size = optional(number, 5) }), { pvc_size = 5 })
-          prometheus   = optional(object({ pvc_size = optional(number, 20) }), { pvc_size = 20 })
+          prometheus   = optional(object({ pvc_size = optional(number, 8) }), { pvc_size = 8 })
           alertmanager = optional(object({ pvc_size = optional(number, 2) }), { pvc_size = 2 })
-        }), { grafana = { pvc_size = 5 }, prometheus = { pvc_size = 20 }, alertmanager = { pvc_size = 2 } })
+        }), { grafana = { pvc_size = 5 }, prometheus = { pvc_size = 8 }, alertmanager = { pvc_size = 2 } })
       }))
     }))
   })

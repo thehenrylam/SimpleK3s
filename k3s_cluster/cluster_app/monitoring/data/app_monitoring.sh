@@ -67,6 +67,18 @@ function wait_prometheus_metrics() {
     wait_generic "${NS}" "${DEPLOY_NAME}" || return 1
 }
 
+function wait_thanos_store() {
+    local NS="monitoring"
+    local DEPLOY_NAME="thanos-store"
+    wait_generic "${NS}" "${DEPLOY_NAME}" || return 1
+}
+
+function wait_thanos_query() {
+    local NS="monitoring"
+    local DEPLOY_NAME="thanos-query"
+    wait_generic "${NS}" "${DEPLOY_NAME}" || return 1
+}
+
 function apply_monitoring() {
     log_info "Applying Monitoring module"
 
@@ -109,6 +121,16 @@ wait_prometheus_operator || {
 
 wait_prometheus_metrics || {
     log_fail "Unable to confirm that Monitoring (Prometheus Metrics) is ready"
+    exit 1
+}
+
+wait_thanos_store || {
+    log_fail "Unable to confirm that Monitoring (Thanos Store Gateway) is ready"
+    exit 1
+}
+
+wait_thanos_query || {
+    log_fail "Unable to confirm that Monitoring (Thanos Querier) is ready"
     exit 1
 }
 

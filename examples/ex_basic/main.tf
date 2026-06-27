@@ -102,15 +102,15 @@ module "k3s_cluster" {
       pstore_idp_config = local.pstore_idp_config
       domain_name       = local.domain_name
     }
-    monitoring = { # Monitoring: Prometheus & Grafana
+    monitoring = { # Monitoring: Prometheus & Grafana (+ Thanos long-term storage)
       pstore_idp_config = local.pstore_idp_config
       domain_name       = local.domain_name
       storage = {
         pool_name = "platform"
         components = {
-          grafana      = { pvc_size = 5 }
-          prometheus   = { pvc_size = 20 }
-          alertmanager = { pvc_size = 2 }
+          grafana      = { pvc_size = 0.75 }
+          prometheus   = { pvc_size = 8 }
+          alertmanager = { pvc_size = 0.75 }
         }
       }
     }

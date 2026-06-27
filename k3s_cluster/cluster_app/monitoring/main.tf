@@ -5,12 +5,18 @@ terraform {
 locals {
   module_name = "cluster_app_${basename(path.module)}"
 
+  # Thanos image: the sidecar (Prometheus), Store Gateway, Querier, and Compactor
+  # all run this version. See the Pinned Versions table in CLAUDE.md.
+  thanos_image = "quay.io/thanos/thanos:v0.41.0"
+
   settings = {
     version           = coalesce(try(var.settings.version, null), "0.1.0-alpha.0")
     pstore_idp_config = var.settings.pstore_idp_config
     domain_name       = var.settings.domain_name
     scrape_interval   = coalesce(try(var.settings.scrape_interval, null), "60s")
-    retention         = coalesce(try(var.settings.retention, null), "67d")
+    # LOCAL Prometheus retention only. Long-term history lives in S3 via the
+    # Thanos sidecar, so this stays short (default 6h) to keep the PVC small.
+    retention = coalesce(try(var.settings.retention, null), "6h")
     storage = {
       storage_class_name    = var.storage_class_name != null ? var.storage_class_name : ""
       grafana_enabled       = var.storage_class_name != null && try(var.settings.storage.components.grafana.pvc_size, 0) > 0
@@ -74,6 +80,17 @@ module "aws_s3obj" {
         scrape_interval           = local.settings.scrape_interval
         prometheus_retention      = local.settings.retention
         prometheus_retention_size = "${floor(local.settings.storage.prometheus_pvc_size * 0.85)}GiB"
+        # Thanos: ship TSDB blocks to S3 and serve long-term queries from there.
+        # Always on when monitoring is enabled (the bucket is created in the root
+        # module). S3 access is via the node instance profile (no keys).
+        thanos_image    = local.thanos_image
+        thanos_bucket   = var.thanos_bucket_name
+        thanos_region   = var.aws_region
+        thanos_endpoint = "s3.${var.aws_region}.amazonaws.com"
+        thanos_sidecar  = local.performance_profile["standard"].thanos_sidecar
+        thanos_query    = local.performance_profile["standard"].thanos_query
+        thanos_store    = local.performance_profile["standard"].thanos_store
+        thanos_compact  = local.performance_profile["standard"].thanos_compactor
         # Curated "Start Here" index dashboard (provisioned as a ConfigMap and set
         # as Grafana's default home). Passed as a plain string so its JSON is never
         # re-interpreted by templatefile.

@@ -62,11 +62,16 @@ def run_command(cmd: str | list, timeout: int = 30) -> CommandResult:
 # --- HTTP helper (shared by the in-cluster endpoint probes) ---
 
 
-def http_get(url: str, timeout: int = 10, follow_redirects: bool = True) -> dict:
+def http_get(
+    url: str, timeout: int = 10, follow_redirects: bool = True, max_bytes: int = 512
+) -> dict:
     # GET a URL and report {"status", "body", "error"}. Used by probes that must
     # check a Service's HTTP behaviour from a node (e.g. ArgoCD's /auth/login
     # redirect, Grafana /api/health) — signals that aren't visible via kubectl.
     # follow_redirects=False keeps the 3xx so callers can assert on it directly.
+    # max_bytes bounds how much of the body is read; bump it when a caller needs
+    # to parse a JSON response (e.g. Thanos /api/v1/stores) rather than just the
+    # status code.
     handlers = []
     if not follow_redirects:
 
@@ -79,7 +84,7 @@ def http_get(url: str, timeout: int = 10, follow_redirects: bool = True) -> dict
     opener = urllib.request.build_opener(*handlers)
     try:
         resp = opener.open(url, timeout=timeout)
-        body = resp.read(512).decode("utf-8", "replace")
+        body = resp.read(max_bytes).decode("utf-8", "replace")
         return {"status": resp.status, "body": body, "error": None}
     except urllib.error.HTTPError as exc:
         return {"status": exc.code, "body": "", "error": None}

@@ -108,7 +108,7 @@ The `.claude/commands/` directory contains slash commands for use inside Claude 
 
 **4. Applications Layer** (`k3s_cluster/cluster_app/{argocd,monitoring}/`)
 - **ArgoCD**: GitOps deployer, requires OIDC IdP config in Parameter Store.
-- **Monitoring**: Prometheus + Grafana stack.
+- **Monitoring**: Prometheus + Grafana stack. Thanos (sidecar + Store Gateway + Querier + Compactor) is built in: Prometheus keeps a short local window and ships long-term metrics to a dedicated S3 bucket (`monitoring_thanos_s3.tf`), which Grafana queries through the Thanos Querier.
 
 **5. Shared Utilities** (`k3s_cluster/cluster_app/utils/`)
 - `common_values/`: CPU/memory resource presets used by subsystems/apps.
@@ -174,6 +174,7 @@ These versions are hardcoded defaults in the module. Check here first when inves
 | Platform App    | Descheduler      | `0.35.0` | `k3s_cluster/cluster_app/descheduler/main.tf` |
 | Platform App    | ArgoCD           | `9.4.5` | `k3s_cluster/cluster_app/argocd/main.tf` |
 | Platform App    | Monitoring / kube-prometheus-stack | `0.1.0-alpha.0` | `k3s_cluster/cluster_app/monitoring/main.tf` |
+| Platform App    | Thanos (sidecar/store/query/compact) | `v0.41.0` | `k3s_cluster/cluster_app/monitoring/main.tf` |
 | CI (Testing)    | tflint | `0.62.1` | `toolchain/tc_testing_macos_install.sh`, `.github/workflows/static-analysis.yml` |
 | CI (Testing)    | shellcheck | `0.11.0` | `toolchain/tc_testing_macos_install.sh`, `.github/workflows/static-analysis.yml` |
 | CI (Testing)    | checkov | `3.2.530` | `toolchain/tc_testing_macos_install.sh`, `.github/workflows/static-analysis.yml` |

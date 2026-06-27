@@ -3,6 +3,17 @@ variable "nickname" {
   type        = string
 }
 
+variable "aws_region" {
+  description = "AWS region (used to build the Thanos S3 endpoint)"
+  type        = string
+}
+
+variable "thanos_bucket_name" {
+  description = "S3 bucket name backing Thanos long-term metrics storage"
+  type        = string
+  default     = null
+}
+
 variable "settings" {
   description = "The settings of the monitoring app"
   type = object({
@@ -15,9 +26,9 @@ variable "settings" {
       pool_name = optional(string)
       components = optional(object({
         grafana      = optional(object({ pvc_size = optional(number, 5) }), { pvc_size = 5 })
-        prometheus   = optional(object({ pvc_size = optional(number, 20) }), { pvc_size = 20 })
+        prometheus   = optional(object({ pvc_size = optional(number, 8) }), { pvc_size = 8 })
         alertmanager = optional(object({ pvc_size = optional(number, 2) }), { pvc_size = 2 })
-      }), { grafana = { pvc_size = 5 }, prometheus = { pvc_size = 20 }, alertmanager = { pvc_size = 2 } })
+      }), { grafana = { pvc_size = 5 }, prometheus = { pvc_size = 8 }, alertmanager = { pvc_size = 2 } })
     }))
   })
 }

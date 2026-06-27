@@ -204,6 +204,12 @@ module "aws_s3obj" {
       template = null
     },
     {
+      desc     = "Helper Script (Python - fetch_app-thanos.py)"
+      key      = "${var.s3_config.keyroot}/py/fetch_app-thanos.py",
+      src      = "${path.module}/data/py/fetch_app-thanos.py",
+      template = null
+    },
+    {
       desc     = "Helper Script (Python - fetch_app-descheduler.py)"
       key      = "${var.s3_config.keyroot}/py/fetch_app-descheduler.py",
       src      = "${path.module}/data/py/fetch_app-descheduler.py",
