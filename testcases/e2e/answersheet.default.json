@@ -171,6 +171,22 @@
         "errors": { "$ignore": true },
         "note": { "$ignore": true }
       },
+      "thanos": {
+        "ready": true,
+        "status": { "$ignore": true },
+        "summary": {
+          "query_ready": true,
+          "store_ready": true,
+          "compactor_ready": true,
+          "query_healthy_ok": true,
+          "query_ready_ok": true,
+          "sidecar_connected": true,
+          "stores_total": { "$ignore": true }
+        },
+        "details": { "$ignore": true },
+        "errors": { "$ignore": true },
+        "note": { "$ignore": true }
+      },
       "descheduler": {
         "ready": true,
         "status": { "$ignore": true },

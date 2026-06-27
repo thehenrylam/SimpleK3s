@@ -56,6 +56,7 @@ APP_PROBES = [
     ("grafana_pvc", "fetch_app-grafana-pvc.py"),
     ("prometheus", "fetch_app-prometheus.py"),
     ("prometheus_pvc", "fetch_app-prometheus-pvc.py"),
+    ("thanos", "fetch_app-thanos.py"),
     ("descheduler", "fetch_app-descheduler.py"),
 ]
 

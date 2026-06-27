@@ -16,6 +16,6 @@ pools = [
     # Usable capacity = 28 GB. Built-in apps consume ~27 GB total, we add +1GB as a safety precaution (5 + 20 + 2).
     name               = "platform"
     availability_zones = ["us-east-1a", "us-east-1b", "us-east-1c"]
-    volume_size_gb     = 28
+    volume_size_gb     = 10
   },
 ]

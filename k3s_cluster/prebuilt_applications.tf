@@ -64,8 +64,9 @@ module "cluster_app_monitoring" {
   count  = var.applications.monitoring != null ? 1 : 0
   source = "./cluster_app/monitoring"
   # General settings
-  nickname = var.nickname
-  settings = var.applications.monitoring
+  nickname   = var.nickname
+  settings   = var.applications.monitoring
+  aws_region = var.aws_region
   # S3 settings
   s3_config = local.s3_config_applications
   # IAM settings
@@ -76,4 +77,6 @@ module "cluster_app_monitoring" {
     ? "longhorn-${local.monitoring_pool_name}"
     : null
   )
+  # Thanos metrics bucket (always created when monitoring is enabled; see monitoring_thanos_s3.tf)
+  thanos_bucket_name = try(aws_s3_bucket.thanos[0].bucket, null)
 }
