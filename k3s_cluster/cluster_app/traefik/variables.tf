@@ -10,6 +10,12 @@ variable "settings" {
     nodeport_http  = optional(number)
     nodeport_https = optional(number)
     ingress_http   = optional(number)
+    # Dedicated plaintext entrypoint for tailnet traffic (fronted by a single
+    # Tailscale device). Only rendered when Tailscale is enabled; TLS is
+    # terminated by Tailscale, so this entrypoint stays plaintext and carries no
+    # HTTP->HTTPS redirect. Not reachable via the public NLB (SG-gated).
+    tsnet_enabled = optional(bool, false)
+    tsnet_port    = optional(number, 8090)
   })
 }
 

@@ -20,6 +20,18 @@ locals {
     id      = aws_s3_bucket.bootstrap.id
     keyroot = local.s3_bstrap_key_root_default
   }
+
+  # Internal (tailnet) entry point wiring. When Tailscale is enabled, Traefik gets
+  # a dedicated plaintext entrypoint ("tsnet") that a single Tailscale device
+  # fronts; internally-exposed apps route through it (host-scoped, path-based).
+  # Kept off entirely when Tailscale is disabled so external-only clusters are
+  # byte-identical. (local.tailscale_enabled is defined in prebuilt_applications.tf.)
+  traefik_tsnet_port = 8090
+  traefik_backend = {
+    service   = "traefik"
+    namespace = "kube-system"
+    port      = local.traefik_tsnet_port
+  }
   iam_config_subsystems = {
     role_name  = aws_iam_role.irole_ec2.name
     partition  = data.aws_partition.current.partition
@@ -82,7 +94,11 @@ module "cluster_app_traefik" {
   source = "./cluster_app/traefik"
   # General settings
   nickname = var.nickname
-  settings = local.subsystems.traefik
+  settings = merge(local.subsystems.traefik, {
+    # Dedicated plaintext tailnet entrypoint (only rendered when Tailscale is on)
+    tsnet_enabled = local.tailscale_enabled
+    tsnet_port    = local.traefik_tsnet_port
+  })
   # S3 settings
   s3_config = local.s3_config_subsystems
 }
@@ -137,6 +153,24 @@ module "cluster_app_descheduler" {
   settings = local.subsystems.descheduler
   # S3 settings
   s3_config = local.s3_config_subsystems
+}
+
+# IF ENABLED: Tailscale operator (internal network entry point)
+# Exposes admin apps on the tailnet instead of the public LB. Opt-in: requires
+# subsystems.tailscale.pstore_oauth, so it is not part of subsystems_default.
+module "cluster_app_tailscale" {
+  count  = var.subsystems.tailscale != null ? 1 : 0
+  source = "./cluster_app/tailscale"
+  # General settings
+  nickname = var.nickname
+  settings = var.subsystems.tailscale
+  # Traefik backend the single tailnet device fronts (host-scoped routing happens
+  # in Traefik on the tsnet entrypoint; see the app modules' internal Ingress)
+  traefik_backend = local.traefik_backend
+  # S3 settings
+  s3_config = local.s3_config_subsystems
+  # IAM settings (read access to the OAuth Parameter Store entry)
+  iam_config = local.iam_config_subsystems
 }
 
 module "cluster_app_longhorn" {

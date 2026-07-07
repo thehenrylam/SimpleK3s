@@ -39,10 +39,3 @@ variable "iam_config" {
     account_id = optional(string)
   })
 }
-
-# Tags to apply to resources
-variable "tags" {
-  type        = map(string)
-  description = "Tags to apply to resources."
-  default     = {}
-}

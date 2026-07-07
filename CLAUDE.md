@@ -98,13 +98,14 @@ The `.claude/commands/` directory contains slash commands for use inside Claude 
 **2. Bootstrap Layer** (`k3s_cluster/cluster_app/bootstrap/`)
 - Shell scripts run on EC2 startup via cloud-init. They download further scripts from S3, install packages, configure swap, install K3s, then sequence subsystem and application setup.
 
-**3. Subsystems Layer** (`k3s_cluster/cluster_app/{traefik,kyverno,external-secrets,descheduler,karpenter}/`)
+**3. Subsystems Layer** (`k3s_cluster/cluster_app/{traefik,kyverno,external-secrets,descheduler,karpenter,tailscale}/`)
 - Kubernetes-level infrastructure components installed after K3s is ready.
-- **Traefik**: Ingress controller (HTTP :30080, HTTPS :30443).
+- **Traefik**: Ingress controller (HTTP :30080, HTTPS :30443) — the external entry point (public LB).
 - **External-Secrets**: Pulls secrets from AWS Parameter Store into Kubernetes.
 - **Karpenter**: Node auto-scaling.
 - **Kyverno**: Policy engine.
 - **Descheduler**: Pod rebalancing.
+- **Tailscale**: Internal network entry point (operator, opt-in). A single Tailscale device (one L7 Ingress, MagicDNS + HTTPS) fronts Traefik's dedicated plaintext `tsnet` entrypoint, so every internal app is reached on one tailnet host, path-based (`https://<nickname>.<tailnet>.ts.net/argocd`, `/grafana`, …) — mirroring external mode, only the front door differs (Tailscale device vs public NLB). Apps pick their plane via `applications.<app>.exposure` (`internal` = tailnet via Traefik `tsnet`, default; `external` = public Traefik `websecure`). Internally-exposed apps emit a host-scoped Traefik Ingress (in their own namespace) with an `X-Forwarded-Proto: https` middleware — required because Tailscale terminates TLS upstream, so the apps must be told the external scheme is https for OIDC to work. Its OAuth client is pulled from Parameter Store via External-Secrets, so it applies after External-Secrets and before the applications (`init_subsystems.sh`). The tailnet host must be set via `subsystems.tailscale.magic_dns_name` and match the callback URLs registered in `ex_idp`.
 
 **4. Applications Layer** (`k3s_cluster/cluster_app/{argocd,monitoring}/`)
 - **ArgoCD**: GitOps deployer, requires OIDC IdP config in Parameter Store.
@@ -172,6 +173,7 @@ These versions are hardcoded defaults in the module. Check here first when inves
 | Platform App    | External Secrets | `2.0.1` | `k3s_cluster/cluster_app/external-secrets/main.tf` |
 | Platform App    | Longhorn         | `1.12.0` | `k3s_cluster/cluster_app/longhorn/main.tf` |
 | Platform App    | Descheduler      | `0.35.0` | `k3s_cluster/cluster_app/descheduler/main.tf` |
+| Platform App    | Tailscale Operator | `1.98.4` | `k3s_cluster/cluster_app/tailscale/main.tf` |
 | Platform App    | ArgoCD           | `9.4.5` | `k3s_cluster/cluster_app/argocd/main.tf` |
 | Platform App    | Monitoring / kube-prometheus-stack | `0.1.0-alpha.0` | `k3s_cluster/cluster_app/monitoring/main.tf` |
 | Platform App    | Thanos (sidecar/store/query/compact) | `v0.41.0` | `k3s_cluster/cluster_app/monitoring/main.tf` |

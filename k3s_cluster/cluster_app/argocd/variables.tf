@@ -9,6 +9,8 @@ variable "settings" {
     version           = optional(string)
     pstore_idp_config = string
     domain_name       = string
+    # "external" = public LB via Traefik | "internal" = tailnet via Tailscale
+    exposure = optional(string, "internal")
   })
 }
 
@@ -29,4 +31,19 @@ variable "s3_config" {
     id      = string
     keyroot = string
   })
+}
+
+# Tailnet identity — used to build the internal base URL when exposure="internal".
+# internal_host_prefix defaults to the cluster nickname upstream; magic_dns_name is
+# the tailnet domain (e.g. "opossum-copperhead.ts.net"), required for internal.
+variable "internal_host_prefix" {
+  description = "MagicDNS host prefix for the internal Tailscale Ingress (device short name is \"<prefix>-argocd\")"
+  type        = string
+  default     = null
+}
+
+variable "magic_dns_name" {
+  description = "Tailnet MagicDNS domain used to build the internal base URL (required when exposure=\"internal\")"
+  type        = string
+  default     = null
 }

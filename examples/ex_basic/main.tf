@@ -22,7 +22,7 @@ locals {
   dns_prefix   = coalesce(var.dns.prefix, "k3s")
   domain_name  = "${local.dns_prefix}.${local.dns_basename}"
 
-  # IdP SSM Parameter Names
+  # IdP SSM Parameter Name
   #   What its used for: Used to enable SSO for apps
   #   Required Actions:
   #       - Go to SimpleK3s/examples/ex_idp/
@@ -30,7 +30,7 @@ locals {
   #       - Use the SSM Param Output via `terraform output -json`
   #           - NOTE: Default values are already provided 
   #             (Only need to change this if you change the idp-standalone nickname)
-  # idp_config's should have a JSON string the following format:
+  # idp_config's should have a JSON string with the following format:
   # {
   #     issuer        = __IDP_ISSUER_URL__
   #     client_id     = __IDP_CLIENT_ID__
@@ -40,7 +40,53 @@ locals {
   # Use the module within ../modules/idp_cognito to create this config
   pstore_idp_config = "/idp-standalone/idp-standalone/idp_config"
 
+  # PVC SSM Parameter Name
+  #   What its used for: Enables SimpleK3s to leverage PVCs for its apps (This is not managed by SimpleK3s itself to properly retain data even after it undergoes a terraform/tofu destroy)
+  #   Required Actions:
+  #       - Go to SimpleK3s/examples/ex_pvc
+  #       - Create the PVC resource (Customize the settings, be sure that the EBS sizes are greater than the requested memory by at least 0.5Gi)
+  #       - Use the SSM Param Output via `terraform output -json`
+  #           - NOTE: Default values are already provided 
+  #             (Only need to change this if you change the pvc-standalone nickname)
+  # pvc_pool_platform's should have a JSON string with the following format (s.t. n == number of AZs defined in the PVC allocation):
+  # [
+  #     "vol-id_of_ebs_volume_for_az_0",
+  #     "vol-id_of_ebs_volume_for_az_1",
+  #     "vol-id_of_ebs_volume_for_az_2",
+  #     ...
+  #     "vol-id_of_ebs_volume_for_az_n"
+  # ] 
   pvc_pool_platform = "/pvc-standalone/pvc-standalone/pvc_pool_platform"
+
+  # TailScale SSM Parameter Name
+  #   What its used for: Enables SimpleK3s to talk to Tailscale to properly set up Tailscale as an entrypoint into your apps
+  #   Required Actions:
+  #       - Go to SimpleK3s/examples/ex_pstore_tailscale
+  #       - Make sure that the following variables are set up in terraform.tfvars file:
+  #           - tailscale_oauth_client_id
+  #           - tailscale_oauth_client_secret
+  #       - Create the Tailscale PStore resource
+  #       - Use the SSM Param Output via `terraform output -json`
+  #           - NOTE: Default values are already provided 
+  #             (Only need to change this if you change the tailscale-standalone nickname)
+  # tailscale_oauth's should have a JSON string with the following format:
+  # {
+  #     client_id     = __TAILSCALE_CLIENT_ID__
+  #     client_secret = __TAILSCALE_CLIENT_SECRET__
+  # }
+  pstore_tailscale_oauth = "/tailscale-standalone/tailscale-standalone/oauth_config"
+  # tailscale_oauth's should have a JSON string with the following format:
+  # {
+  #     dns_name  = __TAILSCALE_MAGIC_DNS_NAME__
+  # }
+  pstore_tailscale_magic_dns_name = "/tailscale-standalone/tailscale-standalone/magic_dns_name"
+  magic_dns_name                  = jsondecode(data.aws_ssm_parameter.pstore_tailscale_magic_dns_name.value).dns_name
+}
+
+# Determine the tailscale Magic DNS Name. Since this isn't sensitive information, we can freely retrieve this data within the TF module
+# The reason why we don't set Magic DNS name here is because we want to keep tailscale specific settings separate from the general settings
+data "aws_ssm_parameter" "pstore_tailscale_magic_dns_name" {
+  name = local.pstore_tailscale_magic_dns_name
 }
 
 module "vpc_cloud" {
@@ -69,6 +115,14 @@ module "k3s_cluster" {
   }
 
   subsystems = {
+    # If activated, it exposes admin apps via tailnet instead of public LB (more secure)
+    # Remember: If you enable this, please set the apps' configs to `exposure = "internal"`
+    tailscale = {
+      pstore_oauth   = local.pstore_tailscale_oauth
+      tags           = ["tag:k8s"]
+      magic_dns_name = local.magic_dns_name
+    }
+
     karpenter = {
       version                = "1.9.0"
       capacity_type          = "on-demand"
@@ -101,10 +155,12 @@ module "k3s_cluster" {
     argocd = { # Deployer: ArgoCD
       pstore_idp_config = local.pstore_idp_config
       domain_name       = local.domain_name
+      exposure          = "internal" # "external" # public LB via Traefik (use "internal" for tailnet-only)
     }
     monitoring = { # Monitoring: Prometheus & Grafana (+ Thanos long-term storage)
       pstore_idp_config = local.pstore_idp_config
       domain_name       = local.domain_name
+      exposure          = "internal" # "external" # public LB via Traefik (use "internal" for tailnet-only)
       storage = {
         pool_name = "platform"
         components = {

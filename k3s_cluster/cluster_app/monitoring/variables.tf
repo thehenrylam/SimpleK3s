@@ -20,8 +20,10 @@ variable "settings" {
     version           = optional(string)
     pstore_idp_config = string
     domain_name       = string
-    scrape_interval   = optional(string) # Prometheus global scrape cadence (default 60s)
-    retention         = optional(string) # Time-based retention window (default 67d)
+    # "external" = public LB via Traefik | "internal" = tailnet via Tailscale
+    exposure        = optional(string, "internal")
+    scrape_interval = optional(string) # Prometheus global scrape cadence (default 60s)
+    retention       = optional(string) # Time-based retention window (default 67d)
     storage = optional(object({
       pool_name = optional(string)
       components = optional(object({
@@ -56,4 +58,19 @@ variable "s3_config" {
     id      = string
     keyroot = string
   })
+}
+
+# Tailnet identity — used to build the internal base URLs when exposure="internal".
+# internal_host_prefix defaults to the cluster nickname upstream; magic_dns_name is
+# the tailnet domain (e.g. "opossum-copperhead.ts.net"), required for internal.
+variable "internal_host_prefix" {
+  description = "MagicDNS host prefix for the internal Tailscale Ingresses (device short names are \"<prefix>-grafana\" / \"<prefix>-prometheus\")"
+  type        = string
+  default     = null
+}
+
+variable "magic_dns_name" {
+  description = "Tailnet MagicDNS domain used to build the internal base URLs (required when exposure=\"internal\")"
+  type        = string
+  default     = null
 }

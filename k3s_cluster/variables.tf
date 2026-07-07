@@ -126,6 +126,19 @@ variable "subsystems" {
     descheduler = optional(object({
       version = optional(string)
     }))
+    tailscale = optional(object({
+      version = optional(string)
+      # AWS Parameter Store entry (provided externally) bundling the operator
+      # OAuth client as JSON: { "client_id": "...", "client_secret": "..." }.
+      # Internal entry point: exposes admin apps on the tailnet (no public LB).
+      pstore_oauth    = string
+      tags            = optional(list(string), ["tag:k8s"])
+      hostname_prefix = optional(string)
+      # Tailnet MagicDNS domain (e.g. "opossum-copperhead.ts.net"). Required when
+      # any app uses exposure="internal": it is the single source of truth for the
+      # tailnet host each internally-exposed app advertises (URL + OIDC redirect).
+      magic_dns_name = optional(string)
+    }))
     karpenter = optional(object({
       version                = optional(string)
       ami_id                 = optional(string)
@@ -163,11 +176,15 @@ variable "applications" {
       version           = optional(string)
       pstore_idp_config = string
       domain_name       = string
+      # "internal" (tailnet via Tailscale, default) | "external" (public LB via Traefik)
+      exposure = optional(string, "internal")
     }))
     monitoring = optional(object({
       version           = optional(string)
       pstore_idp_config = string
       domain_name       = string
+      # "internal" (tailnet via Tailscale, default) | "external" (public LB via Traefik)
+      exposure = optional(string, "internal")
       storage = optional(object({
         pool_name = optional(string)
         components = optional(object({
@@ -179,4 +196,14 @@ variable "applications" {
     }))
   })
   default = {}
+
+  validation {
+    condition     = contains(["internal", "external"], try(var.applications.argocd.exposure, "internal"))
+    error_message = "applications.argocd.exposure must be \"internal\" or \"external\"."
+  }
+
+  validation {
+    condition     = contains(["internal", "external"], try(var.applications.monitoring.exposure, "internal"))
+    error_message = "applications.monitoring.exposure must be \"internal\" or \"external\"."
+  }
 }

@@ -10,6 +10,7 @@ locals {
     nodeport_http  = 30080
     nodeport_https = 30443
     ingress_http   = 80
+    tsnet_port     = 8090
   }
 
   settings = {
@@ -17,6 +18,8 @@ locals {
     nodeport_http  = coalesce(try(var.settings.nodeport_http, null), local.default_settings.nodeport_http)
     nodeport_https = coalesce(try(var.settings.nodeport_https, null), local.default_settings.nodeport_https)
     ingress_http   = coalesce(try(var.settings.ingress_http, null), local.default_settings.ingress_http)
+    tsnet_enabled  = coalesce(try(var.settings.tsnet_enabled, null), false)
+    tsnet_port     = coalesce(try(var.settings.tsnet_port, null), local.default_settings.tsnet_port)
   }
 
   # Resource presets (to put into performance profiles)
@@ -69,7 +72,9 @@ module "aws_s3obj" {
             nodeport_https = local.settings.nodeport_https
           }
         }
-        resources = local.resource_profile["standard"]
+        tsnet_enabled = local.settings.tsnet_enabled
+        tsnet_port    = local.settings.tsnet_port
+        resources     = local.resource_profile["standard"]
       })
     },
     { # Traefik Middleware (Reroute Network Traffic from HTTP to HTTPs)

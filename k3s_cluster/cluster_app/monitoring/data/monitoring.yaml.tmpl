@@ -102,7 +102,7 @@ spec:
 %{ endif ~}
         grafana.ini:
           server:
-            root_url: "https://${domain_name}/grafana"
+            root_url: "${base_url}/grafana"
             serve_from_sub_path: true
 
           # Land every user on the curated "SimpleK3s - Start Here" index dashboard.
@@ -149,7 +149,7 @@ spec:
       prometheus:
         prometheusSpec:
           routePrefix: /prometheus
-          externalUrl: https://${domain_name}/prometheus
+          externalUrl: ${base_url}/prometheus
           # Global scrape cadence; ServiceMonitors below inherit it unless they
           # pin their own interval.
           scrapeInterval: ${scrape_interval}
@@ -273,6 +273,46 @@ spec:
         enabled: false
 
 ---
+%{ if exposure == "internal" ~}
+# Internal exposure (tailnet): Prometheus + Grafana are reached on ONE tailnet host
+# (https://${internal_host}/prometheus, /grafana) via the single Tailscale device
+# that fronts Traefik's plaintext `tsnet` entrypoint — same Traefik path-routing as
+# external mode. The X-Forwarded-Proto=https middleware (shared by both Ingresses in
+# this namespace) tells the apps the external scheme is https (Tailscale terminated
+# TLS), so Grafana builds an https OIDC redirect_uri.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: xfp-https
+  namespace: monitoring
+spec:
+  headers:
+    customRequestHeaders:
+      X-Forwarded-Proto: "https"
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: prometheus-ui
+  namespace: monitoring
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: tsnet
+    traefik.ingress.kubernetes.io/router.middlewares: monitoring-xfp-https@kubernetescrd
+    traefik.ingress.kubernetes.io/router.priority: "100"
+spec:
+  # Host-scoped to the tailnet FQDN; no TLS block (terminated by the Tailscale device).
+  rules:
+    - host: ${internal_host}
+      http:
+        paths:
+          - path: /prometheus
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus-kube-prometheus-prometheus
+                port:
+                  number: 9090
+%{ else ~}
 # Ingress: Prometheus UI at https://${domain_name}/prometheus/
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -298,8 +338,36 @@ spec:
                 name: prometheus-kube-prometheus-prometheus
                 port:
                   number: 9090
+%{ endif ~}
 
 ---
+%{ if exposure == "internal" ~}
+# Internal exposure (tailnet): Grafana at https://${internal_host}/grafana via Traefik's
+# tsnet entrypoint (shares the monitoring-xfp-https middleware defined above).
+# NOTE: for SSO, register https://${internal_host}/grafana/login/generic_oauth in your IdP.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana-ui
+  namespace: monitoring
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: tsnet
+    traefik.ingress.kubernetes.io/router.middlewares: monitoring-xfp-https@kubernetescrd
+    traefik.ingress.kubernetes.io/router.priority: "100"
+spec:
+  # Host-scoped to the tailnet FQDN; no TLS block (terminated by the Tailscale device).
+  rules:
+    - host: ${internal_host}
+      http:
+        paths:
+          - path: /grafana
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus-grafana
+                port:
+                  number: 80
+%{ else ~}
 # Ingress: Grafana UI at https://${domain_name}/grafana/
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -325,6 +393,7 @@ spec:
                 name: prometheus-grafana
                 port:
                   number: 80
+%{ endif ~}
 
 # ---------------------------------------------------------------------------
 # Centralized ServiceMonitors for the pre-built subsystems/apps.
