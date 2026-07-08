@@ -46,4 +46,18 @@ variable "magic_dns_name" {
   description = "Tailnet MagicDNS domain used to build the internal base URL (required when exposure=\"internal\")"
   type        = string
   default     = null
+
+  # Make sure that the last part of the DNS name is ".ts.net" to make sure that its tailscale's MagicDNS name
+  validation {
+    condition     = var.magic_dns_name == null ? true : endswith(lower(var.magic_dns_name), ".ts.net")
+    error_message = "magic_dns_name must be your tailnet MagicDNS domain ending in \".ts.net\" (e.g. \"opossum-copperhead.ts.net\")"
+  }
+
+  # Make sure there are no prefixes in the DNS name by making sure that there are only 3 tokens if we split them by '.'
+  # e.g. opossum-copperhead.ts.net -> ["opossum-copperhead", "ts", "net"] (exactly 3 items == Good)
+  # e.g. prefix.opossum-copperhead.ts.net -> ["prefix", "opossum-copperhead", "ts", "net"] (>3 items == Bad)
+  validation {
+    condition     = var.magic_dns_name == null ? true : length(split(".", var.magic_dns_name)) == 3
+    error_message = "There is a prefix detected within magic_dns_name. Provide the dns name without the prefix (e.g. \"opossum-copperhead.ts.net\")"
+  }
 }

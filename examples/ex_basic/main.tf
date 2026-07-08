@@ -80,7 +80,7 @@ locals {
   #     dns_name  = __TAILSCALE_MAGIC_DNS_NAME__
   # }
   pstore_tailscale_magic_dns_name = "/tailscale-standalone/tailscale-standalone/magic_dns_name"
-  magic_dns_name                  = jsondecode(data.aws_ssm_parameter.pstore_tailscale_magic_dns_name.value).dns_name
+  magic_dns_name                  = jsondecode(data.aws_ssm_parameter.pstore_tailscale_magic_dns_name.value).magic_dns_name
 }
 
 # Determine the tailscale Magic DNS Name. Since this isn't sensitive information, we can freely retrieve this data within the TF module

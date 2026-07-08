@@ -57,7 +57,7 @@ resource "aws_ssm_parameter" "tailscale_dns_name" {
   description = "Tailscale Magic DNS name"
   type        = "String"
   value = jsonencode({
-    dns_name = var.tailscale_magic_dns_name
+    magic_dns_name = var.tailscale_magic_dns_name
   })
 
   tags = {
