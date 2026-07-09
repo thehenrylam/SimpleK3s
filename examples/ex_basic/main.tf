@@ -61,7 +61,7 @@ locals {
   # TailScale SSM Parameter Name
   #   What its used for: Enables SimpleK3s to talk to Tailscale to properly set up Tailscale as an entrypoint into your apps
   #   Required Actions:
-  #       - Go to SimpleK3s/examples/ex_pstore_tailscale
+  #       - Go to SimpleK3s/examples/ex_tailscale
   #       - Make sure that the following variables are set up in terraform.tfvars file:
   #           - tailscale_oauth_client_id
   #           - tailscale_oauth_client_secret
@@ -75,18 +75,87 @@ locals {
   #     client_secret = __TAILSCALE_CLIENT_SECRET__
   # }
   pstore_tailscale_oauth = "/tailscale-standalone/tailscale-standalone/oauth_config"
-  # tailscale_oauth's should have a JSON string with the following format:
+  # magic_dns's should have a JSON string with the following format:
   # {
-  #     dns_name  = __TAILSCALE_MAGIC_DNS_NAME__
+  #     magic_dns_name = __TAILSCALE_MAGIC_DNS_NAME__
   # }
   pstore_tailscale_magic_dns_name = "/tailscale-standalone/tailscale-standalone/magic_dns_name"
   magic_dns_name                  = jsondecode(data.aws_ssm_parameter.pstore_tailscale_magic_dns_name.value).magic_dns_name
+
+  # ARN of the device-cleanup Lambda published by ex_tailscale. Invoked on cluster
+  # destroy to remove this cluster's tailnet devices (prevents "-1" name collisions).
+  pstore_tailscale_cleanup_lambda_arn = "/tailscale-standalone/tailscale-standalone/cleanup_lambda_arn"
+
+  # ARN of the read-only preflight Lambda published by ex_tailscale. Invoked at plan
+  # time to validate the tailnet (tags + MagicDNS) before the cluster is built.
+  pstore_tailscale_preflight_lambda_arn = "/tailscale-standalone/tailscale-standalone/preflight_lambda_arn"
 }
 
 # Determine the tailscale Magic DNS Name. Since this isn't sensitive information, we can freely retrieve this data within the TF module
 # The reason why we don't set Magic DNS name here is because we want to keep tailscale specific settings separate from the general settings
 data "aws_ssm_parameter" "pstore_tailscale_magic_dns_name" {
   name = local.pstore_tailscale_magic_dns_name
+}
+
+# ARN of the device-cleanup Lambda (created + published by examples/ex_tailscale).
+data "aws_ssm_parameter" "pstore_tailscale_cleanup_lambda_arn" {
+  name = local.pstore_tailscale_cleanup_lambda_arn
+}
+
+# Destroy-time Tailscale device cleanup.
+# The cleanup Lambda lives in examples/ex_tailscale (a durable root, so it always
+# exists when invoked). Here we only INVOKE it, tied to THIS cluster's lifecycle:
+# lifecycle_scope = "CRUD" is what gives a destroy hook, and the Lambda no-ops on
+# create/update — so cleanup runs only on `tofu destroy`, deleting this cluster's
+# tailnet devices (<nickname>, <nickname>-operator) before they can linger and
+# force "-1"-suffixed names on the next deploy.
+# NOTE: whoever runs `tofu destroy` needs lambda:InvokeFunction on this function.
+resource "aws_lambda_invocation" "tailscale_cleanup" {
+  function_name   = data.aws_ssm_parameter.pstore_tailscale_cleanup_lambda_arn.value
+  lifecycle_scope = "CRUD"
+
+  # Cluster-level identity the Lambda matches on: it deletes only devices whose
+  # short name is <hostname_prefix> or <hostname_prefix>-* AND that carry one of
+  # these tags (so unrelated devices sharing the name prefix are never touched).
+  # hostname_prefix mirrors subsystems.tailscale.hostname_prefix (defaults to
+  # nickname). Tags cover BOTH planes: the proxy device (subsystems.tailscale.tags,
+  # "tag:k8s") and the operator device ("tag:k8s-operator", the OAuth client tag).
+  input = jsonencode({
+    hostname_prefix = var.nickname
+    tags            = ["tag:k8s", "tag:k8s-operator"]
+  })
+}
+
+# Preflight gate (blocks the apply on a misconfigured tailnet).
+# The read-only preflight Lambda lives in ex_tailscale; here we invoke it at plan
+# time (data sources) and assert the results, so a missing tag owner or disabled
+# MagicDNS fails the plan BEFORE the ~20-min cluster build. The Lambda fails OPEN
+# on Tailscale API errors (returns ok=true), so a transient hiccup can't wedge apply.
+data "aws_ssm_parameter" "pstore_tailscale_preflight_lambda_arn" {
+  name = local.pstore_tailscale_preflight_lambda_arn
+}
+
+data "aws_lambda_invocation" "tailscale_preflight_tags" {
+  function_name = data.aws_ssm_parameter.pstore_tailscale_preflight_lambda_arn.value
+  input         = jsonencode({ check = "tags" })
+}
+
+data "aws_lambda_invocation" "tailscale_preflight_dns" {
+  function_name = data.aws_ssm_parameter.pstore_tailscale_preflight_lambda_arn.value
+  input         = jsonencode({ check = "dns" })
+}
+
+resource "terraform_data" "tailscale_preflight_gate" {
+  lifecycle {
+    precondition {
+      condition     = jsondecode(data.aws_lambda_invocation.tailscale_preflight_tags.result).ok
+      error_message = "Tailscale preflight (tags) failed: ${join("; ", try(jsondecode(data.aws_lambda_invocation.tailscale_preflight_tags.result).findings, ["see the preflight Lambda logs"]))}. Fix the tailnet ACL (define owners for tag:k8s and tag:k8s-operator) before deploying."
+    }
+    precondition {
+      condition     = jsondecode(data.aws_lambda_invocation.tailscale_preflight_dns.result).ok
+      error_message = "Tailscale preflight (dns) failed: ${join("; ", try(jsondecode(data.aws_lambda_invocation.tailscale_preflight_dns.result).findings, ["see the preflight Lambda logs"]))}. Enable MagicDNS (and HTTPS certificates) on the tailnet before deploying."
+    }
+  }
 }
 
 module "vpc_cloud" {

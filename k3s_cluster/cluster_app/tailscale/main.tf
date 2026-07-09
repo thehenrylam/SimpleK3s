@@ -56,7 +56,7 @@ module "aws_s3obj" {
   # S3 settings
   s3_bucket_id = var.s3_config.id
   s3obj_data = [
-    { # Tailscale Operator Manifests (HelmChart + SecretStore + ExternalSecret)
+    { # Tailscale Operator Manifests (HelmChart + SecretStore + ExternalSecret + ProxyClass)
       desc = "Tailscale Operator Manifests",
       key  = "${var.s3_config.keyroot}/manifests/tailscale-helmchart.yaml",
       src  = "${path.module}/data/tailscale-helmchart.yaml",
@@ -67,7 +67,17 @@ module "aws_s3obj" {
         proxy_tags      = join(",", local.settings.tags)
         hostname_prefix = local.settings.hostname_prefix
         resources       = local.resource_profile["standard"]
-        # Single tailnet device fronting Traefik's tsnet entrypoint
+      })
+    },
+    { # Tailnet entry-point Ingress (fronts Traefik's tsnet entrypoint). Applied
+      # by sub_apply_tailscale.sh as a separate phase, only after the ProxyClass is
+      # Ready — see the apply script's wait_for_proxyclass gate (prevents the
+      # operator ingress-reconciler race that leaves the proxy device uncreated).
+      desc = "Tailscale Tailnet Entrypoint Ingress",
+      key  = "${var.s3_config.keyroot}/manifests/tailscale-ingress.yaml",
+      src  = "${path.module}/data/tailscale-ingress.yaml",
+      template = jsonencode({
+        hostname_prefix   = local.settings.hostname_prefix
         traefik_service   = var.traefik_backend.service
         traefik_namespace = var.traefik_backend.namespace
         traefik_port      = var.traefik_backend.port

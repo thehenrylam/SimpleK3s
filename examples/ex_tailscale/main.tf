@@ -1,14 +1,18 @@
-# OpenTofu / Terraform : SimpleK3s Tailscale OAuth (SSM Parameter Store)
+# OpenTofu / Terraform : SimpleK3s Tailscale lifecycle root
 #
-# Writes the Tailscale Kubernetes Operator's OAuth client (client id + secret)
-# into a single SecureString SSM parameter, in the JSON shape the cluster's
-# tailscale subsystem expects:
+# Durable root that owns everything tailnet-related for a SimpleK3s deployment,
+# kept separate from the cluster (examples/ex_basic/) so it survives cluster
+# teardowns — like examples/ex_idp/. It manages:
+#   - the operator OAuth client, as a SecureString SSM parameter in the JSON
+#     shape the cluster's tailscale subsystem expects:
+#       { "client_id": "...", "client_secret": "..." }
+#   - the tailnet MagicDNS name (SSM parameter)
+#   - the device-cleanup Lambda that removes this cluster's tailnet devices on
+#     cluster destroy (see lambda.tf)
 #
-#   { "client_id": "...", "client_secret": "..." }
-#
-# Deploy this root BEFORE the cluster (examples/ex_basic/) when you want any app
-# exposed on the tailnet (exposure = "internal"). Paste the output parameter name
-# into subsystems.tailscale.pstore_oauth in examples/ex_basic.
+# Deploy this root BEFORE the cluster when you want any app exposed on the tailnet
+# (exposure = "internal"). Paste the output parameter name into
+# subsystems.tailscale.pstore_oauth in examples/ex_basic.
 #
 # ⚠️  DEMONSTRATION ONLY — this passes credentials through Terraform, which the
 # project otherwise avoids. The secret lands in your tfvars AND in Terraform
@@ -21,6 +25,10 @@ terraform {
     aws = {
       source  = "hashicorp/aws"
       version = "~> 6.0"
+    }
+    archive = {
+      source  = "hashicorp/archive"
+      version = "~> 2.0"
     }
   }
 }
@@ -41,6 +49,23 @@ resource "aws_ssm_parameter" "tailscale_oauth" {
   value = jsonencode({
     client_id     = var.tailscale_oauth_client_id
     client_secret = var.tailscale_oauth_client_secret
+  })
+
+  tags = {
+    Nickname = var.nickname
+  }
+}
+
+# SecureString SSM parameter holding the READ-ONLY OAuth client as JSON.
+# Path convention: /tailscale-standalone/{nickname}/readonly_oauth_config
+# Consumed only by the list + preflight Lambdas (least-privilege read scopes).
+resource "aws_ssm_parameter" "tailscale_readonly_oauth" {
+  name        = "/tailscale-standalone/${var.nickname}/readonly_oauth_config"
+  description = "Tailscale read-only OAuth client (devices:read, acl:read, dns:read)"
+  type        = "SecureString"
+  value = jsonencode({
+    client_id     = var.tailscale_readonly_oauth_client_id
+    client_secret = var.tailscale_readonly_oauth_client_secret
   })
 
   tags = {

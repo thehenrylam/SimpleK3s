@@ -56,6 +56,9 @@ terraform.rc
 # CUSTOM: Ignore tmp folders
 _tmp*/
 
+# CUSTOM: Lambda build artifacts (zipped by data.archive_file at plan time)
+examples/ex_tailscale/data/*.zip
+
 # CUSTOM: Ignore certain k8s manifests
 manifests/jenkins.yaml
 *.pem

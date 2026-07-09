@@ -1,0 +1,34 @@
+# Single tailnet entry point: one Tailscale device (Ingress, L7 — Tailscale
+# terminates TLS with a valid MagicDNS cert) that fronts Traefik's dedicated
+# plaintext `tsnet` entrypoint. Internally-exposed apps are then reached at
+# https://${hostname_prefix}.<your-tailnet>.ts.net/<app-path>, with Traefik doing
+# the host-scoped path routing (mirrors external mode). Lives in the Traefik
+# Service's namespace because a Kubernetes Ingress backend is same-namespace.
+#
+# Applied by sub_apply_tailscale.sh as a SEPARATE phase, only after the
+# `${hostname_prefix}-proxy` ProxyClass (in tailscale-helmchart.yaml) reports
+# Ready. This ordering is deliberate: if the operator's ingress-reconciler sees
+# this Ingress before the ProxyClass is Ready, it logs "not (yet) Ready, waiting.."
+# and (in operator v1.98.4) never re-reconciles, leaving the proxy device
+# uncreated. Gating the apply on ProxyClass readiness closes that race.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tailnet-entrypoint
+  namespace: ${traefik_namespace}
+spec:
+  ingressClassName: tailscale
+  tls:
+    - hosts:
+        - ${hostname_prefix}
+  rules:
+    - host: ${hostname_prefix}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ${traefik_service}
+                port:
+                  number: ${traefik_port}
