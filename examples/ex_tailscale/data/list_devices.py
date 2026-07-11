@@ -73,9 +73,7 @@ def handler(event, _context):
 
     client_id, client_secret = _get_oauth_client()
     token = _get_token(client_id, client_secret)
-    devices = _http("GET", f"{TS_API}/tailnet/-/devices", token=token).get(
-        "devices", []
-    )
+    devices = _http("GET", f"{TS_API}/tailnet/-/devices", token=token).get("devices", [])
 
     result = []
     for device in devices:

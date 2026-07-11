@@ -64,9 +64,7 @@ def _get_token(client_id, client_secret):
 
 def _check_tags(token, required):
     """Assert the tailnet policy defines owners for every required tag."""
-    acl = _http(
-        "GET", f"{TS_API}/tailnet/-/acl", token=token, accept="application/json"
-    )
+    acl = _http("GET", f"{TS_API}/tailnet/-/acl", token=token, accept="application/json")
     tag_owners = acl.get("tagOwners", {})
     missing = [t for t in required if t not in tag_owners]
     findings = [f"tag owner not defined in tailnet policy: {t}" for t in missing]
