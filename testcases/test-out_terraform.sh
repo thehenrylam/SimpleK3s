@@ -134,6 +134,7 @@ VALIDATE_MODULES=(
     "examples/modules/idp_cognito"
     "examples/ex_basic"
     "examples/ex_idp"
+    "examples/ex_tailscale"
 )
 
 check_validate() {

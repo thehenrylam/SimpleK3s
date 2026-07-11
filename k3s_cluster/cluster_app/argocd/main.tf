@@ -9,7 +9,19 @@ locals {
     version           = coalesce(try(var.settings.version, null), "9.4.5")
     pstore_idp_config = var.settings.pstore_idp_config
     domain_name       = var.settings.domain_name
+    exposure          = coalesce(try(var.settings.exposure, null), "internal")
   }
+
+  # Shared tailnet host (one device fronts Traefik for all internal apps). Argo CD
+  # is reached at https://<host>/argocd, path-routed by Traefik — mirrors external.
+  # magic_dns_name is null for external-only clusters; guard the interpolation
+  # (the internal+null combination is rejected by the plan-time exposure check).
+  internal_host = "${coalesce(var.internal_host_prefix, var.nickname)}.${var.magic_dns_name == null ? "" : var.magic_dns_name}"
+
+  # Base URL the app advertises (argocd-cm url + OIDC redirect). Internal exposure
+  # must match the tailnet host so SSO callbacks resolve; external uses the public
+  # domain served by Traefik.
+  base_url = local.settings.exposure == "internal" ? "https://${local.internal_host}" : "https://${local.settings.domain_name}"
 
   # Resource presets (to put into performance profiles)
   resource_presets = module.common.resource_presets
@@ -55,6 +67,9 @@ module "aws_s3obj" {
       src  = "${path.module}/data/argocd.yaml"
       template = jsonencode({
         domain_name       = local.settings.domain_name
+        exposure          = local.settings.exposure
+        internal_host     = local.internal_host
+        base_url          = local.base_url
         pstore_idp_config = local.settings.pstore_idp_config
         region_idp_config = module.aws_pstore.processed_pstores[local.settings.pstore_idp_config].region
         cfg               = merge({}, local.performance_profile["standard"])

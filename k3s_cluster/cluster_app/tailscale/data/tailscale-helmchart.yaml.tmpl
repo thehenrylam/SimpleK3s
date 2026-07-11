@@ -1,0 +1,115 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tailscale
+
+---
+# SecretStore: tells External Secrets Operator how to talk to AWS SSM Parameter Store
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  name: parameterstore
+  namespace: tailscale
+spec:
+  provider:
+    aws:
+      service: ParameterStore
+      region: ${region}
+
+---
+# ExternalSecret: materializes the operator OAuth credentials into the
+# `operator-oauth` Secret the Tailscale operator reads by default. The single
+# Parameter Store entry holds JSON: { "client_id": "...", "client_secret": "..." }
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: tailscale-operator-oauth
+  namespace: tailscale
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: parameterstore
+    kind: SecretStore
+  target:
+    name: operator-oauth
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      type: Opaque
+  data:
+    - secretKey: client_id
+      remoteRef:
+        key: ${pstore_oauth}
+        property: client_id
+    - secretKey: client_secret
+      remoteRef:
+        key: ${pstore_oauth}
+        property: client_secret
+
+---
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: tailscale-operator
+  namespace: kube-system
+spec:
+  repo: https://pkgs.tailscale.com/helmcharts
+  chart: tailscale-operator
+  version: ${version}
+  targetNamespace: tailscale
+  createNamespace: true
+  valuesContent: |-
+    # oauth.* intentionally omitted: the operator consumes the pre-created
+    # `operator-oauth` Secret materialized by the ExternalSecret above.
+
+    operatorConfig:
+      hostname: "${hostname_prefix}-operator"
+      resources:
+        requests:
+          cpu: ${resources.operator.req.cpu}
+          memory: ${resources.operator.req.mem}
+        limits:
+          cpu: ${resources.operator.lmt.cpu}
+          memory: ${resources.operator.lmt.mem}
+
+    # Default tags applied to proxy devices the operator creates for exposed
+    # services (e.g. the Tailscale Ingress fronting ArgoCD/Grafana).
+    proxyConfig:
+      defaultTags: "${proxy_tags}"
+      # Apply default resource requests/limits to every operator-created proxy
+      # StatefulSet via the ProxyClass defined below (Helm values have no proxy
+      # resources field; ProxyClass is the operator-native mechanism).
+      defaultProxyClass: "${hostname_prefix}-proxy"
+
+    # No tailnet-exposed Kubernetes API server proxy (node access stays on SSM).
+    apiServerProxyConfig:
+      mode: "false"
+
+---
+# ProxyClass: sizes the proxy StatefulSets the operator creates for exposed
+# services/Ingress. Referenced as proxyConfig.defaultProxyClass above so every
+# proxy inherits it. The CRD ships with the operator HelmChart above; k3s retries
+# this manifest until the CRD exists (same pattern as CRD-consuming objects
+# elsewhere in the cluster).
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: ${hostname_prefix}-proxy
+spec:
+  statefulSet:
+    pod:
+      tailscaleContainer:
+        resources:
+          requests:
+            cpu: ${resources.proxy.req.cpu}
+            memory: ${resources.proxy.req.mem}
+          limits:
+            cpu: ${resources.proxy.lmt.cpu}
+            memory: ${resources.proxy.lmt.mem}
+
+# NOTE: the `tailnet-entrypoint` Ingress that fronts Traefik lives in a separate
+# manifest (tailscale-ingress.yaml) applied by sub_apply_tailscale.sh only AFTER
+# this ProxyClass reports Ready. Applying it here (together with the operator)
+# races the operator's ingress-reconciler against ProxyClass readiness; on a miss
+# the operator wedges the Ingress and never creates the proxy device. See the
+# apply script's wait_for_proxyclass gate.

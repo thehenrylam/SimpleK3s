@@ -72,7 +72,7 @@ spec:
   valuesContent: |-
     configs:
       cm:
-        url: "https://${domain_name}/argocd"
+        url: "${base_url}/argocd"
 
     # Resource sizing (baseline)
     # Tune these over time based on kubectl top / VPA recommendations.
@@ -151,6 +151,48 @@ spec:
           memory: ${cfg.server.resources.lmt.mem} # 256Mi
 
 ---
+%{ if exposure == "internal" ~}
+# Internal exposure (tailnet): reached at https://${internal_host}/argocd via the
+# single Tailscale device that fronts Traefik's plaintext `tsnet` entrypoint. This
+# is the SAME Traefik path-routing as external mode; only the front door differs.
+# The X-Forwarded-Proto=https middleware tells Argo CD the external scheme is https
+# (Tailscale already terminated TLS), so OIDC redirect validation passes.
+# NOTE: for SSO, register https://${internal_host}/argocd/auth/callback in your IdP.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: xfp-https
+  namespace: argocd
+spec:
+  headers:
+    customRequestHeaders:
+      X-Forwarded-Proto: "https"
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd
+  namespace: argocd
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: tsnet
+    traefik.ingress.kubernetes.io/router.middlewares: argocd-xfp-https@kubernetescrd
+    traefik.ingress.kubernetes.io/router.priority: "100"
+spec:
+  # Host-scoped to the tailnet FQDN (Tailscale preserves the Host header) so
+  # internal routes never collide with external traffic. No TLS block: TLS is
+  # terminated upstream by the Tailscale device.
+  rules:
+    - host: ${internal_host}
+      http:
+        paths:
+          - path: /argocd
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 80
+%{ else ~}
 # Ingress (Traefik): exposes the Argo CD server UI/API externally at https://${domain_name}/argocd
 # Routes inbound HTTPS traffic to the argocd-server Service on port 80
 apiVersion: networking.k8s.io/v1
@@ -177,6 +219,7 @@ spec:
                 name: argocd-server
                 port:
                   number: 80
+%{ endif ~}
 
 ---
 # ConfigMap (argocd-cm): Argo CD "main config" — sets the external URL and OIDC SSO settings
@@ -195,7 +238,7 @@ metadata:
     meta.helm.sh/release-name: argocd
     meta.helm.sh/release-namespace: argocd
 data:
-  url: "https://${domain_name}/argocd"
+  url: "${base_url}/argocd"
   oidc.config: |
     name: Cognito
     issuer: $argocd-oidc:oidc.cognito.issuer

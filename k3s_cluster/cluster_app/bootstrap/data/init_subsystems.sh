@@ -41,6 +41,12 @@ if [[ "$COUNT_INDEX" -eq 0 ]]; then
         "$SCRIPT_DIR/sub_apply_external-secrets.sh" || exit 1
     fi
 
+    # Apply Tailscale (depends on External Secrets for its OAuth secret; must be
+    # ready before applications that opt into internal/tailnet exposure)
+    if [ -f "$SCRIPT_DIR/sub_apply_tailscale.sh" ]; then
+        "$SCRIPT_DIR/sub_apply_tailscale.sh" || exit 1
+    fi
+
     # Apply Longhorn (Must be initialized before Karpenter/Descheduler so storage is ready)
     if [ -f "$SCRIPT_DIR/sub_apply_longhorn.sh" ]; then
         "$SCRIPT_DIR/sub_apply_longhorn.sh" || exit 1

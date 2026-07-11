@@ -9,10 +9,12 @@ Run one or more test scripts from the `testcases/` directory and report results.
 The available test scripts are:
 - `testcases/test-out_shellscripts.sh` — shellcheck on all `.sh` files
 - `testcases/test-out_terraform.sh` — fmt, tflint, checkov, validate (defaults to `tofu`; pass `--use-terraform` to run under Terraform, `--help` for options)
+- `testcases/test-out_python.sh` — ruff check + `ruff format --check` on all `*.py`
+- `testcases/test-out_simplek3s.sh` — **live** end-to-end health check of an already-deployed cluster (see the special handling in step 3)
 
 Use the args and conversation context to decide which tests to run:
 
-- **No args / no context**: include all test scripts.
+- **No args / no context**: include all *static* test scripts (`shellscripts`, `terraform`, `python`). Do **not** auto-include `test-out_simplek3s.sh` — it is a live-cluster probe with preconditions; only include it when the user explicitly asks or supplies its args.
 - **"relevant" or "related" in the prompt**: look back at the conversation to identify which files, tools, or areas were most recently discussed or modified, then select the test scripts most relevant to that work.
 - **Explicit additions or removals in the prompt** (e.g. "skip terraform", "only shellcheck", "add X"): apply those adjustments to the list.
 
@@ -45,7 +47,11 @@ Proceed? (yes to run, or tell me what to change)
   - In the document, we will refer to this as `LOG_TIMESTAMP`
 
 3. For each item in the list of tests:
-  - If its a `test-out_<specifier>.sh` script:
+  - `test-out_simplek3s.sh` is a **special case** — it takes `<region> <profile> <nickname>` as required positional args (not the log convention) and uses flags for logging. Execute it like this:
+    - `./testcases/test-out_simplek3s.sh <region> <profile> <nickname> --log-name "${LOG_FILENAME}" --log-timestamp "${LOG_TIMESTAMP}"`
+    - **Inferring args**: unless the user supplies them explicitly, infer `region` and `nickname` by reading `examples/ex_basic/terraform.tfvars` (`aws_region` → region, `nickname` → nickname). Always **show the inferred region + nickname to the user to confirm** before running. The `profile` is never inferred — always ask the user to provide it.
+    - Its preconditions: a **deployed** cluster + valid AWS creds/profile. If `region`/`nickname` can't be inferred and the user doesn't supply them, or the user can't supply the `profile`, or no cluster is deployed, skip it and note the skip in the report rather than failing the whole run.
+  - Otherwise, if its a `test-out_<specifier>.sh` script:
     - Execute it like this: `./testcases/test-out_<specifier>.sh "${LOG_FILENAME}" "${LOG_TIMESTAMP}"`
   - If its a command:
     - Execute it like this: `<command> | tee -a "./testcases/${LOG_FILENAME}-${LOG_TIMESTAMP}.log"`

@@ -13,6 +13,7 @@ locals {
     version           = coalesce(try(var.settings.version, null), "0.1.0-alpha.0")
     pstore_idp_config = var.settings.pstore_idp_config
     domain_name       = var.settings.domain_name
+    exposure          = coalesce(try(var.settings.exposure, null), "internal")
     scrape_interval   = coalesce(try(var.settings.scrape_interval, null), "60s")
     # LOCAL Prometheus retention only. Long-term history lives in S3 via the
     # Thanos sidecar, so this stays short (default 6h) to keep the PVC small.
@@ -27,6 +28,18 @@ locals {
       alertmanager_pvc_size = try(var.settings.storage.components.alertmanager.pvc_size, 0)
     }
   }
+
+  # Shared tailnet host (one device fronts Traefik for all internal apps). Grafana
+  # and Prometheus are reached at https://<host>/grafana and /prometheus, path-routed
+  # by Traefik — mirrors external mode. magic_dns_name is null for external-only
+  # clusters; guard the interpolation (the internal+null combination is rejected by
+  # the plan-time exposure check).
+  internal_host = "${coalesce(var.internal_host_prefix, var.nickname)}.${var.magic_dns_name == null ? "" : var.magic_dns_name}"
+
+  # Base URL each service advertises (Grafana root_url / Prometheus externalUrl +
+  # OIDC redirect). Internal must match the tailnet host so SSO callbacks resolve;
+  # external uses the public domain served by Traefik.
+  base_url = local.settings.exposure == "internal" ? "https://${local.internal_host}" : "https://${local.settings.domain_name}"
 
   # Resource presets (to put into performance profiles)
   resource_presets = module.common.resource_presets
@@ -73,6 +86,9 @@ module "aws_s3obj" {
       template = jsonencode({
         version                   = local.settings.version
         domain_name               = local.settings.domain_name
+        exposure                  = local.settings.exposure
+        internal_host             = local.internal_host
+        base_url                  = local.base_url
         pstore_idp_config         = local.settings.pstore_idp_config
         region_idp_config         = module.aws_pstore.processed_pstores[local.settings.pstore_idp_config].region
         cfg                       = merge({}, local.performance_profile["standard"])

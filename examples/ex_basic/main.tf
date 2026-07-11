@@ -22,7 +22,7 @@ locals {
   dns_prefix   = coalesce(var.dns.prefix, "k3s")
   domain_name  = "${local.dns_prefix}.${local.dns_basename}"
 
-  # IdP SSM Parameter Names
+  # IdP SSM Parameter Name
   #   What its used for: Used to enable SSO for apps
   #   Required Actions:
   #       - Go to SimpleK3s/examples/ex_idp/
@@ -30,7 +30,7 @@ locals {
   #       - Use the SSM Param Output via `terraform output -json`
   #           - NOTE: Default values are already provided 
   #             (Only need to change this if you change the idp-standalone nickname)
-  # idp_config's should have a JSON string the following format:
+  # idp_config's should have a JSON string with the following format:
   # {
   #     issuer        = __IDP_ISSUER_URL__
   #     client_id     = __IDP_CLIENT_ID__
@@ -40,7 +40,122 @@ locals {
   # Use the module within ../modules/idp_cognito to create this config
   pstore_idp_config = "/idp-standalone/idp-standalone/idp_config"
 
+  # PVC SSM Parameter Name
+  #   What its used for: Enables SimpleK3s to leverage PVCs for its apps (This is not managed by SimpleK3s itself to properly retain data even after it undergoes a terraform/tofu destroy)
+  #   Required Actions:
+  #       - Go to SimpleK3s/examples/ex_pvc
+  #       - Create the PVC resource (Customize the settings, be sure that the EBS sizes are greater than the requested memory by at least 0.5Gi)
+  #       - Use the SSM Param Output via `terraform output -json`
+  #           - NOTE: Default values are already provided 
+  #             (Only need to change this if you change the pvc-standalone nickname)
+  # pvc_pool_platform's should have a JSON string with the following format (s.t. n == number of AZs defined in the PVC allocation):
+  # [
+  #     "vol-id_of_ebs_volume_for_az_0",
+  #     "vol-id_of_ebs_volume_for_az_1",
+  #     "vol-id_of_ebs_volume_for_az_2",
+  #     ...
+  #     "vol-id_of_ebs_volume_for_az_n"
+  # ] 
   pvc_pool_platform = "/pvc-standalone/pvc-standalone/pvc_pool_platform"
+
+  # TailScale SSM Parameter Name
+  #   What its used for: Enables SimpleK3s to talk to Tailscale to properly set up Tailscale as an entrypoint into your apps
+  #   Required Actions:
+  #       - Go to SimpleK3s/examples/ex_tailscale
+  #       - Make sure that the following variables are set up in terraform.tfvars file:
+  #           - tailscale_oauth_client_id
+  #           - tailscale_oauth_client_secret
+  #       - Create the Tailscale PStore resource
+  #       - Use the SSM Param Output via `terraform output -json`
+  #           - NOTE: Default values are already provided 
+  #             (Only need to change this if you change the tailscale-standalone nickname)
+  # tailscale_oauth's should have a JSON string with the following format:
+  # {
+  #     client_id     = __TAILSCALE_CLIENT_ID__
+  #     client_secret = __TAILSCALE_CLIENT_SECRET__
+  # }
+  pstore_tailscale_oauth = "/tailscale-standalone/tailscale-standalone/oauth_config"
+  # magic_dns's should have a JSON string with the following format:
+  # {
+  #     magic_dns_name = __TAILSCALE_MAGIC_DNS_NAME__
+  # }
+  pstore_tailscale_magic_dns_name = "/tailscale-standalone/tailscale-standalone/magic_dns_name"
+  magic_dns_name                  = jsondecode(data.aws_ssm_parameter.pstore_tailscale_magic_dns_name.value).magic_dns_name
+
+  # ARN of the device-cleanup Lambda published by ex_tailscale. Invoked on cluster
+  # destroy to remove this cluster's tailnet devices (prevents "-1" name collisions).
+  pstore_tailscale_cleanup_lambda_arn = "/tailscale-standalone/tailscale-standalone/cleanup_lambda_arn"
+
+  # ARN of the read-only preflight Lambda published by ex_tailscale. Invoked at plan
+  # time to validate the tailnet (tags + MagicDNS) before the cluster is built.
+  pstore_tailscale_preflight_lambda_arn = "/tailscale-standalone/tailscale-standalone/preflight_lambda_arn"
+}
+
+# Determine the tailscale Magic DNS Name. Since this isn't sensitive information, we can freely retrieve this data within the TF module
+# The reason why we don't set Magic DNS name here is because we want to keep tailscale specific settings separate from the general settings
+data "aws_ssm_parameter" "pstore_tailscale_magic_dns_name" {
+  name = local.pstore_tailscale_magic_dns_name
+}
+
+# ARN of the device-cleanup Lambda (created + published by examples/ex_tailscale).
+data "aws_ssm_parameter" "pstore_tailscale_cleanup_lambda_arn" {
+  name = local.pstore_tailscale_cleanup_lambda_arn
+}
+
+# Destroy-time Tailscale device cleanup.
+# The cleanup Lambda lives in examples/ex_tailscale (a durable root, so it always
+# exists when invoked). Here we only INVOKE it, tied to THIS cluster's lifecycle:
+# lifecycle_scope = "CRUD" is what gives a destroy hook, and the Lambda no-ops on
+# create/update — so cleanup runs only on `tofu destroy`, deleting this cluster's
+# tailnet devices (<nickname>, <nickname>-operator) before they can linger and
+# force "-1"-suffixed names on the next deploy.
+# NOTE: whoever runs `tofu destroy` needs lambda:InvokeFunction on this function.
+resource "aws_lambda_invocation" "tailscale_cleanup" {
+  function_name   = data.aws_ssm_parameter.pstore_tailscale_cleanup_lambda_arn.value
+  lifecycle_scope = "CRUD"
+
+  # Cluster-level identity the Lambda matches on: it deletes only devices whose
+  # short name is <hostname_prefix> or <hostname_prefix>-* AND that carry one of
+  # these tags (so unrelated devices sharing the name prefix are never touched).
+  # hostname_prefix mirrors subsystems.tailscale.hostname_prefix (defaults to
+  # nickname). Tags cover BOTH planes: the proxy device (subsystems.tailscale.tags,
+  # "tag:k8s") and the operator device ("tag:k8s-operator", the OAuth client tag).
+  input = jsonencode({
+    hostname_prefix = var.nickname
+    tags            = ["tag:k8s", "tag:k8s-operator"]
+  })
+}
+
+# Preflight gate (blocks the apply on a misconfigured tailnet).
+# The read-only preflight Lambda lives in ex_tailscale; here we invoke it at plan
+# time (data sources) and assert the results, so a missing tag owner or disabled
+# MagicDNS fails the plan BEFORE the ~20-min cluster build. The Lambda fails OPEN
+# on Tailscale API errors (returns ok=true), so a transient hiccup can't wedge apply.
+data "aws_ssm_parameter" "pstore_tailscale_preflight_lambda_arn" {
+  name = local.pstore_tailscale_preflight_lambda_arn
+}
+
+data "aws_lambda_invocation" "tailscale_preflight_tags" {
+  function_name = data.aws_ssm_parameter.pstore_tailscale_preflight_lambda_arn.value
+  input         = jsonencode({ check = "tags" })
+}
+
+data "aws_lambda_invocation" "tailscale_preflight_dns" {
+  function_name = data.aws_ssm_parameter.pstore_tailscale_preflight_lambda_arn.value
+  input         = jsonencode({ check = "dns" })
+}
+
+resource "terraform_data" "tailscale_preflight_gate" {
+  lifecycle {
+    precondition {
+      condition     = jsondecode(data.aws_lambda_invocation.tailscale_preflight_tags.result).ok
+      error_message = "Tailscale preflight (tags) failed: ${join("; ", try(jsondecode(data.aws_lambda_invocation.tailscale_preflight_tags.result).findings, ["see the preflight Lambda logs"]))}. Fix the tailnet ACL (define owners for tag:k8s and tag:k8s-operator) before deploying."
+    }
+    precondition {
+      condition     = jsondecode(data.aws_lambda_invocation.tailscale_preflight_dns.result).ok
+      error_message = "Tailscale preflight (dns) failed: ${join("; ", try(jsondecode(data.aws_lambda_invocation.tailscale_preflight_dns.result).findings, ["see the preflight Lambda logs"]))}. Enable MagicDNS (and HTTPS certificates) on the tailnet before deploying."
+    }
+  }
 }
 
 module "vpc_cloud" {
@@ -69,6 +184,14 @@ module "k3s_cluster" {
   }
 
   subsystems = {
+    # If activated, it exposes admin apps via tailnet instead of public LB (more secure)
+    # Remember: If you enable this, please set the apps' configs to `exposure = "internal"`
+    tailscale = {
+      pstore_oauth   = local.pstore_tailscale_oauth
+      tags           = ["tag:k8s"]
+      magic_dns_name = local.magic_dns_name
+    }
+
     karpenter = {
       version                = "1.9.0"
       capacity_type          = "on-demand"
@@ -101,10 +224,12 @@ module "k3s_cluster" {
     argocd = { # Deployer: ArgoCD
       pstore_idp_config = local.pstore_idp_config
       domain_name       = local.domain_name
+      exposure          = "internal" # "external" # public LB via Traefik (use "internal" for tailnet-only)
     }
     monitoring = { # Monitoring: Prometheus & Grafana (+ Thanos long-term storage)
       pstore_idp_config = local.pstore_idp_config
       domain_name       = local.domain_name
+      exposure          = "internal" # "external" # public LB via Traefik (use "internal" for tailnet-only)
       storage = {
         pool_name = "platform"
         components = {

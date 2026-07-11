@@ -11,3 +11,6 @@ dns = {
   basename = "YOUR_DNS_NAME_HERE" # Configure this! EXAMPLE: yourdomain.com 
   prefix   = "k3s"
 }
+
+# Configure this IF you want to utilize Internal-facing app setups (e.g. Only have ArgoCD/Grafana/Prometheus accessible via Tailscale and not let anybody else access it)
+tailscale_magic_dns_name = "TAILSCALE_MAGIC_DNS_NAME" # Example: <tailscale-name>.ts.net

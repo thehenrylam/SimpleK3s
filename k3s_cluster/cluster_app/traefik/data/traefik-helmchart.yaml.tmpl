@@ -15,6 +15,19 @@ spec:
         nodePort: ${network.traefik.nodeport_http} # 30080
       websecure:
         nodePort: ${network.traefik.nodeport_https} # 30443
+%{ if tsnet_enabled ~}
+      # Dedicated plaintext entrypoint for tailnet traffic, fronted by a single
+      # Tailscale device (TLS terminated by Tailscale upstream). No HTTP->HTTPS
+      # redirect here, so internally-exposed apps route cleanly. Exposed on the
+      # service so the Tailscale Ingress can reach it via ClusterIP; the auto
+      # nodePort is NOT targeted by the public NLB and is SG-gated.
+      tsnet:
+        port: ${tsnet_port} # 8090
+        expose:
+          default: true
+        exposedPort: ${tsnet_port} # 8090
+        protocol: TCP
+%{ endif ~}
 
     # HA: run multiple Traefik replicas
     deployment:

@@ -94,20 +94,19 @@ locals {
 #################################################
 #    IAM Policy : K3S Token Parameter Storage   #
 #################################################
-# Attach permission policy (least-privilege policy for IdP issuer_url,client_id,secret_token)
-resource "aws_iam_role_policy_attachment" "pstore" {
-  role       = local.iam_config.role_name
-  policy_arn = aws_iam_policy.pstore.arn
-}
-
-# Establish IAM Policy using document
-resource "aws_iam_policy" "pstore" {
+# Least-privilege policy for reading the SSM parameter(s) this module manages
+# (e.g. IdP issuer_url/client_id/secret_token, Tailscale OAuth, etc).
+#
+# This is an INLINE role policy on purpose. Each consumer of aws_pstore (argocd,
+# monitoring, tailscale, ...) adds one policy to the shared EC2 role; as managed
+# policies, those count against the AWS "managed policies per role" quota (10) and
+# the role hits the ceiling once enough subsystems are enabled. Inline policies do
+# not count against that quota (only an aggregate size limit), so this scales with
+# the number of subsystems without exhausting the slot count.
+resource "aws_iam_role_policy" "pstore" {
   name   = local.ipolicy_pstore_name
+  role   = local.iam_config.role_name
   policy = data.aws_iam_policy_document.pstore.json
-
-  tags = merge(var.tags, merge(local.tags_default), {
-    Name = local.ipolicy_pstore_name
-  })
 }
 
 # Setup policy document

@@ -40,6 +40,40 @@ resource "terraform_data" "longhorn_pool_check_applications" {
   }
 }
 
+# Tailscale exposure guardrail (applications)
+# An app set to exposure="internal" is reachable only via the Tailscale operator,
+# so the tailscale subsystem must be enabled. Fail the plan early otherwise.
+locals {
+  tailscale_enabled = try(var.subsystems.tailscale, null) != null
+  internal_exposure_refs = {
+    argocd     = try(var.applications.argocd.exposure, null)
+    monitoring = try(var.applications.monitoring.exposure, null)
+  }
+
+  # Tailnet identity threaded to internally-exposed apps so they advertise their
+  # tailnet host (URL + OIDC redirect) instead of the external domain. Single
+  # source of truth: subsystems.tailscale.{hostname_prefix, magic_dns_name}.
+  tailscale_host_prefix = coalesce(try(var.subsystems.tailscale.hostname_prefix, null), var.nickname)
+  tailscale_magic_dns   = try(var.subsystems.tailscale.magic_dns_name, null)
+}
+
+resource "terraform_data" "tailscale_exposure_check" {
+  for_each = { for app, exposure in local.internal_exposure_refs : app => exposure if exposure == "internal" }
+
+  lifecycle {
+    precondition {
+      condition     = local.tailscale_enabled
+      error_message = "Application '${each.key}' sets exposure=\"internal\" but the tailscale subsystem is not configured. Add subsystems.tailscale (with pstore_oauth) or set exposure=\"external\"."
+    }
+    # Internal URLs (app base URL + OIDC redirect) cannot be built without the
+    # tailnet MagicDNS domain, so require it whenever an app is internal.
+    precondition {
+      condition     = local.tailscale_magic_dns != null
+      error_message = "Application '${each.key}' sets exposure=\"internal\" but subsystems.tailscale.magic_dns_name is not set. Set it to your tailnet domain (e.g. \"opossum-copperhead.ts.net\") or set exposure=\"external\"."
+    }
+  }
+}
+
 # IF ENABLED: Check and Set up all of the needed files for ArgoCD 
 # Handles:
 #   - S3 object upload
@@ -54,6 +88,9 @@ module "cluster_app_argocd" {
   s3_config = local.s3_config_applications
   # IAM settings
   iam_config = local.iam_config_applications
+  # Tailnet identity (used to build the internal URL when exposure="internal")
+  internal_host_prefix = local.tailscale_host_prefix
+  magic_dns_name       = local.tailscale_magic_dns
 }
 
 # IF ENABLED: Check and Set up all of the needed files for Monitoring (Prometheus & Grafana)
@@ -79,4 +116,7 @@ module "cluster_app_monitoring" {
   )
   # Thanos metrics bucket (always created when monitoring is enabled; see monitoring_thanos_s3.tf)
   thanos_bucket_name = try(aws_s3_bucket.thanos[0].bucket, null)
+  # Tailnet identity (used to build the internal URLs when exposure="internal")
+  internal_host_prefix = local.tailscale_host_prefix
+  magic_dns_name       = local.tailscale_magic_dns
 }
