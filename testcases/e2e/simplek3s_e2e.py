@@ -58,6 +58,7 @@ APP_PROBES = [
     ("prometheus_pvc", "fetch_app-prometheus-pvc.py"),
     ("thanos", "fetch_app-thanos.py"),
     ("descheduler", "fetch_app-descheduler.py"),
+    ("tailscale", "fetch_app-tailscale.py"),
 ]
 
 # probe_key -> script, used to rerun a single probe during reconciliation. App

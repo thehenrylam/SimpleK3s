@@ -199,6 +199,27 @@
         "details": { "$ignore": true },
         "errors": { "$ignore": true },
         "note": { "$ignore": true }
+      },
+      "tailscale": {
+        "ready": true,
+        "status": { "$ignore": true },
+        "summary": {
+          "deployed": true,
+          "operator_ready": true,
+          "oauth_secret_ok": true,
+          "oauth_synced": true,
+          "secret_store_ready": true,
+          "ingressclass_ok": true,
+          "proxyclass_ready": true,
+          "entrypoint_ingress_ok": true,
+          "entrypoint_hostname_ok": true,
+          "proxy_ready": true,
+          "backend_http_ok": true,
+          "tls_cert_issued": { "$warn": true }
+        },
+        "details": { "$ignore": true },
+        "errors": { "$ignore": true },
+        "note": { "$ignore": true }
       }
     }
   }
