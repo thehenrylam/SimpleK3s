@@ -56,9 +56,16 @@ function setup_control_plane() {
 
     "$SCRIPT_DIR/bts_04_longhorn_disks.sh" "controlplane" || exit 1
 
-    "$SCRIPT_DIR/init_subsystems.sh" "$COUNT_INDEX" || exit 1
+    # Node 0 stages ALL subsystem/application manifests at once and lets the
+    # cluster converge (the K3s deploy controller retries until dependencies
+    # are up). The only post-staging imperative work lives in converge_actions.
+    if [[ "$COUNT_INDEX" -eq 0 ]]; then
+        "$SCRIPT_DIR/bts_05_stage_manifests.sh" || exit 1
 
-    "$SCRIPT_DIR/init_applications.sh" "$COUNT_INDEX" || exit 1
+        "$SCRIPT_DIR/converge_actions.sh" || exit 1
+    else
+        log_info "COUNT_INDEX is NOT 0; Skipping manifest staging"
+    fi
 }
 
 # Setup agent

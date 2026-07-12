@@ -96,15 +96,15 @@ module "aws_s3obj" {
       template = null
     },
     {
-      desc     = "Init Script (Install Subsystems)",
-      key      = "${var.s3_config.keyroot}/init_subsystems.sh",
-      src      = "${path.module}/data/init_subsystems.sh",
+      desc     = "Init Script (Stage Manifests)",
+      key      = "${var.s3_config.keyroot}/bts_05_stage_manifests.sh",
+      src      = "${path.module}/data/bts_05_stage_manifests.sh",
       template = null
     },
     {
-      desc     = "Init Script (Install Applications)",
-      key      = "${var.s3_config.keyroot}/init_applications.sh",
-      src      = "${path.module}/data/init_applications.sh",
+      desc     = "Init Script (Converge Actions)",
+      key      = "${var.s3_config.keyroot}/converge_actions.sh",
+      src      = "${path.module}/data/converge_actions.sh",
       template = null
     },
     {
