@@ -13,10 +13,16 @@ set -euo pipefail
 # (e.g. karpenter-nodepool, traefik-middleware, tailscale-ingress) converge on
 # their own once their dependency is up.
 #
-# The ONE ordering exception is Kyverno: its admission webhooks must be in place
-# before any other component is admitted, so baseline policies cover the whole
-# platform. Kyverno is staged first and gated on readiness; everything else is
-# staged in a single pass afterwards.
+# The ordering exceptions are the "head" charts, staged and gated BEFORE the
+# single-pass staging of everything else:
+#   - Kyverno: its admission webhooks must be in place before any other
+#     component is admitted, so baseline policies cover the whole platform.
+#   - karpenter-crd: the main karpenter chart bundles the same CRDs in its
+#     crds/ directory and Helm creates those WITHOUT release ownership
+#     metadata. If the main chart wins the race, the karpenter-crd release can
+#     never install ("exists and cannot be imported") — an ownership conflict
+#     that retries cannot converge. Staging karpenter-crd first (gated on its
+#     CRDs existing) makes the main chart skip its bundled copies.
 #
 # This script is idempotent and re-runnable: re-syncing the bootstrap dir from
 # S3 and re-running it is the cluster's update mechanism (the deploy controller
@@ -34,6 +40,15 @@ PENDING_MANIFEST_DIR="$SCRIPT_DIR/manifests"
 KYVERNO_MANIFESTS=(
     "kyverno.yaml"
     "kyverno-baseline-policies.yaml"
+)
+
+# Karpenter CRD chart, staged ahead of the main karpenter chart (see header)
+KARPENTER_CRD_MANIFEST="karpenter-crd-helmchart.yaml"
+
+# Everything staged by the ordered head; skipped by stage_remaining_manifests
+HEAD_MANIFESTS=(
+    "${KYVERNO_MANIFESTS[@]}"
+    "$KARPENTER_CRD_MANIFEST"
 )
 
 function stage_manifest() {
@@ -109,11 +124,39 @@ function stage_kyverno_first() {
     wait_kyverno || return 1
 }
 
+function wait_karpenter_crds() {
+    # Only the CRDs need to exist (registered by the karpenter-crd release)
+    # before the main karpenter chart is staged; no controller readiness needed.
+    log_info "Waiting for the Karpenter CRDs (owned by the karpenter-crd release)..."
+    wait_for_cmd_3min bash -c \
+      "sudo kubectl get crd ec2nodeclasses.karpenter.k8s.aws >/dev/null 2>&1 \
+        && sudo kubectl get crd nodepools.karpenter.sh >/dev/null 2>&1 \
+        && sudo kubectl get crd nodeclaims.karpenter.sh >/dev/null 2>&1" || {
+        log_fail "Karpenter CRDs never appeared"
+        sudo kubectl -n kube-system get job helm-install-karpenter-crd || true
+        sudo kubectl -n kube-system logs -l helmcharts.helm.cattle.io/chart=karpenter-crd --tail=30 || true
+        return 1
+    }
+    log_okay "Karpenter CRDs are registered."
+}
+
+function stage_karpenter_crd_first() {
+    # Karpenter may be absent (subsystem disabled); nothing to gate on then
+    if [ ! -f "$PENDING_MANIFEST_DIR/$KARPENTER_CRD_MANIFEST" ]; then
+        log_info "No karpenter-crd manifest present; skipping the karpenter-crd gate"
+        return 0
+    fi
+
+    stage_manifest "$KARPENTER_CRD_MANIFEST" || return 1
+
+    wait_karpenter_crds || return 1
+}
+
 function stage_remaining_manifests() {
     local PENDING_FILEPATH
     local FILENAME
-    local IS_KYVERNO
-    local KYVERNO_FILENAME
+    local IS_HEAD
+    local HEAD_FILENAME
 
     for PENDING_FILEPATH in "$PENDING_MANIFEST_DIR"/*.yaml; do
         # No manifests at all (glob did not expand)
@@ -121,15 +164,15 @@ function stage_remaining_manifests() {
 
         FILENAME="$(basename "$PENDING_FILEPATH")"
 
-        # Skip the Kyverno manifests (already staged by stage_kyverno_first)
-        IS_KYVERNO="false"
-        for KYVERNO_FILENAME in "${KYVERNO_MANIFESTS[@]}"; do
-            if [ "$FILENAME" == "$KYVERNO_FILENAME" ]; then
-                IS_KYVERNO="true"
+        # Skip the head manifests (already staged by the ordered head above)
+        IS_HEAD="false"
+        for HEAD_FILENAME in "${HEAD_MANIFESTS[@]}"; do
+            if [ "$FILENAME" == "$HEAD_FILENAME" ]; then
+                IS_HEAD="true"
                 break
             fi
         done
-        if [ "$IS_KYVERNO" == "true" ]; then
+        if [ "$IS_HEAD" == "true" ]; then
             continue
         fi
 
@@ -155,9 +198,14 @@ log_info "Make sure that '$K3S_MANIFEST_DIR/' is initialized"
 sudo mkdir -p "$K3S_MANIFEST_DIR/"
 log_okay "Confirmed that '$K3S_MANIFEST_DIR/' has been initialized"
 
-# Kyverno first (the single ordered exception), then everything else at once
+# Ordered head first (Kyverno, then karpenter-crd), then everything else at once
 stage_kyverno_first || {
     log_fail "Failed to stage Kyverno ahead of the other components"
+    exit 1
+}
+
+stage_karpenter_crd_first || {
+    log_fail "Failed to stage karpenter-crd ahead of the main karpenter chart"
     exit 1
 }
 
