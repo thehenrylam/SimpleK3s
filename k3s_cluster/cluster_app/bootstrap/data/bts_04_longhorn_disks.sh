@@ -6,13 +6,22 @@ set -euo pipefail
 # -e            : Exits on ANY command failure
 # -o pipefail   : Make pipeline fail if any command in them fails
 
+# Node-local storage pool preparation.
+# For every pool (longhorn_pools_config.json) that targets this node type:
+# attach the pool's per-AZ EBS volume, format it (first boot only), and mount
+# it at the pool's disk path. Purely OS/cloud-level — no Kubernetes access.
+# Registering the disks with Longhorn happens later, cluster-side:
+# bts_05_stage_manifests.sh sets the node annotations (node 0) and
+# converge_actions.sh reconciles them into nodes.longhorn.io.
+
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
-# shellcheck disable=SC1091
+# Retrieve the common functions from common.sh (Calls upon simplek3s.env file)
+# shellcheck source=k3s_cluster/cluster_app/bootstrap/data/lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
-
-# shellcheck disable=SC1091
-source "$SCRIPT_DIR/simplek3s.env"
+# Retrieve the AWS specific functions from aws.sh (IMDS, SSM and EBS helpers)
+# shellcheck source=k3s_cluster/cluster_app/bootstrap/data/lib/providers/aws.sh
+source "$SCRIPT_DIR/lib/providers/aws.sh"
 
 CLUSTER_TYPE="${1:-}"
 if [[ -z "$CLUSTER_TYPE" ]]; then
@@ -28,234 +37,153 @@ if [[ ! -f "$POOLS_CONFIG_FILE" ]]; then
     exit 0
 fi
 
-log_info "$0: LAUNCHED — setting up Longhorn EBS disks for node type '$CLUSTER_TYPE'"
+# Device names requested at attach time, one letter per pool index
+# (/dev/sdh, /dev/sdi, ...). NVMe instance types rename these anyway; the real
+# device is discovered afterwards via the volume serial.
+DEVICE_LETTERS="hijklmnop"
 
-########################################
-#   IMDSv2 helpers                     #
-########################################
-function get_imds_token() {
-    curl -s -X PUT \
-        -H "X-aws-ec2-metadata-token-ttl-seconds: 60" \
-        "http://169.254.169.254/latest/api/token"
+# Emits one pool per line as tab-separated fields:
+# index, name, ebs_volumes_pstore_name, disk_path, node_target
+function list_pools() {
+    python3 - "$POOLS_CONFIG_FILE" <<'PYEOF'
+import json
+import sys
+
+with open(sys.argv[1]) as f:
+    pools = json.load(f)
+
+for i, pool in enumerate(pools):
+    print("\t".join([
+        str(i),
+        pool["name"],
+        pool["ebs_volumes_pstore_name"],
+        pool["disk_path"],
+        pool["node_target"],
+    ]))
+PYEOF
 }
 
-function get_imds_value() {
-    local TOKEN="$1"
-    local PATH_SUFFIX="$2"
-    curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \
-        "http://169.254.169.254/latest/meta-data/$PATH_SUFFIX"
+# Prints the pool's EBS volume ID for this node's AZ.
+# (Value-returning: no logging here — the caller logs around it.)
+function resolve_pool_volume() {
+    local ssm_param="$1"
+    local az="$2"
+
+    # The pool's SSM parameter holds a JSON list of volume IDs (one per AZ)
+    local volume_ids_json
+    volume_ids_json="$(get_ssm_raw "$ssm_param")" || return 1
+
+    local volume_ids
+    volume_ids="$(echo "$volume_ids_json" | python3 -c "import json,sys; print(' '.join(json.load(sys.stdin)))")" || return 1
+
+    local volume_id
+    # shellcheck disable=SC2086 # volume_ids is a space-separated list by design
+    volume_id="$(ec2_find_volume_in_az "$az" $volume_ids)" || return 1
+    [[ -n "$volume_id" && "$volume_id" != "None" ]] || return 1
+
+    echo "$volume_id"
 }
 
-########################################
-#   Per-pool disk setup                #
-########################################
+# Attach the volume to this instance (idempotent — handles already-attached)
+function ensure_pool_volume_attached() {
+    local pool_name="$1"
+    local volume_id="$2"
+    local instance_id="$3"
+    local device_name="$4"
+
+    local attach_state
+    attach_state="$(ec2_volume_state "$volume_id")" || return 1
+
+    if [[ "$attach_state" == "in-use" ]]; then
+        local attached_to
+        attached_to="$(ec2_volume_attached_instance "$volume_id")" || return 1
+        if [[ "$attached_to" == "$instance_id" ]]; then
+            log_info "Pool '$pool_name': volume $volume_id already attached to this instance."
+            return 0
+        fi
+        log_fail "Pool '$pool_name': volume $volume_id is attached to a different instance ($attached_to)."
+        return 1
+    fi
+
+    log_info "Pool '$pool_name': attaching volume $volume_id to instance $instance_id at $device_name..."
+    ec2_attach_volume "$volume_id" "$instance_id" "$device_name" || return 1
+
+    log_info "Pool '$pool_name': waiting for volume $volume_id to be in-use..."
+    wait_for_cmd 12 5 ec2_volume_in_use "$volume_id" || {
+        log_fail "Pool '$pool_name': volume $volume_id did not reach in-use state in time."
+        return 1
+    }
+    log_okay "Pool '$pool_name': volume $volume_id is now in-use."
+}
+
+# Full disk setup for one pool: resolve volume -> attach -> format -> mount
 function setup_pool_disk() {
-    local POOL_NAME="$1"
-    local SSM_PARAM_NAME="$2"
-    local DISK_PATH="$3"
-    local NODE_TARGET="$4"
+    local pool_name="$1"
+    local ssm_param="$2"
+    local disk_path="$3"
+    local device_name="$4"
+
+    log_info "Pool '$pool_name': setting up EBS disk at '$disk_path'"
+
+    local volume_id
+    volume_id="$(resolve_pool_volume "$ssm_param" "$AZ")" || {
+        log_fail "Pool '$pool_name': no EBS volume for AZ '$AZ' resolvable from SSM parameter '$ssm_param'."
+        return 1
+    }
+    log_info "Pool '$pool_name': matched volume $volume_id in AZ $AZ"
+
+    ensure_pool_volume_attached "$pool_name" "$volume_id" "$INSTANCE_ID" "$device_name" || return 1
+
+    log_info "Pool '$pool_name': waiting for the block device of $volume_id to appear..."
+    wait_for_cmd_1min find_block_device_for_volume "$volume_id" || {
+        log_fail "Pool '$pool_name': block device for volume $volume_id never appeared."
+        return 1
+    }
+    local device
+    device="$(find_block_device_for_volume "$volume_id")" || return 1
+    log_info "Pool '$pool_name': block device is $device"
+
+    # ext4 label max is 16 chars; use "lh-{name}" prefix to stay within limit
+    local fs_label="lh-${pool_name}"
+    ensure_fs_ext4 "$device" "$fs_label" || return 1
+    ensure_labeled_mount "$fs_label" "$disk_path" || return 1
+
+    log_okay "Pool '$pool_name': disk setup complete."
+}
+
+
+log_info "$0: LAUNCHED — setting up storage pool disks for node type '$CLUSTER_TYPE'"
+
+# Instance identity is per-node, not per-pool: fetch it once
+INSTANCE_ID="$(get_ec2_instance_id)" || {
+    log_fail "Could not determine the EC2 instance ID via IMDS"
+    exit 1
+}
+AZ="$(get_ec2_az)" || {
+    log_fail "Could not determine the EC2 availability zone via IMDS"
+    exit 1
+}
+log_info "Instance=$INSTANCE_ID, AZ=$AZ"
+
+while IFS=$'\t' read -r POOL_INDEX POOL_NAME SSM_PARAM DISK_PATH NODE_TARGET; do
+    [[ -z "$POOL_INDEX" ]] && continue
 
     # Only process pools that target this node type (or "all")
     if [[ "$NODE_TARGET" != "all" && "$NODE_TARGET" != "$CLUSTER_TYPE" ]]; then
         log_info "Pool '$POOL_NAME': node_target='$NODE_TARGET' does not match cluster_type='$CLUSTER_TYPE'; skipping."
-        return 0
+        continue
     fi
 
-    log_info "Pool '$POOL_NAME': setting up EBS disk at '$DISK_PATH'"
-
-    # Step 1: Get IMDSv2 token and fetch instance metadata
-    local TOKEN
-    TOKEN="$(get_imds_token)"
-    local AZ
-    AZ="$(get_imds_value "$TOKEN" "placement/availability-zone")"
-    local INSTANCE_ID
-    INSTANCE_ID="$(get_imds_value "$TOKEN" "instance-id")"
-
-    log_info "Pool '$POOL_NAME': instance=$INSTANCE_ID, AZ=$AZ"
-
-    # Step 2: Read EBS volume IDs from SSM Parameter Store
-    local VOLUME_IDS_JSON
-    VOLUME_IDS_JSON="$(aws ssm get-parameter \
-        --name "$SSM_PARAM_NAME" \
-        --query "Parameter.Value" \
-        --output text \
-        --region "$AWS_REGION")"
-
-    if [[ -z "$VOLUME_IDS_JSON" || "$VOLUME_IDS_JSON" == "None" ]]; then
-        log_fail "Pool '$POOL_NAME': SSM parameter '$SSM_PARAM_NAME' is empty or missing."
-        return 1
+    if [[ "$POOL_INDEX" -ge "${#DEVICE_LETTERS}" ]]; then
+        log_fail "Pool '$POOL_NAME': pool index $POOL_INDEX exceeds the available device names."
+        exit 1
     fi
+    DEVICE_NAME="/dev/sd${DEVICE_LETTERS:$POOL_INDEX:1}"
 
-    # Step 3: Find the volume in the same AZ as this instance
-    local VOLUME_ID
-    # shellcheck disable=SC2046
-    VOLUME_ID="$(aws ec2 describe-volumes \
-        --volume-ids $(echo "$VOLUME_IDS_JSON" | python3 -c "import json,sys; print(' '.join(json.load(sys.stdin)))") \
-        --query "Volumes[?AvailabilityZone=='$AZ'].VolumeId | [0]" \
-        --output text \
-        --region "$AWS_REGION")"
-
-    if [[ -z "$VOLUME_ID" || "$VOLUME_ID" == "None" ]]; then
-        log_fail "Pool '$POOL_NAME': no EBS volume found in AZ '$AZ' from list: $VOLUME_IDS_JSON"
-        return 1
-    fi
-
-    log_info "Pool '$POOL_NAME': matched volume $VOLUME_ID in AZ $AZ"
-
-    # Step 4: Attach the volume (idempotent — handle already-attached case)
-    local ATTACH_STATE
-    ATTACH_STATE="$(aws ec2 describe-volumes \
-        --volume-ids "$VOLUME_ID" \
-        --query "Volumes[0].State" \
-        --output text \
-        --region "$AWS_REGION")"
-
-    if [[ "$ATTACH_STATE" == "in-use" ]]; then
-        local ATTACHED_TO
-        ATTACHED_TO="$(aws ec2 describe-volumes \
-            --volume-ids "$VOLUME_ID" \
-            --query "Volumes[0].Attachments[0].InstanceId" \
-            --output text \
-            --region "$AWS_REGION")"
-        if [[ "$ATTACHED_TO" == "$INSTANCE_ID" ]]; then
-            log_info "Pool '$POOL_NAME': volume $VOLUME_ID already attached to this instance."
-        else
-            log_fail "Pool '$POOL_NAME': volume $VOLUME_ID is attached to a different instance ($ATTACHED_TO)."
-            return 1
-        fi
-    else
-        log_info "Pool '$POOL_NAME': attaching volume $VOLUME_ID to instance $INSTANCE_ID..."
-        aws ec2 attach-volume \
-            --volume-id "$VOLUME_ID" \
-            --instance-id "$INSTANCE_ID" \
-            --device "/dev/sdh" \
-            --region "$AWS_REGION" >/dev/null
-
-        # Step 5: Wait for volume to be in-use
-        log_info "Pool '$POOL_NAME': waiting for volume $VOLUME_ID to be in-use..."
-        local MAX_WAIT=60
-        local ELAPSED=0
-        while [[ "$ELAPSED" -lt "$MAX_WAIT" ]]; do
-            ATTACH_STATE="$(aws ec2 describe-volumes \
-                --volume-ids "$VOLUME_ID" \
-                --query "Volumes[0].State" \
-                --output text \
-                --region "$AWS_REGION")"
-            if [[ "$ATTACH_STATE" == "in-use" ]]; then
-                break
-            fi
-            sleep 5
-            ELAPSED=$((ELAPSED + 5))
-        done
-
-        if [[ "$ATTACH_STATE" != "in-use" ]]; then
-            log_fail "Pool '$POOL_NAME': volume $VOLUME_ID did not reach in-use state after ${MAX_WAIT}s."
-            return 1
-        fi
-        log_okay "Pool '$POOL_NAME': volume $VOLUME_ID is now in-use."
-    fi
-
-    # Step 6: Discover the actual block device name (NVMe devices differ from requested name)
-    # Wait briefly for the device to appear in the OS
-    sleep 3
-    local DEVICE
-    # Prefer device with the volume serial number embedded (NVMe pattern)
-    local NVME_SERIAL
-    NVME_SERIAL="$(echo "$VOLUME_ID" | tr -d '-')"
-    DEVICE="$(lsblk -dnpo NAME,SERIAL 2>/dev/null | grep "$NVME_SERIAL" | awk '{print $1}' | head -1 || true)"
-
-    if [[ -z "$DEVICE" ]]; then
-        # Fall back: find the newest block device added (not the root disk)
-        DEVICE="$(lsblk -dnpo NAME,TYPE | awk '$2=="disk"{print $1}' | \
-            while read -r dev; do
-                [[ "$(lsblk -no MOUNTPOINT "/dev/$dev" 2>/dev/null | head -1)" == "/" ]] && continue
-                echo "/dev/$dev"
-            done | head -1 || true)"
-    fi
-
-    if [[ -z "$DEVICE" ]]; then
-        log_fail "Pool '$POOL_NAME': could not identify the attached block device for volume $VOLUME_ID."
-        return 1
-    fi
-
-    log_info "Pool '$POOL_NAME': block device is $DEVICE"
-
-    # Step 7: Format only if no filesystem exists (idempotent — preserves data on reattach)
-    local FS_TYPE
-    FS_TYPE="$(sudo blkid -o value -s TYPE "$DEVICE" 2>/dev/null || true)"
-
-    # ext4 label max is 16 chars; use "lh-{name}" prefix to stay within limit
-    local FS_LABEL="lh-${POOL_NAME}"
-
-    if [[ -z "$FS_TYPE" ]]; then
-        log_info "Pool '$POOL_NAME': no filesystem found on $DEVICE; formatting as ext4..."
-        sudo mkfs.ext4 -L "$FS_LABEL" "$DEVICE" || return 1
-        log_okay "Pool '$POOL_NAME': formatted $DEVICE as ext4 with label '$FS_LABEL'."
-    else
-        log_info "Pool '$POOL_NAME': filesystem '$FS_TYPE' already exists on $DEVICE; skipping format."
-    fi
-
-    # Step 8: Mount to disk_path (idempotent via fstab label)
-    sudo mkdir -p "$DISK_PATH"
-
-    local FSTAB_LABEL="LABEL=${FS_LABEL}"
-    if ! grep -q "$FSTAB_LABEL" /etc/fstab; then
-        echo "$FSTAB_LABEL $DISK_PATH ext4 defaults,nofail 0 2" | sudo tee -a /etc/fstab >/dev/null
-        log_info "Pool '$POOL_NAME': added '$FSTAB_LABEL' to /etc/fstab."
-    fi
-
-    if ! mountpoint -q "$DISK_PATH"; then
-        sudo mount -a || return 1
-        log_okay "Pool '$POOL_NAME': mounted $DISK_PATH."
-    else
-        log_info "Pool '$POOL_NAME': $DISK_PATH already mounted."
-    fi
-
-    # Step 9: Register disk with Longhorn via node annotation (requires K3s API to be running)
-    #
-    # longhorn.io/default-disks-annotation is a node ANNOTATION (arbitrary JSON), not a label.
-    # kubectl annotate is required — kubectl label rejects JSON values as invalid label syntax.
-    #
-    # We only attempt this if kubectl is accessible — it may not be on agent nodes.
-    if sudo kubectl get nodes "$(hostname)" >/dev/null 2>&1; then
-        local DISK_ANNOTATION
-        DISK_ANNOTATION="{\"${DISK_PATH}\":{\"allowScheduling\":true,\"storageReserved\":0,\"tags\":[\"${POOL_NAME}\"]}}"
-        sudo kubectl annotate node "$(hostname)" \
-            "longhorn.io/default-disks-annotation=${DISK_ANNOTATION}" \
-            --overwrite || {
-            log_fail "Pool '$POOL_NAME': failed to set longhorn.io/default-disks-annotation on node '$(hostname)'."
-            return 1
-        }
-        log_okay "Pool '$POOL_NAME': set longhorn.io/default-disks-annotation on node '$(hostname)'."
-    else
-        log_info "Pool '$POOL_NAME': kubectl not available on this node; skipping annotation."
-        log_info "  Disk is mounted at '$DISK_PATH'. Register it in Longhorn UI after cluster formation:"
-        log_info "  Node → Disks → Add Disk: path='$DISK_PATH', tags=['${POOL_NAME}']"
-    fi
-
-    log_okay "Pool '$POOL_NAME': disk setup complete."
-}
-
-########################################
-#   Main: iterate over pools           #
-########################################
-POOL_COUNT="$(python3 -c "import json; data=json.load(open('$POOLS_CONFIG_FILE')); print(len(data))")"
-
-if [[ "$POOL_COUNT" -eq 0 ]]; then
-    log_info "No pools defined in Longhorn config; skipping."
-    exit 0
-fi
-
-for i in $(seq 0 $((POOL_COUNT - 1))); do
-    POOL_NAME="$(python3 -c "import json; d=json.load(open('$POOLS_CONFIG_FILE')); print(d[$i]['name'])")"
-    SSM_PARAM="$(python3 -c "import json; d=json.load(open('$POOLS_CONFIG_FILE')); print(d[$i]['ebs_volumes_pstore_name'])")"
-    DISK_PATH="$(python3 -c "import json; d=json.load(open('$POOLS_CONFIG_FILE')); print(d[$i]['disk_path'])")"
-    NODE_TARGET="$(python3 -c "import json; d=json.load(open('$POOLS_CONFIG_FILE')); print(d[$i]['node_target'])")"
-
-    setup_pool_disk "$POOL_NAME" "$SSM_PARAM" "$DISK_PATH" "$NODE_TARGET" || {
+    setup_pool_disk "$POOL_NAME" "$SSM_PARAM" "$DISK_PATH" "$DEVICE_NAME" || {
         log_fail "Pool '$POOL_NAME': disk setup failed."
         exit 1
     }
-done
+done < <(list_pools)
 
 log_okay "$0: COMPLETED"
