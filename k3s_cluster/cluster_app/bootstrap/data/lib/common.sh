@@ -120,6 +120,49 @@ function wait_for_cmd() {
     return 1
 }
 
+# Format a block device as ext4 with a filesystem label, ONLY if no filesystem
+# exists yet (idempotent — preserves data when a volume is re-attached).
+# NOTE: ext4 labels max out at 16 chars; keep them short.
+function ensure_fs_ext4() {
+    local device="$1"
+    local fs_label="$2"
+
+    local fs_type
+    fs_type="$(sudo blkid -o value -s TYPE "$device" 2>/dev/null || true)"
+
+    if [[ -z "$fs_type" ]]; then
+        log_info "No filesystem found on $device; formatting as ext4 (label '$fs_label')..."
+        sudo mkfs.ext4 -L "$fs_label" "$device" || return 1
+        log_okay "Formatted $device as ext4 with label '$fs_label'."
+    else
+        log_info "Filesystem '$fs_type' already exists on $device; skipping format."
+    fi
+}
+
+# Mount a labeled ext4 filesystem at a path, persisted via /etc/fstab
+# (idempotent — safe to re-run; nofail keeps boot resilient if the disk is gone)
+function ensure_labeled_mount() {
+    local fs_label="$1"
+    local mount_path="$2"
+
+    local fstab_filepath="/etc/fstab"
+    local fstab_label="LABEL=${fs_label}"
+
+    sudo mkdir -p "$mount_path" || return 1
+
+    if ! grep -q "$fstab_label" "$fstab_filepath"; then
+        echo "$fstab_label $mount_path ext4 defaults,nofail 0 2" | sudo tee -a "$fstab_filepath" >/dev/null || return 1
+        log_info "Added '$fstab_label' to $fstab_filepath."
+    fi
+
+    if ! mountpoint -q "$mount_path"; then
+        sudo mount -a || return 1
+        log_okay "Mounted $mount_path."
+    else
+        log_info "$mount_path already mounted."
+    fi
+}
+
 # Wait for the controller to be ready
 function is_controller_okay() {
     local controller_host="${1:-$CONTROLLER_HOST}"

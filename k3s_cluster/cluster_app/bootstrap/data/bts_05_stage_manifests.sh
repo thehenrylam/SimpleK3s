@@ -24,6 +24,12 @@ set -euo pipefail
 #     that retries cannot converge. Staging karpenter-crd first (gated on its
 #     CRDs existing) makes the main chart skip its bundled copies.
 #
+# Besides staging, this script performs cluster-side PREP for built-in services
+# whose declarative inputs must exist before the service converges (currently:
+# the Longhorn disk annotations, which Longhorn reads when it first discovers a
+# node). Genuinely imperative POST-convergence fix-ups live in
+# converge_actions.sh instead.
+#
 # This script is idempotent and re-runnable: re-syncing the bootstrap dir from
 # S3 and re-running it is the cluster's update mechanism (the deploy controller
 # re-applies changed manifests; identical content is skipped).
@@ -152,6 +158,90 @@ function stage_karpenter_crd_first() {
     wait_karpenter_crds || return 1
 }
 
+# Annotate every node with its Longhorn disks BEFORE longhorn.yaml is staged:
+# Longhorn reads longhorn.io/default-disks-annotation only when it FIRST
+# discovers a node, so the annotation must be in place before the manager
+# daemonset starts. (converge_actions.sh patches nodes.longhorn.io afterwards
+# as the safety net for any node Longhorn discovered before its annotation.)
+#
+# All pools that target a node are MERGED into one annotation — a per-pool
+# --overwrite would keep only the last pool. Pool -> node matching mirrors
+# bts_04: node_target is "controlplane", "agentplane", or "all", resolved via
+# the node-role.kubernetes.io/control-plane label.
+#
+# Nodes that join after this step (e.g. a replaced node) are healed by
+# re-running this script and converge_actions.sh.
+function prep_longhorn_disk_annotations() {
+    local POOLS_CONFIG_FILE="$SCRIPT_DIR/longhorn_pools_config.json"
+
+    # Longhorn subsystem not enabled; nothing to annotate
+    if [ ! -f "$POOLS_CONFIG_FILE" ]; then
+        log_info "No Longhorn pools config present; skipping disk annotations"
+        return 0
+    fi
+
+    log_info "Annotating nodes with their Longhorn disk configuration..."
+
+    # The program is passed via -c (not stdin) so stdin stays free for the
+    # node list piped in from kubectl. Emits "<node>\t<annotation-json>" lines.
+    local PYPROG
+    PYPROG="$(cat <<'PYEOF'
+import json
+import sys
+
+with open(sys.argv[1]) as f:
+    pools = json.load(f)
+
+nodes = json.load(sys.stdin)["items"]
+
+for node in nodes:
+    name = node["metadata"]["name"]
+    labels = node["metadata"].get("labels", {})
+    is_controlplane = labels.get("node-role.kubernetes.io/control-plane") == "true"
+    plane = "controlplane" if is_controlplane else "agentplane"
+
+    disks = {}
+    for pool in pools:
+        if pool["node_target"] not in ("all", plane):
+            continue
+        disks[pool["disk_path"]] = {
+            "allowScheduling": True,
+            "storageReserved": 0,
+            "tags": [pool["name"]],
+        }
+
+    if disks:
+        print(f"{name}\t{json.dumps(disks, separators=(',', ':'))}")
+PYEOF
+)"
+
+    local NODE_ANNOTATIONS
+    NODE_ANNOTATIONS="$(sudo kubectl get nodes -o json | python3 -c "$PYPROG" "$POOLS_CONFIG_FILE")" || {
+        log_fail "Failed to compute the Longhorn disk annotations"
+        return 1
+    }
+
+    if [ -z "$NODE_ANNOTATIONS" ]; then
+        log_info "No nodes match any pool's node_target; nothing to annotate"
+        return 0
+    fi
+
+    local NODE ANNOTATION
+    while IFS=$'\t' read -r NODE ANNOTATION; do
+        [ -z "$NODE" ] && continue
+
+        log_info "Node '$NODE': setting longhorn.io/default-disks-annotation"
+        sudo kubectl annotate node "$NODE" \
+            "longhorn.io/default-disks-annotation=$ANNOTATION" \
+            --overwrite || {
+            log_fail "Node '$NODE': failed to set longhorn.io/default-disks-annotation"
+            return 1
+        }
+    done <<< "$NODE_ANNOTATIONS"
+
+    log_okay "Longhorn disk annotations set."
+}
+
 function stage_remaining_manifests() {
     local PENDING_FILEPATH
     local FILENAME
@@ -206,6 +296,12 @@ stage_kyverno_first || {
 
 stage_karpenter_crd_first || {
     log_fail "Failed to stage karpenter-crd ahead of the main karpenter chart"
+    exit 1
+}
+
+# Built-in service prep that must precede staging (see the function comments)
+prep_longhorn_disk_annotations || {
+    log_fail "Failed to set the Longhorn disk annotations"
     exit 1
 }
 
