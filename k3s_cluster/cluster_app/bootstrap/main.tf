@@ -223,8 +223,8 @@ module "aws_s3obj" {
     },
     {
       desc     = "Init Script (Setup Longhorn EBS Disks)",
-      key      = "${var.s3_config.keyroot}/bts_04_longhorn_disks.sh",
-      src      = "${path.module}/data/bts_04_longhorn_disks.sh",
+      key      = "${var.s3_config.keyroot}/bts_04_setup_longhorn_diskpools.sh",
+      src      = "${path.module}/data/bts_04_setup_longhorn_diskpools.sh",
       template = null
     }
   ]
