@@ -54,7 +54,7 @@ function setup_control_plane() {
     NODE_TYPE=$([ "$COUNT_INDEX" -eq 0 ] && echo "controller" || echo "server")
     "$SCRIPT_DIR/bts_03_install_k3s.sh" "$NODE_TYPE" || exit 1
 
-    "$SCRIPT_DIR/bts_04_longhorn_disks.sh" "controlplane" || exit 1
+    "$SCRIPT_DIR/bts_04_setup_longhorn_diskpools.sh" "controlplane" || exit 1
 
     # Node 0 stages ALL subsystem/application manifests at once and lets the
     # cluster converge (the K3s deploy controller retries until dependencies
@@ -82,7 +82,7 @@ function setup_agent_plane() {
     local NODE_TYPE="agent"
     "$SCRIPT_DIR/bts_03_install_k3s.sh" "$NODE_TYPE" || exit 1
 
-    "$SCRIPT_DIR/bts_04_longhorn_disks.sh" "agentplane" || exit 1
+    "$SCRIPT_DIR/bts_04_setup_longhorn_diskpools.sh" "agentplane" || exit 1
 }
 
 
