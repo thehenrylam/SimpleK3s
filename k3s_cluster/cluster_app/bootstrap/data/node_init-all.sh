@@ -1,10 +1,22 @@
 #!/bin/bash
 
-# Set bash flags 
-set -euo pipefail 
-# -u            : Error if an unset variable is referenced 
-# -e            : Exits on ANY command failure 
-# -o pipefail   : Make pipeline fail if any command in them fails 
+# Set bash flags
+set -euo pipefail
+# -u            : Error if an unset variable is referenced
+# -e            : Exits on ANY command failure
+# -o pipefail   : Make pipeline fail if any command in them fails
+
+# Full node initialisation: package install, swap, K3s, disks, and (on node-0)
+# manifest staging + post-convergence actions.
+#
+# Usage: node_init-all.sh <COUNT_INDEX> <CLUSTER_TYPE> [--no-refresh]
+#   COUNT_INDEX    0-based index of this node within its plane
+#   CLUSTER_TYPE   "controlplane" or "agentplane"
+#   --no-refresh   Skip the S3 sync at startup (cloudinit already has fresh files)
+#
+# By default this script calls node_refresh-bootstrap-files.sh first so that
+# re-runs via SSM always pick up the latest files from S3. Pass --no-refresh
+# to skip the sync (e.g. when cloud-init has just synced everything).
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -16,7 +28,7 @@ mkdir -p "$(dirname "$LOG_FILE")"
 touch "$LOG_FILE"
 chmod 0644 "$LOG_FILE"
 
-# Redirect script's output to the log file 
+# Redirect script's output to the log file
 exec > >(tee -a "$LOG_FILE") 2>&1
 # Announce to that this script will start
 echo "=== $(basename "$0") starting ==="
@@ -35,7 +47,7 @@ source "$SCRIPT_DIR/lib/providers/aws.sh"
 
 # Display usage
 function usage() {
-    echo "Usage: $(basename "$0") <COUNT_INDEX> <CLUSTER_TYPE>" >&2
+    echo "Usage: $(basename "$0") <COUNT_INDEX> <CLUSTER_TYPE> [--no-refresh]" >&2
     exit 2
 }
 
@@ -86,18 +98,32 @@ function setup_agent_plane() {
 }
 
 
-# The index of the current node 
-# If COUNT_INDEX == 0 then its a controller, 
-# otherwise its a server node part of the HA control plane)
-COUNT_INDEX="$1"
-CLUSTER_TYPE="$2"
+# Parse args: <COUNT_INDEX> <CLUSTER_TYPE> [--no-refresh]
+COUNT_INDEX="${1:-}"
+CLUSTER_TYPE="${2:-}"
+NO_REFRESH="${3:-}"
+
 if [[ -z "$COUNT_INDEX" || ! "$COUNT_INDEX" =~ ^[0-9]+$ ]]; then
-    usage # Display the usage
+    usage
+fi
+if [[ -n "$NO_REFRESH" && "$NO_REFRESH" != "--no-refresh" ]]; then
+    usage
+fi
+
+# Sync the latest bootstrap files from S3 unless --no-refresh was passed.
+# cloud-init calls this with --no-refresh (it already synced everything);
+# SSM re-runs omit the flag so stale on-disk files are never used.
+if [[ -z "$NO_REFRESH" ]]; then
+    log_info "Refreshing bootstrap files from S3..."
+    "$SCRIPT_DIR/node_refresh-bootstrap-files.sh" || {
+        log_fail "Failed to refresh bootstrap files"
+        exit 1
+    }
 fi
 
 # Perform node type
 case "$CLUSTER_TYPE" in
-    controlplane) 
+    controlplane)
         log_info "Install K3s: Control Plane"
         setup_control_plane "$COUNT_INDEX" || {
             log_fail "Failed to set up K3s: Control Plane"
@@ -113,7 +139,7 @@ case "$CLUSTER_TYPE" in
         }
         log_okay "Install K3s: Agent Plane - COMPLETED"
         ;;
-    *) 
+    *)
         usage # Display the usage
         ;;
 esac
