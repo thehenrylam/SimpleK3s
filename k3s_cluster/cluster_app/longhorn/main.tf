@@ -127,11 +127,5 @@ module "aws_s3obj" {
         }]
       })
     },
-    {
-      desc     = "Init Script (Apply Longhorn)"
-      key      = "${var.s3_config.keyroot}/sub_apply_longhorn.sh"
-      src      = "${path.module}/data/sub_apply_longhorn.sh"
-      template = null
-    }
   ]
 }

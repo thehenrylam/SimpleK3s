@@ -60,11 +60,5 @@ module "aws_s3obj" {
         resources = local.resource_profile["standard"]
       })
     },
-    {
-      desc     = "Init Script (Apply External Secrets)",
-      key      = "${var.s3_config.keyroot}/sub_apply_external-secrets.sh",
-      src      = "${path.module}/data/sub_apply_external-secrets.sh",
-      template = null
-    }
   ]
 }

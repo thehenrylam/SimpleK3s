@@ -168,12 +168,6 @@ module "aws_s3obj" {
         consolidate_after      = local.settings.consolidate_after
       })
     },
-    {
-      desc     = "Init Script (Apply Karpenter)"
-      key      = "${var.s3_config.keyroot}/sub_apply_karpenter.sh"
-      src      = "${path.module}/data/sub_apply_karpenter.sh"
-      template = null
-    }
   ]
 
   depends_on = [

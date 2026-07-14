@@ -81,11 +81,5 @@ module "aws_s3obj" {
         control_plane_toleration_namespace_list = join("\n", [for ns in local.settings.control_plane_toleration_ns_list : "                - ${ns}"])
       })
     },
-    {
-      desc     = "Init Script (Apply Kyverno)",
-      key      = "${var.s3_config.keyroot}/sub_apply_kyverno.sh",
-      src      = "${path.module}/data/sub_apply_kyverno.sh",
-      template = null
-    }
   ]
 }

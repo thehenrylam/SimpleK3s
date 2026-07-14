@@ -53,10 +53,11 @@ module "aws_s3obj" {
   # S3 settings
   s3_bucket_id = var.s3_config.id
   s3obj_data = [
-    { # Default Installation (Main installation script)
+    { # Default Installation (Main installation script — MUST remain first; Terraform
+      # picks index [0] as the s3key_install_script passed to cloud-init)
       desc     = "Default Init Script",
-      key      = "${var.s3_config.keyroot}/init.sh",
-      src      = "${path.module}/data/init.sh",
+      key      = "${var.s3_config.keyroot}/node_init-all.sh",
+      src      = "${path.module}/data/node_init-all.sh",
       template = null
     },
     { # SimpleK3s Env Vars
@@ -105,6 +106,30 @@ module "aws_s3obj" {
       desc     = "Init Script (Converge Actions)",
       key      = "${var.s3_config.keyroot}/converge_actions.sh",
       src      = "${path.module}/data/converge_actions.sh",
+      template = null
+    },
+    {
+      desc     = "Node Script (Refresh Bootstrap Files)",
+      key      = "${var.s3_config.keyroot}/node_refresh-bootstrap-files.sh",
+      src      = "${path.module}/data/node_refresh-bootstrap-files.sh",
+      template = null
+    },
+    {
+      desc     = "Node Script (Init Essential — node-local setup only)",
+      key      = "${var.s3_config.keyroot}/node_init-essential.sh",
+      src      = "${path.module}/data/node_init-essential.sh",
+      template = null
+    },
+    {
+      desc     = "Node Script (Init Services — stage manifests + converge)",
+      key      = "${var.s3_config.keyroot}/node_init-services.sh",
+      src      = "${path.module}/data/node_init-services.sh",
+      template = null
+    },
+    {
+      desc     = "Node Script (Verify All — cluster health check)",
+      key      = "${var.s3_config.keyroot}/node_verify-all.sh",
+      src      = "${path.module}/data/node_verify-all.sh",
       template = null
     },
     {

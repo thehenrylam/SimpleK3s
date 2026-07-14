@@ -69,10 +69,9 @@ module "aws_s3obj" {
         resources       = local.resource_profile["standard"]
       })
     },
-    { # Tailnet entry-point Ingress (fronts Traefik's tsnet entrypoint). Applied
-      # by sub_apply_tailscale.sh as a separate phase, only after the ProxyClass is
-      # Ready — see the apply script's wait_for_proxyclass gate (prevents the
-      # operator ingress-reconciler race that leaves the proxy device uncreated).
+    { # Tailnet entry-point Ingress (fronts Traefik's tsnet entrypoint).
+      # Staged alongside all other manifests; the K3s deploy controller retries
+      # until the ProxyClass is Ready and the operator creates the proxy device.
       desc = "Tailscale Tailnet Entrypoint Ingress",
       key  = "${var.s3_config.keyroot}/manifests/tailscale-ingress.yaml",
       src  = "${path.module}/data/tailscale-ingress.yaml",
@@ -83,11 +82,5 @@ module "aws_s3obj" {
         traefik_port      = var.traefik_backend.port
       })
     },
-    {
-      desc     = "Init Script (Apply Tailscale)",
-      key      = "${var.s3_config.keyroot}/sub_apply_tailscale.sh",
-      src      = "${path.module}/data/sub_apply_tailscale.sh",
-      template = null
-    }
   ]
 }

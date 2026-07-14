@@ -89,11 +89,5 @@ module "aws_s3obj" {
         }
       })
     },
-    {
-      desc     = "Init Script (Apply Traefik)",
-      key      = "${var.s3_config.keyroot}/sub_apply_traefik.sh",
-      src      = "${path.module}/data/sub_apply_traefik.sh",
-      template = null
-    }
   ]
 }
