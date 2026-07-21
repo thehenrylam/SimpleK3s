@@ -24,6 +24,7 @@ cd "$SCRIPT_DIR"
 # Set up log file
 DEFAULT_LOG_FILE="${SCRIPT_DIR}/simplek3s-init_$(date +'%Y%m%d%H%M%S%3N').log"
 LOG_FILE="${LOG_FILE:-$DEFAULT_LOG_FILE}"
+export LOG_FILE  # Export so child node_*.sh scripts share this log instead of creating their own
 mkdir -p "$(dirname "$LOG_FILE")"
 touch "$LOG_FILE"
 chmod 0644 "$LOG_FILE"
@@ -51,50 +52,24 @@ function usage() {
     exit 2
 }
 
-# Setup control plane
+# Setup control plane: node-local setup (via node_init-essential.sh), then on
+# node-0 only, manifest staging + converge (via node_init-services.sh).
 function setup_control_plane() {
     local COUNT_INDEX="$1"
 
-    # Install the packages
-    "$SCRIPT_DIR/bts_01_install_packages.sh" || exit 1
+    "$SCRIPT_DIR/node_init-essential.sh" "$COUNT_INDEX" "controlplane" || exit 1
 
-    # Setup the swapfile (SWAPFILE_ALLOC_AMT is provided from simplek3s.env file)
-    "$SCRIPT_DIR/bts_02_setup_swapfile.sh" "$SWAPFILE_ALLOC_AMT" || exit 1
-
-    # Setup the k3s (if COUNT_INDEX == 0 then install as "controller", otherwise install as "server")
-    local NODE_TYPE
-    NODE_TYPE=$([ "$COUNT_INDEX" -eq 0 ] && echo "controller" || echo "server")
-    "$SCRIPT_DIR/bts_03_install_k3s.sh" "$NODE_TYPE" || exit 1
-
-    "$SCRIPT_DIR/bts_04_setup_longhorn_diskpools.sh" "controlplane" || exit 1
-
-    # Node 0 stages ALL subsystem/application manifests at once and lets the
-    # cluster converge (the K3s deploy controller retries until dependencies
-    # are up). The only post-staging imperative work lives in converge_actions.
     if [[ "$COUNT_INDEX" -eq 0 ]]; then
-        "$SCRIPT_DIR/bts_05_stage_manifests.sh" || exit 1
-
-        "$SCRIPT_DIR/converge_actions.sh" || exit 1
+        "$SCRIPT_DIR/node_init-services.sh" || exit 1
     else
         log_info "COUNT_INDEX is NOT 0; Skipping manifest staging"
     fi
 }
 
-# Setup agent
+# Setup agent: node-local setup only (via node_init-essential.sh).
 function setup_agent_plane() {
     local COUNT_INDEX="$1"
-
-    # Install the packages
-    "$SCRIPT_DIR/bts_01_install_packages.sh" || exit 1
-
-    # Setup the swapfile (SWAPFILE_ALLOC_AMT is provided from simplek3s.env file)
-    "$SCRIPT_DIR/bts_02_setup_swapfile.sh" "$SWAPFILE_ALLOC_AMT" || exit 1
-
-    # Setup the k3s (agent)
-    local NODE_TYPE="agent"
-    "$SCRIPT_DIR/bts_03_install_k3s.sh" "$NODE_TYPE" || exit 1
-
-    "$SCRIPT_DIR/bts_04_setup_longhorn_diskpools.sh" "agentplane" || exit 1
+    "$SCRIPT_DIR/node_init-essential.sh" "$COUNT_INDEX" "agentplane" || exit 1
 }
 
 

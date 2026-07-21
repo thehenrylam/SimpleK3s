@@ -19,15 +19,17 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-DEFAULT_LOG_FILE="${SCRIPT_DIR}/simplek3s-init_$(date +'%Y%m%d%H%M%S%3N').log"
-LOG_FILE="${LOG_FILE:-$DEFAULT_LOG_FILE}"
-mkdir -p "$(dirname "$LOG_FILE")"
-touch "$LOG_FILE"
-chmod 0644 "$LOG_FILE"
-
-exec > >(tee -a "$LOG_FILE") 2>&1
+# If LOG_FILE is already set (exported by a parent script such as node_init-all.sh),
+# skip the exec redirect — the parent's tee is already capturing all output.
+if [[ -z "${LOG_FILE:-}" ]]; then
+    LOG_FILE="${SCRIPT_DIR}/simplek3s-init_$(date +'%Y%m%d%H%M%S%3N').log"
+    mkdir -p "$(dirname "$LOG_FILE")"
+    touch "$LOG_FILE"
+    chmod 0644 "$LOG_FILE"
+    exec > >(tee -a "$LOG_FILE") 2>&1
+    echo "LOG_FILE=$LOG_FILE"
+fi
 echo "=== $(basename "$0") starting ==="
-echo "LOG_FILE=$LOG_FILE"
 
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/simplek3s.env"
