@@ -48,7 +48,11 @@ function apt_install_essential() {
     log_info "Installing Python packages via uv"
     local PYTHON_DIR="${SCRIPT_DIR}/py"
     local UV_VERSION="0.11.20" # check-versions: update in CLAUDE.md pinned versions table
-    curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | UV_INSTALL_DIR="/usr/local/bin" sh || return 1
+    if uv --version 2>/dev/null | grep -qF "$UV_VERSION"; then
+        log_info "uv $UV_VERSION already installed; skipping."
+    else
+        curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | UV_INSTALL_DIR="/usr/local/bin" sh || return 1
+    fi
     # uv sync: creates .venv/ and installs all dependencies from pyproject.toml
     (cd "$PYTHON_DIR" && uv sync) || return 1
 

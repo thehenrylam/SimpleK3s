@@ -53,10 +53,11 @@ module "aws_s3obj" {
   # S3 settings
   s3_bucket_id = var.s3_config.id
   s3obj_data = [
-    { # Default Installation (Main installation script)
+    { # Default Installation (Main installation script — MUST remain first; Terraform
+      # picks index [0] as the s3key_install_script passed to cloud-init)
       desc     = "Default Init Script",
-      key      = "${var.s3_config.keyroot}/init.sh",
-      src      = "${path.module}/data/init.sh",
+      key      = "${var.s3_config.keyroot}/node_init-all.sh",
+      src      = "${path.module}/data/node_init-all.sh",
       template = null
     },
     { # SimpleK3s Env Vars
@@ -96,15 +97,39 @@ module "aws_s3obj" {
       template = null
     },
     {
-      desc     = "Init Script (Install Subsystems)",
-      key      = "${var.s3_config.keyroot}/init_subsystems.sh",
-      src      = "${path.module}/data/init_subsystems.sh",
+      desc     = "Init Script (Stage Manifests)",
+      key      = "${var.s3_config.keyroot}/bts_05_stage_manifests.sh",
+      src      = "${path.module}/data/bts_05_stage_manifests.sh",
       template = null
     },
     {
-      desc     = "Init Script (Install Applications)",
-      key      = "${var.s3_config.keyroot}/init_applications.sh",
-      src      = "${path.module}/data/init_applications.sh",
+      desc     = "Init Script (Converge Actions)",
+      key      = "${var.s3_config.keyroot}/converge_actions.sh",
+      src      = "${path.module}/data/converge_actions.sh",
+      template = null
+    },
+    {
+      desc     = "Node Script (Refresh Bootstrap Files)",
+      key      = "${var.s3_config.keyroot}/node_refresh-bootstrap-files.sh",
+      src      = "${path.module}/data/node_refresh-bootstrap-files.sh",
+      template = null
+    },
+    {
+      desc     = "Node Script (Init Essential — node-local setup only)",
+      key      = "${var.s3_config.keyroot}/node_init-essential.sh",
+      src      = "${path.module}/data/node_init-essential.sh",
+      template = null
+    },
+    {
+      desc     = "Node Script (Init Services — stage manifests + converge)",
+      key      = "${var.s3_config.keyroot}/node_init-services.sh",
+      src      = "${path.module}/data/node_init-services.sh",
+      template = null
+    },
+    {
+      desc     = "Node Script (Verify All — cluster health check)",
+      key      = "${var.s3_config.keyroot}/node_verify-all.sh",
+      src      = "${path.module}/data/node_verify-all.sh",
       template = null
     },
     {
@@ -223,8 +248,8 @@ module "aws_s3obj" {
     },
     {
       desc     = "Init Script (Setup Longhorn EBS Disks)",
-      key      = "${var.s3_config.keyroot}/bts_04_longhorn_disks.sh",
-      src      = "${path.module}/data/bts_04_longhorn_disks.sh",
+      key      = "${var.s3_config.keyroot}/bts_04_setup_longhorn_diskpools.sh",
+      src      = "${path.module}/data/bts_04_setup_longhorn_diskpools.sh",
       template = null
     }
   ]

@@ -93,4 +93,6 @@ find $BOOTSTRAP_DIR/ -type f -name "*.py" -exec chmod u+x {} \;
 
 # Execute installation script
 echo "Execute installation script"
-"$BOOTSTRAP_DIR/${s3key_install_script}" "$COUNT_INDEX" "$CLUSTER_TYPE"
+# cloud-init already synced all files via s3_sync_boostrap above; --no-refresh
+# skips the redundant re-sync inside node_init-all.sh.
+"$BOOTSTRAP_DIR/${s3key_install_script}" "$COUNT_INDEX" "$CLUSTER_TYPE" --no-refresh
