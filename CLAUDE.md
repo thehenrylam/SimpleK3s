@@ -37,7 +37,7 @@ aws ssm start-session --target INSTANCE_ID --profile AWS_PROFILE
 
 Scripts in `toolchain/` come in two `install` / `check` / `uninstall` trios, each pinning versions to a `/opt/homebrew/bin` versioned-binary + symlink layout. Both require Homebrew.
 
-**Standard toolchain** (`tc_standard_macos_*.sh`) — everything needed to work on SimpleK3s: `uv`, Python (managed by uv), the bootstrap Python deps (`uv sync` against `k3s_cluster/cluster_app/bootstrap/data/py/`), OpenTofu, Terraform, and the AWS CLI. The AWS CLI step uses the official pinned `.pkg` and will prompt for `sudo`.
+**Standard toolchain** (`tc_standard_macos_*.sh`) — everything needed to work on SimpleK3s: `uv`, Python (managed by uv), the bootstrap Python deps (`uv sync` against `k3s_cluster/cluster_app/bootstrap/data/py/`), Ansible (an isolated, pinned `uv tool` whose entry points land in `/opt/homebrew/bin`), OpenTofu, Terraform, and the AWS CLI. The AWS CLI step uses the official pinned `.pkg` and will prompt for `sudo`.
 
 ```bash
 # Install the standard toolchain
@@ -50,7 +50,7 @@ Scripts in `toolchain/` come in two `install` / `check` / `uninstall` trios, eac
 ./toolchain/tc_standard_macos_uninstall.sh
 ```
 
-**Testing toolchain** (`tc_testing_macos_*.sh`) — the local CI/linting dependencies (shellcheck, tflint, checkov):
+**Testing toolchain** (`tc_testing_macos_*.sh`) — the local CI/linting dependencies (shellcheck, tflint, checkov, ruff, and ansible-lint). `ansible-lint` is installed as an isolated, pinned `uv tool`, so it requires the standard toolchain's `uv` to be installed first:
 
 ```bash
 # Install testing tools
@@ -164,6 +164,7 @@ These versions are hardcoded defaults in the module. Check here first when inves
 | Tooling         | Terraform | `1.14.3` | `.github/workflows/static-analysis.yml`, `toolchain/tc_standard_macos_install.sh` |
 | Tooling         | Python | `3.13.x` | `.github/workflows/static-analysis.yml`, `k3s_cluster/cluster_app/bootstrap/data/py/pyproject.toml`, `k3s_cluster/cluster_app/bootstrap/data/py/.python-version`, `toolchain/tc_standard_macos_install.sh` |
 | Tooling         | uv | `0.11.20` | `k3s_cluster/cluster_app/bootstrap/data/bts_01_install_packages.sh`, `toolchain/tc_standard_macos_install.sh` |
+| Tooling         | Ansible | `14.2.0` | `toolchain/tc_standard_macos_install.sh`, `toolchain/tc_standard_macos_check.sh` |
 | Platform        | K3s        | `v1.35.1+k3s1` | `k3s_cluster/variables.tf` |
 | Platform        | Node AMI (Debian 13 ARM64) | `debian-13-arm64-20260601-2496` | `k3s_cluster/variables.tf` |
 | Platform Access | AWS CLI | `2.34.63` | `k3s_cluster/variables.tf`, `k3s_cluster/cluster_app/karpenter/main.tf`, `toolchain/tc_standard_macos_install.sh` |
@@ -182,6 +183,7 @@ These versions are hardcoded defaults in the module. Check here first when inves
 | CI (Testing)    | shellcheck | `0.11.0` | `toolchain/tc_testing_macos_install.sh`, `.github/workflows/static-analysis.yml` |
 | CI (Testing)    | checkov | `3.2.530` | `toolchain/tc_testing_macos_install.sh`, `.github/workflows/static-analysis.yml` |
 | CI (Testing)    | ruff | `0.15.17` | `toolchain/tc_testing_macos_install.sh`, `.github/workflows/static-analysis.yml` |
+| CI (Testing)    | ansible-lint | `26.6.0` | `toolchain/tc_testing_macos_install.sh`, `toolchain/tc_testing_macos_check.sh` |
 
 ## Conventions
 

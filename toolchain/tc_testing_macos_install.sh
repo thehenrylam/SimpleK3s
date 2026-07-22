@@ -9,6 +9,7 @@ readonly SHELLCHECK_VERSION="0.11.0"
 readonly TFLINT_VERSION="0.62.1"
 readonly CHECKOV_VERSION="3.2.530"
 readonly RUFF_VERSION="0.15.17"
+readonly ANSIBLE_LINT_VERSION="26.6.0"   # check-versions: update in CLAUDE.md pinned versions table
 readonly BIN_DIR="/opt/homebrew/bin"
 
 # --- shellcheck ---
@@ -204,6 +205,28 @@ install_ruff() {
     fi
 }
 
+# --- ansible-lint (via uv tool) ---
+
+install_ansible_lint() {
+    echo "==> Installing ansible-lint ${ANSIBLE_LINT_VERSION} (via uv tool)"
+
+    # ansible-lint pulls in ansible-core, so it's installed as an isolated,
+    # pinned uv tool (same rationale as Ansible in the standard toolchain);
+    # UV_TOOL_BIN_DIR drops its entry point into BIN_DIR. Requires uv, which the
+    # standard toolchain installs.
+    if [[ ! -x "${BIN_DIR}/uv" ]]; then
+        echo "  ERROR: uv not found at ${BIN_DIR}/uv." >&2
+        echo "         Run ./toolchain/tc_standard_macos_install.sh first." >&2
+        return 1
+    fi
+
+    UV_TOOL_BIN_DIR="${BIN_DIR}" "${BIN_DIR}/uv" tool install --force "ansible-lint==${ANSIBLE_LINT_VERSION}"
+
+    # 2>/dev/null drops ansible-lint's PATH warning; NO_COLOR keeps the version
+    # line free of ANSI escapes.
+    echo "  Installed: $(NO_COLOR=1 "${BIN_DIR}/ansible-lint" --version 2>/dev/null | head -1)"
+}
+
 # --- main ---
 
 if ! command -v brew &>/dev/null; then
@@ -215,6 +238,7 @@ install_shellcheck
 install_tflint
 install_checkov
 install_ruff
+install_ansible_lint
 
 echo ""
 echo "All tools installed. Run ./toolchain/tc_testing_macos_check.sh to verify."

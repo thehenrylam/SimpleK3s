@@ -10,6 +10,8 @@ readonly CHECKOV_VERSION="3.2.530"
 readonly RUFF_VERSION="0.15.17"
 readonly BIN_DIR="/opt/homebrew/bin"
 
+# ansible-lint is removed via uv (no version pin needed), so no readonly here.
+
 # --- shellcheck ---
 
 uninstall_shellcheck() {
@@ -124,12 +126,28 @@ uninstall_ruff() {
     fi
 }
 
+# --- ansible-lint (via uv tool) ---
+
+uninstall_ansible_lint() {
+    echo "==> Uninstalling ansible-lint"
+
+    # Removed via uv so the isolated tool venv and its BIN_DIR entry point go
+    # together.
+    if [[ -x "${BIN_DIR}/uv" ]]; then
+        UV_TOOL_BIN_DIR="${BIN_DIR}" "${BIN_DIR}/uv" tool uninstall ansible-lint || \
+            echo "  ansible-lint was not installed via uv — skipping."
+    else
+        echo "  uv not found — skipping ansible-lint removal."
+    fi
+}
+
 # --- main ---
 
 uninstall_shellcheck
 uninstall_tflint
 uninstall_checkov
 uninstall_ruff
+uninstall_ansible_lint
 
 echo ""
 echo "Done."

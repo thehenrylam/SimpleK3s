@@ -8,6 +8,7 @@ readonly SHELLCHECK_VERSION="0.11.0"
 readonly TFLINT_VERSION="0.62.1"
 readonly CHECKOV_VERSION="3.2.530"
 readonly RUFF_VERSION="0.15.17"
+readonly ANSIBLE_LINT_VERSION="26.6.0"   # check-versions: update in CLAUDE.md pinned versions table
 readonly BIN_DIR="/opt/homebrew/bin"
 
 PASS=0
@@ -109,12 +110,29 @@ check_ruff() {
     fi
 }
 
+# --- ansible-lint ---
+
+check_ansible_lint() {
+    local bin="${BIN_DIR}/ansible-lint"
+
+    if [[ -x "$bin" ]]; then
+        # 2>/dev/null drops ansible-lint's PATH warning; NO_COLOR keeps the
+        # version line free of ANSI escapes so it's clean in logs.
+        echo "[OK]   ansible-lint: $(NO_COLOR=1 "$bin" --version 2>/dev/null | head -1) (want ${ANSIBLE_LINT_VERSION})"
+        ((PASS++)) || true
+    else
+        echo "[MISS] ansible-lint: not found at ${bin}"
+        ((FAIL++)) || true
+    fi
+}
+
 # --- main ---
 
 check_shellcheck
 check_tflint
 check_checkov
 check_ruff
+check_ansible_lint
 
 echo ""
 if [[ "$FAIL" -eq 0 ]]; then
