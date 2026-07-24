@@ -1,0 +1,21 @@
+---
+- name: Verify
+  # It takes the hosts that is under the hosts section from inventory.yml
+  #   - Used for variables like "inventory_hostname"
+  hosts: wave2_cluster 
+  strategy: free
+  gather_facts: false
+
+  vars:
+    target_dir: "../"
+
+  tasks:
+  - name: Verify Cluster
+    shell: "./scripts/ssm_verify_cluster.sh {{ aws_profile }} 2>&1 || true"
+    args:
+      chdir: "{{ target_dir }}"
+    register: cmdout_verify
+
+  - name: Show Verify Output
+    debug:
+      var: cmdout_verify.stdout_lines

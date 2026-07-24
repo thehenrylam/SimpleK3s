@@ -1,0 +1,21 @@
+---
+# 👇 CONFIGURE THIS 👇
+aws_profile: "__CONFIGURE_THIS__"
+
+# This is set ONLY because we are executing this Ansible on localhost only. 
+# If this Ansible setup needs to execute on remote environments, you need to remove this.
+ansible_python_interpreter: "{{ ansible_playbook_python }}"
+
+module:
+  cluster: 
+    dir: "../terraform/standard_cluster/"
+    depends_on: ["idp", "pvc", "tailscale"]
+  idp: 
+    dir: "../terraform/standard_idp/"
+    depends_on: []
+  pvc: 
+    dir: "../terraform/standard_pvc/"
+    depends_on: []
+  tailscale: 
+    dir: "../terraform/standard_tailscale/"
+    depends_on: []

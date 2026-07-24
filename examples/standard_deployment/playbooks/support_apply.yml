@@ -1,0 +1,16 @@
+---
+- name: Apply
+  # It takes the hosts that is under the hosts section from inventory.yml
+  #   - Used for variables like "inventory_hostname"
+  hosts: wave1_support 
+  strategy: free
+  gather_facts: false
+
+  tasks:
+  - name: Apply All
+    include_role:
+      name: apply
+    vars:
+      target_dir: "{{ module[inventory_hostname].dir }}"
+      plan_file: "{{ inventory_hostname }}.tfplan"
+      apply_destroy: false
