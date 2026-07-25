@@ -2,20 +2,11 @@
 
 set -euo pipefail
 
-# Run verify_cluster.sh on a controlplane node via SSM without needing to look
-# up an instance ID manually. The controlplane node is located by the Nickname
-# tag; any running controlplane node can run the check.
+# Executes node_verify-all.sh on a controlplane node via SSM. 
+# The node is located by its Nickname tag; any running controlplane node can run it.
 #
-# Usage:
-#   ./scripts/ssm_verify_cluster.sh <profile> [<nickname> [<region>]]
-#
-# Arguments:
-#   profile   AWS CLI profile to use (required)
-#   nickname  Cluster nickname tag (default: inferred from examples/ex_basic/terraform.tfvars)
-#   region    AWS region          (default: inferred from examples/ex_basic/terraform.tfvars)
-#
-# Environment variables:
-#   STABILITY_WINDOW_SECONDS  Passed through to verify_cluster.sh (default: 300)
+# NOTE: Environment Variable
+# - STABILITY_WINDOW_SECONDS is passed through to the remote script
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -68,21 +59,25 @@ function get_instance_id() {
     echo "${_OUTPUT}"
 }
 
+# _ENV_VARS is optional: "KEY=VALUE [KEY=VALUE ...]" prefixed to the remote
+# command, or empty for none. Taken as an input rather than read from the
+# environment so the command sent is a function of the arguments alone.
 function ssm_send_command() {
     # VARIABLES
-    local _REGION _PROFILE _INSTANCE_ID _COMMAND
-    local _STABILITY_ENV
+    local _REGION _PROFILE _INSTANCE_ID _COMMAND _ENV_VARS
+    local _ENV_PREFIX
     local _OUTPUT
     # INPUTS
     _REGION="${1}"
     _PROFILE="${2}"
     _INSTANCE_ID="${3}"
     _COMMAND="${4}"
+    _ENV_VARS="${5:-}"
     # PROCESS
-    # Determine the stability env
-    _STABILITY_ENV=""
-    if [[ -n "${STABILITY_WINDOW_SECONDS:-}" ]]; then
-        _STABILITY_ENV="STABILITY_WINDOW_SECONDS=${STABILITY_WINDOW_SECONDS} "
+    # Separate the assignments from the command, only when there are any
+    _ENV_PREFIX=""
+    if [[ -n "${_ENV_VARS}" ]]; then
+        _ENV_PREFIX="${_ENV_VARS} "
     fi
     # Send the command via SSM
     _OUTPUT=$(aws ssm send-command \
@@ -90,7 +85,7 @@ function ssm_send_command() {
         --profile "$_PROFILE" \
         --instance-ids "$_INSTANCE_ID" \
         --document-name "AWS-RunShellScript" \
-        --parameters "commands=[\"sudo ${_STABILITY_ENV}bash ${_COMMAND}\"]" \
+        --parameters "commands=[\"sudo ${_ENV_PREFIX}bash ${_COMMAND}\"]" \
         --query "Command.CommandId" \
         --output text)
     # OUTPUT VALUES
@@ -133,15 +128,23 @@ function parse_command_invocation_result() {
 function verify_cluster() {
     echo "Cluster  : nickname=${NICKNAME}  region=${REGION}  profile=${PROFILE}"
 
+    # Build Environment Variables (STABILITY_WINDOW_SECONDS)
+    # How far back node_verify-all.sh looks for pod restarts (Default: 300)
+    SSM_ENV_VARS=""
+    if [[ -n "${STABILITY_WINDOW}" ]]; then
+        SSM_ENV_VARS="STABILITY_WINDOW_SECONDS=${STABILITY_WINDOW}"
+    fi
+
     # Find any running controlplane instance for this cluster
     INSTANCE_ID=$(get_instance_id "$REGION" "$PROFILE" "$NICKNAME")
 
     echo "Instance : ${INSTANCE_ID}"
     echo "Script   : ${SIMPLEK3S_VERIFY}"
+    echo "Env Vars : ${SSM_ENV_VARS:-"--N/A--"}"
     echo ""
 
     # Send the SSM command
-    COMMAND_ID=$(ssm_send_command "${REGION}" "${PROFILE}" "${INSTANCE_ID}" "${SIMPLEK3S_VERIFY}")
+    COMMAND_ID=$(ssm_send_command "${REGION}" "${PROFILE}" "${INSTANCE_ID}" "${SIMPLEK3S_VERIFY}" "${SSM_ENV_VARS}")
 
     echo "Command ID: ${COMMAND_ID}"
     echo "Polling for output (up to $((POLL_MAX * POLL_INTERVAL / 60)) min)..."
@@ -187,6 +190,7 @@ function verify_cluster() {
 PROFILE="${1:-}"
 NICKNAME="${2:-$(infer_tfvar "${IAC_TFVARS}" "nickname")}"
 REGION="${3:-$(infer_tfvar "${IAC_TFVARS}" "aws_region")}"
+STABILITY_WINDOW="${STABILITY_WINDOW_SECONDS:-}"
 
 # VERIFY INPUTS
 if [[ -z "$PROFILE" ]]; then
@@ -195,6 +199,13 @@ fi
 if [[ -z "$NICKNAME" || -z "$REGION" ]]; then
     echo "Error: could not infer nickname/region from $IAC_TFVARS — supply them as arguments." >&2
     usage
+fi
+# Reject anything but a positive integer: the value is interpolated into the
+# remote command, and node_verify-all.sh discards the resulting error, so a
+# malformed window silently skips the pod-restart check and still reports PASS.
+if [[ -n "${STABILITY_WINDOW}" && ! "${STABILITY_WINDOW}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Error: STABILITY_WINDOW_SECONDS must be a positive integer (got '${STABILITY_WINDOW}')." >&2
+    exit 2
 fi
 
 # EXECUTE SCRIPT
