@@ -25,7 +25,7 @@ source "${SCRIPT_DIR}/common.sh"
 IAC_NAME_CLUSTER="standard_cluster"
 IAC_TFVARS="$(get_tfvar_filepath "${SCRIPT_DIR}" "${IAC_NAME_CLUSTER}")"
 
-SIMPLEK3S_SCRIPT_DIR="$(get_node_script_dir "${SCRIPT_DIR}")"
+SIMPLEK3S_SCRIPT_DIR="$(get_node_script_dir)"
 SIMPLEK3S_VERIFY="${SIMPLEK3S_SCRIPT_DIR}/node_verify-all.sh"
 
 POLL_INTERVAL=5
@@ -100,6 +100,7 @@ function ssm_send_command() {
 function ssm_get_command_invocation() {
     # VARIABLES
     local _REGION _PROFILE _INSTANCE_ID _COMMAND_ID
+    local _OUTPUT
     # INPUTS
     _REGION="${1}"
     _PROFILE="${2}"
@@ -133,14 +134,14 @@ function verify_cluster() {
     echo "Cluster  : nickname=${NICKNAME}  region=${REGION}  profile=${PROFILE}"
 
     # Find any running controlplane instance for this cluster
-    INSTANCE_ID=$(get_instance_id "$REGION" "$PROFILE" "$NICKNAME" || exit 1)
+    INSTANCE_ID=$(get_instance_id "$REGION" "$PROFILE" "$NICKNAME")
 
     echo "Instance : ${INSTANCE_ID}"
     echo "Script   : ${SIMPLEK3S_VERIFY}"
     echo ""
 
     # Send the SSM command
-    COMMAND_ID=$(ssm_send_command "${REGION}" "${PROFILE}" "${INSTANCE_ID}" "${SIMPLEK3S_VERIFY}" || exit 1)
+    COMMAND_ID=$(ssm_send_command "${REGION}" "${PROFILE}" "${INSTANCE_ID}" "${SIMPLEK3S_VERIFY}")
 
     echo "Command ID: ${COMMAND_ID}"
     echo "Polling for output (up to $((POLL_MAX * POLL_INTERVAL / 60)) min)..."
@@ -151,9 +152,9 @@ function verify_cluster() {
     STATUS=""
     for ((i=1; i<=POLL_MAX; i++)); do
         # Get the result of the command invocation
-        RESULT=$(ssm_get_command_invocation "${REGION}" "${PROFILE}" "${INSTANCE_ID}" "${COMMAND_ID}" || exit 1)
+        RESULT=$(ssm_get_command_invocation "${REGION}" "${PROFILE}" "${INSTANCE_ID}" "${COMMAND_ID}")
         # Get the status of the command invocation
-        STATUS=$(parse_command_invocation_result "${RESULT}" "Status" || exit 1)
+        STATUS=$(parse_command_invocation_result "${RESULT}" "Status")
         # If the status IS NOT "in progress", "pending", or *null*, then exit the loop and output the result
         if [[ "$STATUS" != "InProgress" && "$STATUS" != "Pending" && -n "$STATUS" ]]; then
             break
@@ -163,8 +164,8 @@ function verify_cluster() {
     done
 
     # Print output
-    STDOUT=$(parse_command_invocation_result "${RESULT}" "StandardOutputContent" || exit 1)
-    STDERR=$(parse_command_invocation_result "${RESULT}" "StandardErrorContent" || exit 1)
+    STDOUT=$(parse_command_invocation_result "${RESULT}" "StandardOutputContent")
+    STDERR=$(parse_command_invocation_result "${RESULT}" "StandardErrorContent")
 
     if [[ -n "$STDOUT" ]]; then
         echo "--- stdout ---"
@@ -179,7 +180,7 @@ function verify_cluster() {
     echo ""
     echo "Result: ${STATUS}"
 
-    [[ "$STATUS" == "Success" ]] && return 0 || return 1
+    [[ "$STATUS" == "Success" ]]
 }
 
 # GATHER INPUTS
@@ -197,4 +198,4 @@ if [[ -z "$NICKNAME" || -z "$REGION" ]]; then
 fi
 
 # EXECUTE SCRIPT
-verify_cluster || exit 1
+verify_cluster
