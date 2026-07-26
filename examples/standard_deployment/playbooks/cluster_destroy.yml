@@ -10,6 +10,10 @@
   gather_facts: false
 
   tasks:
+  - name: Render tfvars for each module
+    ansible.builtin.include_role:
+      name: tfvars
+
   - name: Destroy All
     include_role:
       name: apply
