@@ -35,39 +35,52 @@ EXIT_FAIL=1
 EXIT_USAGE=2
 EXIT_RUNNING=3
 
+# An explicit --help is a successful request: it prints to stdout and exits 0, so a
+# caller can pipe it and cannot mistake it for the exit-2 usage error.
 function usage() {
-    echo "Usage: $(basename "$0") <profile> [<nickname> <region>] --instance-id <instance-id>" >&2
-    echo "         (--exec-cmd <command> | --exec-async <command> | --exec-get <command-id>)" >&2
-    echo "         [--json [pretty|compact]]" >&2
-    echo "" >&2
-    echo "  profile        AWS CLI profile (required)" >&2
-    echo "  nickname       Cluster nickname (default: inferred from terraform.tfvars)" >&2
-    echo "  region         AWS region      (default: inferred from terraform.tfvars)" >&2
-    echo "  --instance-id  Target node (required; must belong to the cluster)" >&2
-    echo "" >&2
-    echo "  --exec-cmd     Run a command and wait for its output" >&2
-    echo "  --exec-async   Run a command, print its command id, return immediately" >&2
-    echo "  --exec-get     Print the output of a previously issued command id" >&2
-    echo "  --json         Emit JSON; 'compact' is single-line for machine use" >&2
-    echo "" >&2
-    echo "Examples:" >&2
-    echo "  $(basename "$0") myprofile --instance-id i-0abc --exec-cmd \"kubectl get nodes\"" >&2
-    echo "  $(basename "$0") myprofile --instance-id i-0abc --exec-cmd \"kubectl get pods -A\" --json compact" >&2
-    echo "  ID=\$($(basename "$0") myprofile --instance-id i-0abc --exec-async \"long-job.sh\")" >&2
-    echo "  $(basename "$0") myprofile --instance-id i-0abc --exec-get \"\$ID\" --json compact" >&2
-    echo "" >&2
-    echo "Exit codes: 0 succeeded, 1 failed, 2 bad usage, 3 still running" >&2
-    echo "" >&2
-    echo "--json fields:" >&2
-    echo "  instance_id, command_id, status, response_code (the remote exit code)," >&2
-    echo "  stdout_truncated, stderr_truncated, stdout, stderr," >&2
-    echo "  truncation_note   present only when output was cut" >&2
-    echo "" >&2
-    echo "ALWAYS check stdout_truncated before drawing conclusions from stdout. SSM caps" >&2
-    echo "output at 24000 chars (stdout) / 8000 (stderr) and cuts mid-stream; the rest is" >&2
-    echo "unrecoverable. Filter on the node instead, e.g." >&2
-    echo "  --exec-cmd \"ls -la /usr/bin | tail -n 200\"" >&2
-    exit "${EXIT_USAGE}"
+    local _CODE
+    _CODE="${1:-${EXIT_USAGE}}"
+    if (( _CODE == 0 )); then
+        print_usage
+    else
+        print_usage >&2
+    fi
+    exit "${_CODE}"
+}
+
+function print_usage() {
+    echo "Usage: $(basename "$0") <profile> [<nickname> <region>] --instance-id <instance-id>"
+    echo "         (--exec-cmd <command> | --exec-async <command> | --exec-get <command-id>)"
+    echo "         [--json [pretty|compact]]"
+    echo ""
+    echo "  profile        AWS CLI profile (required)"
+    echo "  nickname       Cluster nickname (default: inferred from terraform.tfvars)"
+    echo "  region         AWS region      (default: inferred from terraform.tfvars)"
+    echo "  --instance-id  Target node (required; must belong to the cluster)"
+    echo ""
+    echo "  --exec-cmd     Run a command and wait for its output"
+    echo "  --exec-async   Run a command, print its command id, return immediately"
+    echo "  --exec-get     Print the output of a previously issued command id"
+    echo "  --json         Emit JSON; 'compact' is single-line for machine use"
+    echo ""
+    echo "Examples:"
+    echo "  $(basename "$0") myprofile --instance-id i-0abc --exec-cmd \"kubectl get nodes\""
+    echo "  $(basename "$0") myprofile --instance-id i-0abc --exec-cmd \"kubectl get pods -A\" --json compact"
+    echo "  ID=\$($(basename "$0") myprofile --instance-id i-0abc --exec-async \"long-job.sh\")"
+    echo "  $(basename "$0") myprofile --instance-id i-0abc --exec-get \"\$ID\" --json compact"
+    echo ""
+    echo "Exit codes: 0 succeeded, 1 failed, 2 bad usage, 3 still running"
+    echo ""
+    echo "--json fields:"
+    echo "  nickname, region, instance_id   the cluster and node actually targeted"
+    echo "  command_id, status, response_code (the remote command's exit code),"
+    echo "  stdout_truncated, stderr_truncated, stdout, stderr,"
+    echo "  truncation_note   present only when output was cut"
+    echo ""
+    echo "ALWAYS check stdout_truncated before drawing conclusions from stdout. SSM caps"
+    echo "output at 24000 chars (stdout) / 8000 (stderr) and cuts mid-stream; the rest is"
+    echo "unrecoverable. Filter on the node instead, e.g."
+    echo "  --exec-cmd \"ls -la /usr/bin | tail -n 200\""
 }
 
 # Reject a second mode rather than silently honouring the last one
@@ -97,7 +110,8 @@ function report() {
     # PROCESS
     _STATUS="$(parse_command_invocation_result "${_RESULT}" "Status")"
     if [[ -n "${JSON_MODE}" ]]; then
-        invocation_to_json "${_RESULT}" "${INSTANCE_ID}" | format_json "${JSON_MODE}"
+        invocation_to_json "${_RESULT}" "${INSTANCE_ID}" "${NICKNAME}" "${REGION}" \
+            | format_json "${JSON_MODE}"
     else
         ssm_report_result "${_RESULT}" || true
     fi
@@ -123,8 +137,8 @@ function execute_async() {
     verify_instance_id "${INSTANCE_ID}" "${REGION}" "${PROFILE}" "${NICKNAME}" "true"
     _COMMAND_ID="$(ssm_send_command "${REGION}" "${PROFILE}" "${INSTANCE_ID}" "${MODE_ARG}")"
     if [[ -n "${JSON_MODE}" ]]; then
-        printf '{"instance_id": "%s", "command_id": "%s", "status": "Pending"}\n' \
-            "${INSTANCE_ID}" "${_COMMAND_ID}" | format_json "${JSON_MODE}"
+        dispatch_to_json "${INSTANCE_ID}" "${NICKNAME}" "${REGION}" "${_COMMAND_ID}" \
+            | format_json "${JSON_MODE}"
     else
         echo "Command ID: ${_COMMAND_ID}"
     fi
@@ -186,7 +200,7 @@ while (( $# > 0 )); do
             fi
             ;;
         -h|--help)
-            usage
+            usage "${EXIT_OK}"
             ;;
         -*)
             echo "Error: unknown option '${1}'." >&2

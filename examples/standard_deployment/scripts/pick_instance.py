@@ -88,6 +88,19 @@ class Instance:
             self.az, self.public_ip, self.private_ip, self.launch,
         ])
 
+    def as_dict(self) -> dict:
+        return {
+            "instance_id": self.instance_id,
+            "name": self.name,
+            "role": self.role,
+            "state": self.state,
+            "instance_type": self.instance_type,
+            "az": self.az,
+            "private_ip": self.private_ip,
+            "public_ip": self.public_ip,
+            "launched": self.launch,
+        }
+
 
 @dataclass
 class PickerState:
@@ -659,6 +672,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="print instances as TSV and exit, without the picker")
     parser.add_argument("--table", action="store_true",
                         help="print instances as a formatted table and exit")
+    parser.add_argument("--json", action="store_true", dest="as_json",
+                        help="print instances as JSON (with cluster identity) and exit")
     parser.add_argument("--demo", action="store_true",
                         help="use built-in fixture data; makes no AWS calls")
     args = parser.parse_args(argv)
@@ -685,6 +700,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.table:
         for line in format_table(instances):
             print(line)
+        return 0
+
+    if args.as_json:
+        # Identity first: a caller must be able to confirm which cluster this is.
+        print(json.dumps({
+            "nickname": nickname,
+            "region": region,
+            "profile": profile,
+            "instances": [i.as_dict() for i in instances],
+        }))
         return 0
 
     if not instances:

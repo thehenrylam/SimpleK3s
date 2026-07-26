@@ -79,10 +79,12 @@ function output_is_truncated() {
 # parse our keys rather than scraping AWS's.
 function invocation_to_json() {
     # VARIABLES
-    local _RESULT _INSTANCE_ID
+    local _RESULT _INSTANCE_ID _NICKNAME _REGION
     # INPUTS
     _RESULT="${1}"
     _INSTANCE_ID="${2}"
+    _NICKNAME="${3}"
+    _REGION="${4}"
     # OUTPUT VALUES
     printf '%s' "${_RESULT}" | python3 -c '
 import json, sys
@@ -101,9 +103,12 @@ out = raw.get("StandardOutputContent", "")
 err = raw.get("StandardErrorContent", "")
 out_cut, err_cut = cut(out, 24000), cut(err, 8000)
 
-# Flags come before stdout deliberately: stdout can be 24KB, and a reader that
-# only sees the head of this object must still learn the result is incomplete.
+# Cluster identity first, then flags, then content. stdout can be 24KB, so a
+# reader that only sees the head of this object must still learn which cluster
+# was targeted and whether the result is complete.
 payload = {
+    "nickname": sys.argv[2],
+    "region": sys.argv[3],
     "instance_id": sys.argv[1],
     "command_id": raw.get("CommandId", ""),
     "status": raw.get("Status", ""),
@@ -127,7 +132,30 @@ if out_cut or err_cut:
 payload["stdout"] = out
 payload["stderr"] = err
 print(json.dumps(payload))
-' "${_INSTANCE_ID}"
+' "${_INSTANCE_ID}" "${_NICKNAME}" "${_REGION}"
+}
+
+# Payload for a command that has been dispatched but not yet collected. Built in
+# python so a nickname containing a quote cannot break the JSON.
+function dispatch_to_json() {
+    # VARIABLES
+    local _INSTANCE_ID _NICKNAME _REGION _COMMAND_ID
+    # INPUTS
+    _INSTANCE_ID="${1}"
+    _NICKNAME="${2}"
+    _REGION="${3}"
+    _COMMAND_ID="${4}"
+    # OUTPUT VALUES
+    python3 -c '
+import json, sys
+print(json.dumps({
+    "nickname": sys.argv[2],
+    "region": sys.argv[3],
+    "instance_id": sys.argv[1],
+    "command_id": sys.argv[4],
+    "status": "Pending",
+}))
+' "${_INSTANCE_ID}" "${_NICKNAME}" "${_REGION}" "${_COMMAND_ID}"
 }
 
 # Render JSON from stdin. Colour is applied only when a terminal is reading, so
