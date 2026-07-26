@@ -235,7 +235,7 @@ if [[ -z "${NICKNAME}" || -z "${REGION}" ]]; then
 fi
 if [[ -z "${INSTANCE_ID}" ]]; then
     echo "Error: --instance-id is required." >&2
-    echo "       List the cluster's instances with: ./pick_instance.py --region ${REGION} --profile ${PROFILE} --nickname ${NICKNAME} --list" >&2
+    echo "       List the cluster's instances with: ./ssm_pick_instance.py --region ${REGION} --profile ${PROFILE} --nickname ${NICKNAME} --list" >&2
     usage
 fi
 if [[ -z "${MODE}" ]]; then

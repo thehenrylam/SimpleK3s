@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # Opens an interactive SSM shell on a cluster node.
-# Without --instance-id, pick_instance.py presents a live picker of the
+# Without --instance-id, ssm_pick_instance.py presents a live picker of the
 # cluster's instances instead of making you look one up in the console.
 #
 # Usage:

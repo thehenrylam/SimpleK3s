@@ -244,10 +244,10 @@ function get_controlplane_instance_id() {
     echo "${_OUTPUT}"
 }
 
-# ─── Instance lookup (delegates to pick_instance.py) ─────────────────────────
+# ─── Instance lookup (delegates to ssm_pick_instance.py) ─────────────────────────
 
 COMMON_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PICK_INSTANCE="${COMMON_SCRIPT_DIR}/pick_instance.py"
+PICK_INSTANCE="${COMMON_SCRIPT_DIR}/ssm_pick_instance.py"
 
 # Guard before shelling out, so a missing toolchain says so plainly.
 function require_pick_instance() {

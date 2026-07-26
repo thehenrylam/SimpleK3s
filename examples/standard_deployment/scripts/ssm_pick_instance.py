@@ -6,7 +6,7 @@
 
 Writes the chosen instance id to stdout so it composes:
 
-    INSTANCE_ID="$(./pick_instance.py --profile p --nickname prod --region us-west-2)"
+    INSTANCE_ID="$(./ssm_pick_instance.py --profile p --nickname prod --region us-west-2)"
 
 With --list it prints the same instances as TSV and exits, which is what
 non-interactive callers (and tests) use. --demo runs the interface against

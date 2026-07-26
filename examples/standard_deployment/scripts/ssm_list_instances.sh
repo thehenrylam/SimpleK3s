@@ -4,7 +4,7 @@ set -euo pipefail
 
 # Lists the cluster's EC2 instances, grouped by availability zone.
 #
-# A thin wrapper over pick_instance.py so every ssm_*.sh script shares one
+# A thin wrapper over ssm_pick_instance.py so every ssm_*.sh script shares one
 # argument convention: <profile> [<nickname> <region>].
 #
 # Usage:
