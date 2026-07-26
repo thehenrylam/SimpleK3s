@@ -17,8 +17,6 @@ source "${SCRIPT_DIR}/common.sh"
 IAC_NAME_CLUSTER="standard_cluster"
 IAC_TFVARS="$(get_tfvar_filepath "${SCRIPT_DIR}" "${IAC_NAME_CLUSTER}")"
 
-PICK_INSTANCE="${SCRIPT_DIR}/pick_instance.py"
-
 function usage() {
     echo "Usage: $(basename "$0") <profile> [<nickname> <region>] [--instance-id <instance-id>]" >&2
     echo "" >&2
@@ -27,63 +25,6 @@ function usage() {
     echo "  region        AWS region      (default: inferred from terraform.tfvars)" >&2
     echo "  --instance-id Connect straight to this instance, skipping the picker" >&2
     exit 2
-}
-
-# Run the picker. With no extra arguments it is interactive and prints the
-# chosen instance id; --list prints every instance as TSV instead.
-function pick_instance() {
-    # VARIABLES
-    local _REGION _PROFILE _NICKNAME
-    # INPUTS
-    _REGION="${1}"
-    _PROFILE="${2}"
-    _NICKNAME="${3}"
-    shift 3
-    # PROCESS
-    uv run --script "${PICK_INSTANCE}" \
-        --region "${_REGION}" \
-        --profile "${_PROFILE}" \
-        --nickname "${_NICKNAME}" \
-        "$@"
-}
-
-# Confirm an explicitly supplied id belongs to this cluster and can be reached,
-# so a typo fails here rather than as an opaque SSM error.
-function verify_instance_id() {
-    # VARIABLES
-    local _INSTANCE_ID _REGION _PROFILE _NICKNAME
-    local _INSTANCES _ID _NAME _STATE _FOUND_STATE
-    # INPUTS
-    _INSTANCE_ID="${1}"
-    _REGION="${2}"
-    _PROFILE="${3}"
-    _NICKNAME="${4}"
-    # PROCESS
-    # Fetched once so the error listing cannot disagree with the lookup
-    _INSTANCES="$(pick_instance "${_REGION}" "${_PROFILE}" "${_NICKNAME}" --list)"
-    _FOUND_STATE=""
-    while IFS=$'\t' read -r _ID _NAME _STATE _; do
-        if [[ "${_ID}" == "${_INSTANCE_ID}" ]]; then
-            _FOUND_STATE="${_STATE}"
-            break
-        fi
-    done <<< "${_INSTANCES}"
-    # VERIFY
-    if [[ -z "${_FOUND_STATE}" ]]; then
-        echo "Error: ${_INSTANCE_ID} is not an instance of cluster '${_NICKNAME}' in ${_REGION}." >&2
-        if [[ -n "${_INSTANCES}" ]]; then
-            echo "       Available:" >&2
-            while IFS=$'\t' read -r _ID _NAME _STATE _; do
-                [[ -z "${_ID}" ]] && continue
-                echo "         ${_ID}  ${_NAME}  (${_STATE})" >&2
-            done <<< "${_INSTANCES}"
-        fi
-        return 1
-    fi
-    if [[ "${_FOUND_STATE}" != "running" ]]; then
-        echo "Error: instance ${_INSTANCE_ID} is ${_FOUND_STATE}, not running." >&2
-        return 1
-    fi
 }
 
 function ssm_start_session() {
@@ -108,7 +49,7 @@ function connect_to_node() {
     # PROCESS
     echo "Cluster  : nickname=${NICKNAME}  region=${REGION}  profile=${PROFILE}"
     if [[ -n "${INSTANCE_ID}" ]]; then
-        verify_instance_id "${INSTANCE_ID}" "${REGION}" "${PROFILE}" "${NICKNAME}"
+        verify_instance_id "${INSTANCE_ID}" "${REGION}" "${PROFILE}" "${NICKNAME}" "true"
         _INSTANCE_ID="${INSTANCE_ID}"
     else
         # The picker reports its own errors and exits non-zero, which `set -e`
@@ -163,15 +104,7 @@ if [[ -z "${NICKNAME}" || -z "${REGION}" ]]; then
     echo "Error: could not infer nickname/region from ${IAC_TFVARS} — supply them as arguments." >&2
     usage
 fi
-if [[ ! -f "${PICK_INSTANCE}" ]]; then
-    echo "Error: ${PICK_INSTANCE} is missing." >&2
-    exit 1
-fi
-if ! command -v uv > /dev/null 2>&1; then
-    echo "Error: uv is required to run ${PICK_INSTANCE}." >&2
-    echo "       Install it with ./toolchain/tc_standard_macos_install.sh" >&2
-    exit 1
-fi
+require_pick_instance
 
 # EXECUTE SCRIPT
 connect_to_node
