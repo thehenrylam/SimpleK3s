@@ -1,0 +1,55 @@
+---
+# Renders <module dir>/{{ tfvars_filename }} from group_vars/all.yml.
+#
+# Templating only — this role never runs tofu, so it cannot disturb a running
+# cluster or its supporting roots.
+
+- name: Resolve the module directory
+  ansible.builtin.set_fact:
+    tfvars_module_dir: "{{ (playbook_dir + '/' + module[inventory_hostname].dir) | realpath }}"
+
+- name: Fail early when the module directory is missing
+  ansible.builtin.stat:
+    path: "{{ tfvars_module_dir }}"
+  register: tfvars_dir_stat
+  failed_when: not tfvars_dir_stat.stat.exists or not tfvars_dir_stat.stat.isdir
+
+- name: Render {{ tfvars_filename }}
+  ansible.builtin.template:
+    src: "{{ inventory_hostname }}.tfvars.j2"
+    dest: "{{ tfvars_module_dir }}/{{ tfvars_filename }}"
+    # These files can hold OAuth secrets, so keep them owner-readable only
+    mode: "0600"
+  register: tfvars_rendered
+
+# ─── Verification against the hand-written file ──────────────────────────────
+
+- name: Look for an existing terraform.tfvars to compare against
+  ansible.builtin.stat:
+    path: "{{ tfvars_module_dir }}/terraform.tfvars"
+  register: tfvars_existing
+  when: tfvars_compare | bool
+
+- name: Diff rendered output against terraform.tfvars
+  ansible.builtin.command:
+    argv:
+      - diff
+      - "-u"
+      - "{{ tfvars_module_dir }}/terraform.tfvars"
+      - "{{ tfvars_module_dir }}/{{ tfvars_filename }}"
+  register: tfvars_diff
+  changed_when: false
+  # diff exits 1 when files differ, which is information here rather than failure
+  failed_when: tfvars_diff.rc > 1
+  when:
+    - tfvars_compare | bool
+    - tfvars_existing.stat.exists | default(false)
+
+- name: Report the comparison
+  ansible.builtin.debug:
+    msg: >-
+      {{
+        'MATCHES terraform.tfvars' if (tfvars_diff.rc | default(0)) == 0
+        else (tfvars_diff.stdout_lines | default(['(no terraform.tfvars to compare against)']))
+      }}
+  when: tfvars_compare | bool

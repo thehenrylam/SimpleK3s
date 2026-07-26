@@ -1,0 +1,25 @@
+{{ ansible_managed | comment }}
+# Network/Resource Settings
+aws_region = "{{ aws_region }}"
+nickname   = "{{ tfvars.pvc.nickname }}"
+
+# EBS volume pools for Longhorn.
+# Deploy this root before the cluster — volumes survive cluster destroy/apply cycles.
+# All volumes in a pool must be the same size: Longhorn usable capacity = smallest volume in pool.
+#
+# Cost estimate (gp3, us-east-1):
+#   1 volume × 50 GB = $4.00/month   (no redundancy)
+#   2 volumes × 50 GB = $8.00/month  (survives 1 AZ failure)
+#   3 volumes × 50 GB = $12.00/month (survives any 1 AZ failure, still serves from 2)
+pools = [
+{% for pool in tfvars.pvc.pools %}
+  {
+{% if pool.comment is defined %}
+    # {{ pool.comment }}
+{% endif %}
+    name               = "{{ pool.name }}"
+    availability_zones = [{{ pool.availability_zones | map('to_json') | join(', ') }}]
+    volume_size_gb     = {{ pool.volume_size_gb | to_json }}
+  },
+{% endfor %}
+]

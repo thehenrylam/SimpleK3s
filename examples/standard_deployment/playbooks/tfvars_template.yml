@@ -1,0 +1,21 @@
+---
+# Render each standard_* module's tfvars from group_vars/all.yml, then diff the
+# result against the hand-written terraform.tfvars.
+#
+# Templating only — no tofu is run, so this cannot disturb a running cluster or
+# its supporting roots (standard_pvc, standard_tailscale, standard_idp).
+#
+#   ansible-playbook ./playbooks/tfvars_template.yml
+#
+# Output goes to terraform.ANSIBLE.tfvars, which OpenTofu does not auto-load.
+# To write the real file once the diff looks right:
+#
+#   ansible-playbook ./playbooks/tfvars_template.yml -e tfvars_filename=terraform.tfvars
+- name: Template terraform tfvars
+  hosts: modules
+  gather_facts: false
+
+  tasks:
+    - name: Render tfvars for each module
+      ansible.builtin.include_role:
+        name: tfvars

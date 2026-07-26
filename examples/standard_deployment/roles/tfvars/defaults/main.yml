@@ -1,0 +1,8 @@
+---
+# Output filename. Deliberately NOT terraform.tfvars: OpenTofu auto-loads only
+# terraform.tfvars and *.auto.tfvars, so rendering under this name cannot affect
+# a live cluster. Override once the output has been diffed and trusted.
+tfvars_filename: "terraform.tfvars"
+
+# Show a diff against the module's existing terraform.tfvars after rendering.
+tfvars_compare: true

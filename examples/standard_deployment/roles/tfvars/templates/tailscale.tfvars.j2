@@ -1,0 +1,23 @@
+{{ ansible_managed | comment }}
+# This file holds OAuth secrets — it is gitignored, never commit it.
+
+aws_region = "{{ aws_region }}"
+nickname   = "{{ tfvars.tailscale.nickname }}" # path becomes /{{ tfvars.tailscale.nickname }}/<nickname>/oauth_config
+
+# Operator OAuth client (write). Docs: https://tailscale.com/docs/kubernetes-operator/install-operator
+tailscale_oauth_client_id     = "{{ tfvars.tailscale.oauth_client_id }}"
+tailscale_oauth_client_secret = "{{ tfvars.tailscale.oauth_client_secret }}"
+
+# Read-only OAuth client (SEPARATE client — scopes: devices:read, acl:read, dns:read).
+# REQUIRED for the list + preflight Lambdas.
+tailscale_readonly_oauth_client_id     = "{{ tfvars.tailscale.readonly_oauth_client_id }}"
+tailscale_readonly_oauth_client_secret = "{{ tfvars.tailscale.readonly_oauth_client_secret }}"
+
+# Configure this IF you want to utilize Internal-facing app setups (e.g. Only have ArgoCD/Grafana/Prometheus accessible via Tailscale and not let anybody else access it)
+tailscale_magic_dns_name = "{{ tfvars.tailscale.magic_dns_name }}" # Example: <tailscale-name>.ts.net
+
+# Tailscale Lambda observability (optional — applies to cleanup/list/preflight).
+#   Minimal cost:  lambda_log_retention_days = 7,   lambda_enable_xray_tracing = false
+#   Full audit:    lambda_log_retention_days = 365, lambda_enable_xray_tracing = true
+lambda_log_retention_days  = {{ tfvars.tailscale.lambda_log_retention_days | to_json }}    # CloudWatch value only (…, 90, 120, 150, 180, 365, …); default 180 (~6 months)
+lambda_enable_xray_tracing = {{ tfvars.tailscale.lambda_enable_xray_tracing | to_json }} # default false
