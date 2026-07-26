@@ -25,7 +25,7 @@ POLL_INTERVAL=5
 POLL_MAX=180  # 15 minutes
 
 function usage() {
-    echo "Usage: $(basename "$0") <profile> [<nickname> [<region>]]" >&2
+    echo "Usage: $(basename "$0") <profile> [<nickname> <region>]" >&2
     echo "" >&2
     echo "  profile   AWS CLI profile (required)" >&2
     echo "  nickname  Cluster nickname (default: inferred from terraform.tfvars)" >&2
