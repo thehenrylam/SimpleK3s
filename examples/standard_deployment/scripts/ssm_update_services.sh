@@ -65,6 +65,13 @@ REGION="${3:-$(infer_tfvar "${IAC_TFVARS}" "aws_region")}"
 if [[ -z "$PROFILE" ]]; then
     usage
 fi
+# Nickname and region are supplied as a pair, consistently across every ssm_*.sh,
+# so 2 positionals is always a mistake.
+if (( $# == 2 || $# > 3 )); then
+    echo "Error: expected <profile>, or <profile> <nickname> <region>." >&2
+    echo "       Got $#: $*" >&2
+    usage
+fi
 if [[ -z "$NICKNAME" || -z "$REGION" ]]; then
     echo "Error: could not infer nickname/region from $IAC_TFVARS — supply them as arguments." >&2
     usage

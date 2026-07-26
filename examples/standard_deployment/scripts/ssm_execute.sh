@@ -221,9 +221,11 @@ REGION="${POSITIONAL[2]:-$(infer_tfvar "${IAC_TFVARS}" "aws_region")}"
 if [[ -z "${PROFILE}" ]]; then
     usage
 fi
-# nickname and region are a pair, so 2 positionals is always a mistake. This is
-# also what turns a mistyped `--json josn` into an error instead of silently
-# retargeting the run at a cluster named "josn".
+# Nickname and region are supplied as a pair, consistently across every ssm_*.sh,
+# so 2 positionals is always a mistake. Here it is also load-bearing: --json takes
+# an OPTIONAL specifier, so a mistyped `--json josn` leaves "josn" loose, and
+# without this check it would land in the nickname slot and silently retarget the
+# run at a cluster named "josn".
 if (( ${#POSITIONAL[@]} == 2 || ${#POSITIONAL[@]} > 3 )); then
     echo "Error: expected <profile>, or <profile> <nickname> <region>." >&2
     echo "       Got ${#POSITIONAL[@]}: ${POSITIONAL[*]}" >&2

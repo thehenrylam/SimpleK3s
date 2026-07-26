@@ -96,8 +96,11 @@ REGION="${POSITIONAL[2]:-$(infer_tfvar "${IAC_TFVARS}" "aws_region")}"
 if [[ -z "${PROFILE}" ]]; then
     usage
 fi
-if (( ${#POSITIONAL[@]} > 3 )); then
-    echo "Error: too many arguments." >&2
+# Nickname and region are supplied as a pair, consistently across every ssm_*.sh,
+# so 2 positionals is always a mistake.
+if (( ${#POSITIONAL[@]} == 2 || ${#POSITIONAL[@]} > 3 )); then
+    echo "Error: expected <profile>, or <profile> <nickname> <region>." >&2
+    echo "       Got ${#POSITIONAL[@]}: ${POSITIONAL[*]}" >&2
     usage
 fi
 if [[ -z "${NICKNAME}" || -z "${REGION}" ]]; then
