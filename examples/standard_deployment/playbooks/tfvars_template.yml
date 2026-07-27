@@ -1,21 +1,25 @@
 ---
-# Render each standard_* module's tfvars from group_vars/all.yml, then diff the
-# result against the hand-written terraform.tfvars.
+# Render EVERY standard_* module's tfvars from group_vars/all.yml, on its own.
 #
-# Templating only — no tofu is run, so this cannot disturb a running cluster or
-# its supporting roots (standard_pvc, standard_tailscale, standard_idp).
+# The work playbooks import only their own tier ({support,cluster}_template.yml)
+# so the tiers cannot block each other. This playbook runs both, which is what
+# you want when checking a config change across the whole deployment. No tofu
+# runs, so it cannot disturb a running cluster or its supporting roots.
+#
+# Because the tiers are separate plays, a bad support config still stops the run
+# before the cluster tier is templated. Run the tier playbook directly to
+# template one tier in isolation.
+#
+# Dry run: write somewhere OpenTofu does not auto-load, and diff the result.
+#
+#   ansible-playbook ./playbooks/tfvars_template.yml -e tfvars_filename=terraform.ANSIBLE.tfvars
+#
+# Write the real thing (the default — terraform.tfvars IS auto-loaded, so this
+# is what the next plan/apply will read):
 #
 #   ansible-playbook ./playbooks/tfvars_template.yml
-#
-# Output goes to terraform.ANSIBLE.tfvars, which OpenTofu does not auto-load.
-# To write the real file once the diff looks right:
-#
-#   ansible-playbook ./playbooks/tfvars_template.yml -e tfvars_filename=terraform.tfvars
-- name: Template terraform tfvars
-  hosts: modules
-  gather_facts: false
+- name: Template and validate support tfvars
+  ansible.builtin.import_playbook: support_template.yml
 
-  tasks:
-    - name: Render tfvars for each module
-      ansible.builtin.include_role:
-        name: tfvars
+- name: Template and validate cluster tfvars
+  ansible.builtin.import_playbook: cluster_template.yml

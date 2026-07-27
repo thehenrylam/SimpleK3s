@@ -1,4 +1,8 @@
 ---
+# Gate: refuses to proceed if this tier's config is unconfigured.
+- name: Template and validate cluster tfvars
+  ansible.builtin.import_playbook: cluster_template.yml
+
 - name: Apply
   # It takes the hosts that is under the hosts section from inventory.yml
   #   - Used for variables like "inventory_hostname"
@@ -7,10 +11,6 @@
   gather_facts: false
 
   tasks:
-  - name: Render tfvars for each module
-    ansible.builtin.include_role:
-      name: tfvars
-
   - name: Apply All
     include_role:
       name: apply

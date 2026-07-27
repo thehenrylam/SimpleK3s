@@ -1,0 +1,26 @@
+---
+# Renders the cluster tier's tfvars from group_vars/all.yml and refuses to
+# continue if any value is still unconfigured.
+#
+# Imported by every cluster work playbook, so a bad config is caught before any
+# tofu runs rather than partway through the wave.
+#
+# Two deliberate choices:
+#   - hosts: wave2_cluster — scoped to this tier so a support misconfiguration
+#     cannot block cluster operations. The two tiers are independent roots.
+#   - default (linear) strategy + any_errors_fatal — the work plays use
+#     strategy: free, where hosts race ahead independently and a failure on one
+#     cannot gate the others. Linear gives the barrier: every module is checked,
+#     all offenders are reported in one pass, then the run aborts.
+#
+# If this blocks an operation you need to perform anyway (e.g. tearing down a
+# module whose config drifted), run tofu directly in that module's directory.
+- name: Template cluster tfvars
+  hosts: wave2_cluster
+  gather_facts: false
+  any_errors_fatal: true
+
+  tasks:
+    - name: Render tfvars for each module
+      ansible.builtin.include_role:
+        name: tfvars

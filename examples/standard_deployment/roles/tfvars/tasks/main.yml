@@ -14,6 +14,26 @@
   register: tfvars_dir_stat
   failed_when: not tfvars_dir_stat.stat.exists or not tfvars_dir_stat.stat.isdir
 
+# ─── Guardrail: never write a half-configured tfvars ─────────────────────────
+# Rendered in memory first. tfvars_filename defaults to terraform.tfvars, which
+# OpenTofu auto-loads, so writing and *then* checking would already have
+# clobbered a working file by the time the check fires.
+
+- name: Pre-render {{ tfvars_filename }}
+  ansible.builtin.set_fact:
+    tfvars_preview: "{{ lookup('ansible.builtin.template', inventory_hostname + '.tfvars.j2') }}"
+
+- name: Refuse to write unconfigured values
+  ansible.builtin.fail:
+    msg: >-
+      {{ inventory_hostname }}: refusing to write
+      {{ tfvars_module_dir }}/{{ tfvars_filename }} — it still contains
+      {{ tfvars_placeholder }}. Set these values in group_vars/all.yml:
+      {{ tfvars_preview.splitlines()
+         | select('search', tfvars_placeholder | regex_escape)
+         | list }}
+  when: tfvars_placeholder in tfvars_preview
+
 - name: Render {{ tfvars_filename }}
   ansible.builtin.template:
     src: "{{ inventory_hostname }}.tfvars.j2"
