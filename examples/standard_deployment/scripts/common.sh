@@ -244,6 +244,36 @@ function get_controlplane_instance_id() {
     echo "${_OUTPUT}"
 }
 
+# Every running controlplane node for a cluster, one "<id>\t<name>" per line.
+# The singular form above is enough when any one node will do; this is for
+# callers that must reach all of them (e.g. verifying every controlplane).
+function get_controlplane_instances() {
+    # VARIABLES
+    local _REGION _PROFILE _NICKNAME
+    local _OUTPUT
+    # INPUTS
+    _REGION="${1}"
+    _PROFILE="${2}"
+    _NICKNAME="${3}"
+    # PROCESS
+    _OUTPUT=$(aws ec2 describe-instances \
+        --region "${_REGION}" \
+        --profile "${_PROFILE}" \
+        --filters \
+            "Name=tag:Nickname,Values=${_NICKNAME}" \
+            "Name=tag:Name,Values=*_controlplane-*" \
+            "Name=instance-state-name,Values=running" \
+        --query "Reservations[].Instances[].[InstanceId,Tags[?Key=='Name']|[0].Value]" \
+        --output text)
+    # VERIFY
+    if [[ -z "${_OUTPUT}" || "${_OUTPUT}" == "None" ]]; then
+        echo "Error: no running controlplane instance found for nickname '${_NICKNAME}' in ${_REGION}." >&2
+        return 1
+    fi
+    # OUTPUT VALUES
+    printf '%s\n' "${_OUTPUT}"
+}
+
 # ─── Instance lookup (delegates to ssm_pick_instance.py) ─────────────────────────
 
 COMMON_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

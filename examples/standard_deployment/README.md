@@ -83,8 +83,10 @@ ansible-playbook ./playbooks/cluster_verify.yml
     - Outputs a list of EC2 instances in the cluster
 - `./scripts/ssm_update_services.sh <aws_profile>`
     - In an EC2 node, execute a script to pull files from `S3 bootstrap` and redoing the node setup to update services
-- `./scripts/ssm_verify_cluster.sh <aws_profile>`
-    - In an EC2 node, execute a script to verify the health of the cluster
+- `./scripts/ssm_verify_cluster.sh <aws_profile> [--no-color] [--per-node]`
+    - On **every** controlplane node, execute a script to verify the health of the cluster, then merge the results into one report (a check every node agrees on is printed once; divergent lines are attributed to the nodes that produced them)
+    - Passes only if every node passes — a node that cannot be reached is not a pass
+    - `--no-color` never emits colour (already off when piped); `--per-node` prints each node's log in full instead of the merged report
 
 ### AI Skills
 
