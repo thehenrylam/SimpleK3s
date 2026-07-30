@@ -65,6 +65,16 @@ ansible-playbook ./playbooks/cluster_verify.yml
 - `./playbooks/support_destroy.yml`
     - Executes `tofu destroy` for `support` IaC modules
 
+Any playbook accepts Ansible's `--limit` to narrow which IaC modules it acts on — useful for spinning down the costly modules while keeping `idp` (recreating a Cognito pool means re-adding users and burning monthly active users):
+
+``` sh
+# Only pvc and tailscale (prefer this: a module added later is not destroyed unless you name it)
+ansible-playbook ./playbooks/support_destroy.yml --limit pvc,tailscale
+
+# Everything except idp (quotes required — bare '!' is history expansion in bash/zsh)
+ansible-playbook ./playbooks/support_destroy.yml --limit '!idp'
+```
+
 #### General Actions
 
 - `./playbooks/tfvars_template.yml`
