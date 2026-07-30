@@ -20,9 +20,9 @@
       apply_destroy: false
 
   - name: Update Services
-    shell: "./scripts/ssm_update_services.sh {{ aws_profile }} 2>&1 || true"
+    shell: "./ssm_update_services.sh {{ aws_profile }} 2>&1 || true"
     args:
-      chdir: "{{ target_dir }}"
+      chdir: "{{ toolscript_dir }}"
     register: cmdout_update
 
   - name: Show Update Output
