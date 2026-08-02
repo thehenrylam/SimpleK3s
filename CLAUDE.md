@@ -8,8 +8,10 @@ SimpleK3s is an opinionated Terraform/OpenTofu module that deploys a production-
 
 ## Common Commands
 
-All commands are run from an example directory (e.g., `examples/ex_basic/`). The
-examples below use `tofu`; the configuration is compatible with Terraform too, so
+Deployments are driven by Ansible from `examples/standard_deployment/` — see that
+directory's README for the playbooks. The raw `tofu` commands below still work when
+run from a single Terraform root under `examples/standard_deployment/terraform/`.
+The examples use `tofu`; the configuration is compatible with Terraform too, so
 `terraform` can be substituted for `tofu` in any command:
 
 ```bash
@@ -105,7 +107,7 @@ The `.claude/commands/` directory contains slash commands for use inside Claude 
 - **Karpenter**: Node auto-scaling.
 - **Kyverno**: Policy engine.
 - **Descheduler**: Pod rebalancing.
-- **Tailscale**: Internal network entry point (operator, opt-in). A single Tailscale device (one L7 Ingress, MagicDNS + HTTPS) fronts Traefik's dedicated plaintext `tsnet` entrypoint, so every internal app is reached on one tailnet host, path-based (`https://<nickname>.<tailnet>.ts.net/argocd`, `/grafana`, …) — mirroring external mode, only the front door differs (Tailscale device vs public NLB). Apps pick their plane via `applications.<app>.exposure` (`internal` = tailnet via Traefik `tsnet`, default; `external` = public Traefik `websecure`). Internally-exposed apps emit a host-scoped Traefik Ingress (in their own namespace) with an `X-Forwarded-Proto: https` middleware — required because Tailscale terminates TLS upstream, so the apps must be told the external scheme is https for OIDC to work. Its OAuth client is pulled from Parameter Store via External-Secrets, so it applies after External-Secrets and before the applications (`init_subsystems.sh`). The tailnet host must be set via `subsystems.tailscale.magic_dns_name` and match the callback URLs registered in `ex_idp`. Device lifecycle on teardown is handled outside the cluster module: `examples/ex_tailscale/` owns a cleanup Lambda, and `ex_basic` invokes it on cluster `destroy` (via `aws_lambda_invocation`, `lifecycle_scope = "CRUD"`) to delete the cluster's stale tailnet devices — the module itself stays free of device-account lifecycle concerns.
+- **Tailscale**: Internal network entry point (operator, opt-in). A single Tailscale device (one L7 Ingress, MagicDNS + HTTPS) fronts Traefik's dedicated plaintext `tsnet` entrypoint, so every internal app is reached on one tailnet host, path-based (`https://<nickname>.<tailnet>.ts.net/argocd`, `/grafana`, …) — mirroring external mode, only the front door differs (Tailscale device vs public NLB). Apps pick their plane via `applications.<app>.exposure` (`internal` = tailnet via Traefik `tsnet`, default; `external` = public Traefik `websecure`). Internally-exposed apps emit a host-scoped Traefik Ingress (in their own namespace) with an `X-Forwarded-Proto: https` middleware — required because Tailscale terminates TLS upstream, so the apps must be told the external scheme is https for OIDC to work. Its OAuth client is pulled from Parameter Store via External-Secrets, so it applies after External-Secrets and before the applications (`init_subsystems.sh`). The tailnet host must be set via `subsystems.tailscale.magic_dns_name` and match the callback URLs registered in `standard_idp`. Device lifecycle on teardown is handled outside the cluster module: `standard_tailscale` owns a cleanup Lambda, and `standard_cluster` invokes it on cluster `destroy` (via `aws_lambda_invocation`, `lifecycle_scope = "CRUD"`) to delete the cluster's stale tailnet devices — the module itself stays free of device-account lifecycle concerns.
 
 **4. Applications Layer** (`k3s_cluster/cluster_app/{argocd,monitoring}/`)
 - **ArgoCD**: GitOps deployer, requires OIDC IdP config in Parameter Store.
@@ -145,14 +147,24 @@ module "k3s_cluster" {
 
 ### Identity Provider (IdP)
 
-The `examples/ex_idp/` directory and `examples/modules/idp_cognito/` deploy AWS Cognito as an OIDC provider. It is kept in a separate Terraform root from the cluster so it is not torn down when the cluster is destroyed. ArgoCD and Grafana authenticate through it.
+The `examples/standard_deployment/terraform/standard_idp/` root and `examples/modules/idp_cognito/` deploy AWS Cognito as an OIDC provider. It is kept in a separate Terraform root from the cluster so it is not torn down when the cluster is destroyed. ArgoCD and Grafana authenticate through it.
 
 ### Examples
 
-- `examples/ex_basic/`: Full cluster with apps — the primary reference implementation.
-- `examples/ex_idp/`: Standalone IdP setup (deploy this first).
-- `examples/ex_tailscale/`: Durable Tailscale-lifecycle root (deploy before the cluster when using `exposure = "internal"`). Owns the operator OAuth + read-only OAuth + MagicDNS SSM parameters **and** three Lambdas (one TF file each): `cleanup` (write; deletes the cluster's tailnet devices on `tofu destroy`, invoked from `ex_basic`, prevents `-1` name collisions), `list` (read-only device listing), and `preflight` (read-only tag/MagicDNS validation that `ex_basic` invokes at plan time to **block** a misconfigured deploy). Cleanup uses the operator (write) client; list/preflight use a separate read-only client so their tokens can't mutate anything. Kept separate from the cluster so it survives teardowns.
-- `examples/modules/vpc_cloud/`: Reusable VPC module used by examples.
+`examples/standard_deployment/` is the single reference deployment. It is driven by
+Ansible (`playbooks/`, `roles/`, `group_vars/all.yml` as the one variable file) over
+four Terraform roots under `terraform/`, split into a support tier and a cluster tier
+so the support roots survive cluster teardowns:
+
+- `terraform/standard_cluster/`: Full cluster with apps — the primary reference implementation.
+- `terraform/standard_idp/`: Standalone IdP setup (deploy before the cluster).
+- `terraform/standard_pvc/`: EBS volumes backing the Longhorn disk pools. The only support root that costs money while idle.
+- `terraform/standard_tailscale/`: Durable Tailscale-lifecycle root (deploy before the cluster when using `exposure = "internal"`). Owns the operator OAuth + read-only OAuth + MagicDNS SSM parameters **and** three Lambdas (one TF file each): `cleanup` (write; deletes the cluster's tailnet devices on `tofu destroy`, invoked from `standard_cluster`, prevents `-1` name collisions), `list` (read-only device listing), and `preflight` (read-only tag/MagicDNS validation that `standard_cluster` invokes at plan time to **block** a misconfigured deploy). Cleanup uses the operator (write) client; list/preflight use a separate read-only client so their tokens can't mutate anything. Kept separate from the cluster so it survives teardowns.
+- `examples/modules/vpc_cloud/`: Reusable VPC module used by the deployment.
+
+Playbooks accept Ansible's `--limit` to scope which roots they act on — the
+documented way to spin down `standard_pvc` while leaving `standard_idp` up, since
+recreating a Cognito pool means re-adding users and burning monthly active users.
 
 ## Pinned Versions
 

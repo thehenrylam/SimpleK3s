@@ -1,7 +1,7 @@
 {{ ansible_managed | comment }}
 # Generic Settings
-aws_region             = "{{ aws_region }}"
-nickname = "{{ tfvars.cluster.nickname }}"
+aws_region = "{{ aws_region }}"
+nickname   = "{{ tfvars.cluster.nickname }}"
 
 # Access/Credentials Settings
 admin_ip_list = [{{ tfvars.cluster.admin_ip_list | map('to_json') | join(', ') }}] # Configure this! Example: ["123.11.22.33/32","123.11.22.0/24"]

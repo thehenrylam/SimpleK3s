@@ -20,7 +20,7 @@ variable "dns" {
 # Tailnet identity used to register the internal (tailnet) OIDC callback/logout
 # URLs. Set this only if any app in the cluster uses exposure="internal".
 #
-# CONTRACT: these MUST match the cluster root (e.g. examples/ex_basic):
+# CONTRACT: these MUST match the cluster root (e.g. examples/standard_deployment/terraform/standard_cluster):
 #   hostname_prefix -> subsystems.tailscale.hostname_prefix (defaults to the
 #                      cluster `nickname` when unset)
 #   magic_dns_name  -> subsystems.tailscale.magic_dns_name

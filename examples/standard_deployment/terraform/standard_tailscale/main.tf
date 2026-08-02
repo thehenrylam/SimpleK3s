@@ -1,7 +1,7 @@
 # OpenTofu / Terraform : SimpleK3s Tailscale lifecycle root
 #
 # Durable root that owns everything tailnet-related for a SimpleK3s deployment,
-# kept separate from the cluster (examples/ex_basic/) so it survives cluster
+# kept separate from the cluster (examples/standard_deployment/terraform/standard_cluster/) so it survives cluster
 # teardowns — like examples/ex_idp/. It manages:
 #   - the operator OAuth client, as a SecureString SSM parameter in the JSON
 #     shape the cluster's tailscale subsystem expects:
@@ -12,7 +12,7 @@
 #
 # Deploy this root BEFORE the cluster when you want any app exposed on the tailnet
 # (exposure = "internal"). Paste the output parameter name into
-# subsystems.tailscale.pstore_oauth in examples/ex_basic.
+# subsystems.tailscale.pstore_oauth in examples/standard_deployment/terraform/standard_cluster.
 #
 # ⚠️  DEMONSTRATION ONLY — this passes credentials through Terraform, which the
 # project otherwise avoids. The secret lands in your tfvars AND in Terraform

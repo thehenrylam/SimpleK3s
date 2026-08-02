@@ -30,7 +30,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 REFRESH_INTERVAL = 15  # seconds between describe-instances calls
-TICK_MS = 1000         # redraw cadence; drives the countdown and costs no API call
+TICK_MS = 1000  # redraw cadence; drives the countdown and costs no API call
 
 # Terminated instances are omitted; they cannot be connected to.
 QUERYABLE_STATES = "pending,running,stopping,stopped"
@@ -50,7 +50,7 @@ STATE_COLOR = {
 ROLE_COLOR = {"control-plane": "cyan", "agent": "blue", "karpenter": "magenta", "node": "white"}
 ROLE_SHORT = {"control-plane": "ctrl", "agent": "agent", "karpenter": "karp", "node": "node"}
 
-MISSING = "-"        # stored form, kept machine-friendly for --list
+MISSING = "-"  # stored form, kept machine-friendly for --list
 MISSING_GLYPH = "—"  # display form
 
 
@@ -63,7 +63,7 @@ class Instance:
     az: str
     public_ip: str
     private_ip: str
-    launch: str      # display form, "YYYY-MM-DD HH:MM"
+    launch: str  # display form, "YYYY-MM-DD HH:MM"
     launch_raw: str  # sort key, full precision
 
     @property
@@ -83,10 +83,18 @@ class Instance:
         return self.launch[5:] if len(self.launch) > 5 else self.launch
 
     def as_tsv(self) -> str:
-        return "\t".join([
-            self.instance_id, self.name, self.state, self.instance_type,
-            self.az, self.public_ip, self.private_ip, self.launch,
-        ])
+        return "\t".join(
+            [
+                self.instance_id,
+                self.name,
+                self.state,
+                self.instance_type,
+                self.az,
+                self.public_ip,
+                self.private_ip,
+                self.launch,
+            ]
+        )
 
     def as_dict(self) -> dict:
         return {
@@ -118,6 +126,7 @@ class PickerState:
 
 # ─── Data ────────────────────────────────────────────────────────────────────
 
+
 def format_launch(raw: str) -> str:
     try:
         return datetime.fromisoformat(raw.replace("Z", "+00:00")).strftime("%Y-%m-%d %H:%M")
@@ -135,17 +144,19 @@ def parse_instances(payload: str) -> list[Instance]:
                 "",
             )
             launch_raw = str(inst.get("LaunchTime", ""))
-            instances.append(Instance(
-                instance_id=inst.get("InstanceId", ""),
-                name=name,
-                state=inst.get("State", {}).get("Name", ""),
-                instance_type=inst.get("InstanceType", ""),
-                az=inst.get("Placement", {}).get("AvailabilityZone", ""),
-                public_ip=inst.get("PublicIpAddress") or MISSING,
-                private_ip=inst.get("PrivateIpAddress") or MISSING,
-                launch=format_launch(launch_raw),
-                launch_raw=launch_raw,
-            ))
+            instances.append(
+                Instance(
+                    instance_id=inst.get("InstanceId", ""),
+                    name=name,
+                    state=inst.get("State", {}).get("Name", ""),
+                    instance_type=inst.get("InstanceType", ""),
+                    az=inst.get("Placement", {}).get("AvailabilityZone", ""),
+                    public_ip=inst.get("PublicIpAddress") or MISSING,
+                    private_ip=inst.get("PrivateIpAddress") or MISSING,
+                    launch=format_launch(launch_raw),
+                    launch_raw=launch_raw,
+                )
+            )
     instances.sort(key=lambda i: (i.az, i.launch_raw))
     return instances
 
@@ -153,13 +164,18 @@ def parse_instances(payload: str) -> list[Instance]:
 def fetch_instances(region: str, profile: str, nickname: str) -> list[Instance]:
     result = subprocess.run(
         [
-            "aws", "ec2", "describe-instances",
-            "--region", region,
-            "--profile", profile,
+            "aws",
+            "ec2",
+            "describe-instances",
+            "--region",
+            region,
+            "--profile",
+            profile,
             "--filters",
             f"Name=tag:Nickname,Values={nickname}",
             f"Name=instance-state-name,Values={QUERYABLE_STATES}",
-            "--output", "json",
+            "--output",
+            "json",
         ],
         capture_output=True,
         text=True,
@@ -173,26 +189,80 @@ def fetch_instances(region: str, profile: str, nickname: str) -> list[Instance]:
 def demo_instances() -> list[Instance]:
     """Fixture data so the interface can be worked on without a cluster."""
     raw = [
-        ("i-0b2c3d4e5f6a7b8c", "controlplane-b2", "stopped", "t4g.medium",
-         "us-west-2a", MISSING, "10.0.1.12", "2026-07-19T09:00:00+00:00"),
-        ("i-0a1b2c3d4e5f6a7b", "controlplane-a1", "running", "t4g.medium",
-         "us-west-2a", "54.1.2.3", "10.0.1.11", "2026-07-25T10:04:00+00:00"),
-        ("i-0f7a8b9c0d1e2f3a", "controlplane-e5", "running", "t4g.medium",
-         "us-west-2b", MISSING, "10.0.2.15", "2026-07-21T11:30:00+00:00"),
-        ("i-0c3d4e5f6a7b8c9d", "agentplane-c3", "running", "t4g.small",
-         "us-west-2b", MISSING, "10.0.2.30", "2026-07-20T08:00:00+00:00"),
-        ("i-09a8b7c6d5e4f3a2", "agentplane-f6", "running", "t4g.small",
-         "us-west-2b", MISSING, "10.0.2.31", "2026-07-22T14:12:00+00:00"),
-        ("i-0d4e5f6a7b8c9d0e", "karpenter-d4", "pending", "c7g.large",
-         "us-west-2c", MISSING, "10.0.3.40", "2026-07-24T12:00:00+00:00"),
+        (
+            "i-0b2c3d4e5f6a7b8c",
+            "controlplane-b2",
+            "stopped",
+            "t4g.medium",
+            "us-west-2a",
+            MISSING,
+            "10.0.1.12",
+            "2026-07-19T09:00:00+00:00",
+        ),
+        (
+            "i-0a1b2c3d4e5f6a7b",
+            "controlplane-a1",
+            "running",
+            "t4g.medium",
+            "us-west-2a",
+            "54.1.2.3",
+            "10.0.1.11",
+            "2026-07-25T10:04:00+00:00",
+        ),
+        (
+            "i-0f7a8b9c0d1e2f3a",
+            "controlplane-e5",
+            "running",
+            "t4g.medium",
+            "us-west-2b",
+            MISSING,
+            "10.0.2.15",
+            "2026-07-21T11:30:00+00:00",
+        ),
+        (
+            "i-0c3d4e5f6a7b8c9d",
+            "agentplane-c3",
+            "running",
+            "t4g.small",
+            "us-west-2b",
+            MISSING,
+            "10.0.2.30",
+            "2026-07-20T08:00:00+00:00",
+        ),
+        (
+            "i-09a8b7c6d5e4f3a2",
+            "agentplane-f6",
+            "running",
+            "t4g.small",
+            "us-west-2b",
+            MISSING,
+            "10.0.2.31",
+            "2026-07-22T14:12:00+00:00",
+        ),
+        (
+            "i-0d4e5f6a7b8c9d0e",
+            "karpenter-d4",
+            "pending",
+            "c7g.large",
+            "us-west-2c",
+            MISSING,
+            "10.0.3.40",
+            "2026-07-24T12:00:00+00:00",
+        ),
     ]
     prefix = "simplek3s-prodcluster_"
     return sorted(
         (
             Instance(
-                instance_id=iid, name=prefix + name, state=state, instance_type=itype,
-                az=az, public_ip=pub, private_ip=priv,
-                launch=format_launch(launch), launch_raw=launch,
+                instance_id=iid,
+                name=prefix + name,
+                state=state,
+                instance_type=itype,
+                az=az,
+                public_ip=pub,
+                private_ip=priv,
+                launch=format_launch(launch),
+                launch_raw=launch,
             )
             for iid, name, state, itype, az, pub, priv, launch in raw
         ),
@@ -201,6 +271,7 @@ def demo_instances() -> list[Instance]:
 
 
 # ─── Name shortening ─────────────────────────────────────────────────────────
+
 
 def shared_prefix(names: list[str]) -> str:
     """Longest common prefix, trimmed back to a separator.
@@ -233,6 +304,7 @@ def glyph(value: str) -> str:
 
 # ─── Plain-text table (--table) ──────────────────────────────────────────────
 
+
 def format_table(instances: list[Instance]) -> list[str]:
     names = display_names(instances)
     width = max((len(n) for n in names.values()), default=4)
@@ -254,13 +326,23 @@ def format_table(instances: list[Instance]) -> list[str]:
 
 # ─── Colors ──────────────────────────────────────────────────────────────────
 
+
 def init_colors() -> dict[str, int]:
     plain = {
-        "green": curses.A_NORMAL, "yellow": curses.A_NORMAL, "red": curses.A_NORMAL,
-        "cyan": curses.A_BOLD, "blue": curses.A_NORMAL, "magenta": curses.A_NORMAL,
-        "white": curses.A_NORMAL, "dim": curses.A_DIM, "frame": curses.A_DIM,
-        "rail": curses.A_REVERSE, "select": curses.A_REVERSE | curses.A_BOLD,
-        "title": curses.A_BOLD, "key": curses.A_REVERSE, "warn": curses.A_BOLD,
+        "green": curses.A_NORMAL,
+        "yellow": curses.A_NORMAL,
+        "red": curses.A_NORMAL,
+        "cyan": curses.A_BOLD,
+        "blue": curses.A_NORMAL,
+        "magenta": curses.A_NORMAL,
+        "white": curses.A_NORMAL,
+        "dim": curses.A_DIM,
+        "frame": curses.A_DIM,
+        "rail": curses.A_REVERSE,
+        "select": curses.A_REVERSE | curses.A_BOLD,
+        "title": curses.A_BOLD,
+        "key": curses.A_REVERSE,
+        "warn": curses.A_BOLD,
         "section": curses.A_BOLD,
     }
     if not curses.has_colors():
@@ -272,9 +354,12 @@ def init_colors() -> dict[str, int]:
     except curses.error:
         bg = curses.COLOR_BLACK
     palette = [
-        ("green", curses.COLOR_GREEN), ("yellow", curses.COLOR_YELLOW),
-        ("red", curses.COLOR_RED), ("cyan", curses.COLOR_CYAN),
-        ("blue", curses.COLOR_BLUE), ("magenta", curses.COLOR_MAGENTA),
+        ("green", curses.COLOR_GREEN),
+        ("yellow", curses.COLOR_YELLOW),
+        ("red", curses.COLOR_RED),
+        ("cyan", curses.COLOR_CYAN),
+        ("blue", curses.COLOR_BLUE),
+        ("magenta", curses.COLOR_MAGENTA),
         ("white", curses.COLOR_WHITE),
     ]
     attrs: dict[str, int] = {}
@@ -300,8 +385,9 @@ def init_colors() -> dict[str, int]:
 Segment = tuple[str, int]
 
 
-def put(stdscr, y: int, segments: list[Segment], width: int, height: int,
-        override: int | None = None) -> None:
+def put(
+    stdscr, y: int, segments: list[Segment], width: int, height: int, override: int | None = None
+) -> None:
     """Draw coloured segments on one line, optionally forcing a single attr.
 
     `override` is what makes the selection bar uniform: htop highlights the whole
@@ -328,8 +414,9 @@ def put(stdscr, y: int, segments: list[Segment], width: int, height: int,
             pass
 
 
-def panel_line(segments: list[Segment], width: int, C: dict[str, int],
-               trailer: list[Segment] | None = None) -> list[Segment]:
+def panel_line(
+    segments: list[Segment], width: int, C: dict[str, int], trailer: list[Segment] | None = None
+) -> list[Segment]:
     """Pad a panel row and close it with the right-hand border.
 
     Without this the box renders open on the right, which reads as a drawing
@@ -376,6 +463,7 @@ class Columns:
         never uses, and the space it costs is what pushes the launch year off a
         100-column terminal.
         """
+
         def sized(values: list[str], header: str) -> int:
             # Two-space gutter, but never narrower than the rail's own label
             return max(len(header) + 2, max((len(v) for v in values), default=0) + 2)
@@ -413,8 +501,9 @@ class Layout:
         return cls(columns, False, False)
 
 
-def draw_panel(stdscr, state: PickerState, countdown: int, width: int, height: int,
-               C: dict[str, int]) -> None:
+def draw_panel(
+    stdscr, state: PickerState, countdown: int, width: int, height: int, C: dict[str, int]
+) -> None:
     counts: dict[str, int] = {}
     roles: dict[str, int] = {}
     for inst in state.instances:
@@ -427,15 +516,21 @@ def draw_panel(stdscr, state: PickerState, countdown: int, width: int, height: i
     context = f"{state.nickname} · {state.region}"
     chrome = len("╭─ ") + len(brand) + 2 + len(context) + len(" ─╮")
     fill = max(0, width - 1 - chrome)
-    put(stdscr, 0, [
-        ("╭─ ", C["frame"]),
-        (brand, C["title"]),
-        (" ", 0),
-        ("─" * fill, C["frame"]),
-        (" ", 0),
-        (context, C["title"]),
-        (" ─╮", C["frame"]),
-    ], width, height)
+    put(
+        stdscr,
+        0,
+        [
+            ("╭─ ", C["frame"]),
+            (brand, C["title"]),
+            (" ", 0),
+            ("─" * fill, C["frame"]),
+            (" ", 0),
+            (context, C["title"]),
+            (" ─╮", C["frame"]),
+        ],
+        width,
+        height,
+    )
 
     put(stdscr, 1, panel_line([("│", C["frame"])], width, C), width, height)
 
@@ -444,15 +539,19 @@ def draw_panel(stdscr, state: PickerState, countdown: int, width: int, height: i
     cells = max(8, min(METER_CELLS, width - 62))
     verbose = width >= 92
 
-    summary: list[Segment] = [("│  ", C["frame"]), ("Nodes ", C["dim"]),
-                              (f"{total:<4}", C["white"])]
+    summary: list[Segment] = [
+        ("│  ", C["frame"]),
+        ("Nodes ", C["dim"]),
+        (f"{total:<4}", C["white"]),
+    ]
     summary += meter(counts, total, cells, C)
     summary.append(("  ", 0))
     for name in STATE_ORDER:
         if counts.get(name):
             summary.append(("● ", C[STATE_COLOR.get(name, "white")]))
-            summary.append((f"{counts[name]} {name}  " if verbose else f"{counts[name]}  ",
-                            C["dim"]))
+            summary.append(
+                (f"{counts[name]} {name}  " if verbose else f"{counts[name]}  ", C["dim"])
+            )
     put(stdscr, 2, panel_line(summary, width, C), width, height)
 
     role_line: list[Segment] = [("│  ", C["frame"]), ("Roles ", C["dim"]), ("     ", 0)]
@@ -477,12 +576,19 @@ def draw_rail(stdscr, layout: Layout, width: int, height: int, C: dict[str, int]
     if layout.show_type:
         text += f"{'TYPE':<{cols.itype}}"
     text += f"{'PRIVATE IP':<{cols.private}}{'PUBLIC IP':<{cols.public}}LAUNCHED"
-    put(stdscr, PANEL_HEIGHT, [(text.ljust(max(0, width - 1)), C["rail"])], width, height,
-        override=C["rail"])
+    put(
+        stdscr,
+        PANEL_HEIGHT,
+        [(text.ljust(max(0, width - 1)), C["rail"])],
+        width,
+        height,
+        override=C["rail"],
+    )
 
 
-def instance_segments(inst: Instance, name: str, layout: Layout, selected: bool,
-                      C: dict[str, int]) -> list[Segment]:
+def instance_segments(
+    inst: Instance, name: str, layout: Layout, selected: bool, C: dict[str, int]
+) -> list[Segment]:
     cols = layout.columns
     segments: list[Segment] = [
         (" ▸ " if selected else "   ", C["cyan"]),
@@ -540,8 +646,11 @@ def draw(stdscr, state: PickerState, countdown: int, top: int, C: dict[str, int]
         rows.append(("instance", index))
 
     selected_row = next(
-        (n for n, (kind, payload) in enumerate(rows)
-         if kind == "instance" and payload == state.selected),
+        (
+            n
+            for n, (kind, payload) in enumerate(rows)
+            if kind == "instance" and payload == state.selected
+        ),
         0,
     )
     if selected_row < top:
@@ -563,15 +672,21 @@ def draw(stdscr, state: PickerState, countdown: int, top: int, C: dict[str, int]
             continue
         inst = state.instances[payload]
         chosen = payload == state.selected
-        put(stdscr, y,
+        put(
+            stdscr,
+            y,
             instance_segments(inst, names[inst.instance_id], layout, chosen, C),
-            width, height, override=C["select"] if chosen else None)
+            width,
+            height,
+            override=C["select"] if chosen else None,
+        )
 
     stdscr.refresh()
     return top
 
 
 # ─── Interaction ─────────────────────────────────────────────────────────────
+
 
 def picker(stdscr, state: PickerState) -> Instance | None:
     curses.curs_set(0)
@@ -657,6 +772,7 @@ def run_picker(state: PickerState) -> Instance | None:
 
 # ─── Entry point ─────────────────────────────────────────────────────────────
 
+
 def main(argv: list[str] | None = None) -> int:
     locale.setlocale(locale.LC_ALL, "")
 
@@ -666,16 +782,27 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--region", help="AWS region")
     parser.add_argument("--profile", help="AWS CLI profile")
     parser.add_argument("--nickname", help="cluster nickname tag")
-    parser.add_argument("--refresh-interval", type=int, default=REFRESH_INTERVAL,
-                        help=f"seconds between refreshes (default: {REFRESH_INTERVAL})")
-    parser.add_argument("--list", action="store_true",
-                        help="print instances as TSV and exit, without the picker")
-    parser.add_argument("--table", action="store_true",
-                        help="print instances as a formatted table and exit")
-    parser.add_argument("--json", action="store_true", dest="as_json",
-                        help="print instances as JSON (with cluster identity) and exit")
-    parser.add_argument("--demo", action="store_true",
-                        help="use built-in fixture data; makes no AWS calls")
+    parser.add_argument(
+        "--refresh-interval",
+        type=int,
+        default=REFRESH_INTERVAL,
+        help=f"seconds between refreshes (default: {REFRESH_INTERVAL})",
+    )
+    parser.add_argument(
+        "--list", action="store_true", help="print instances as TSV and exit, without the picker"
+    )
+    parser.add_argument(
+        "--table", action="store_true", help="print instances as a formatted table and exit"
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="print instances as JSON (with cluster identity) and exit",
+    )
+    parser.add_argument(
+        "--demo", action="store_true", help="use built-in fixture data; makes no AWS calls"
+    )
     args = parser.parse_args(argv)
 
     if args.demo:
@@ -704,12 +831,16 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.as_json:
         # Identity first: a caller must be able to confirm which cluster this is.
-        print(json.dumps({
-            "nickname": nickname,
-            "region": region,
-            "profile": profile,
-            "instances": [i.as_dict() for i in instances],
-        }))
+        print(
+            json.dumps(
+                {
+                    "nickname": nickname,
+                    "region": region,
+                    "profile": profile,
+                    "instances": [i.as_dict() for i in instances],
+                }
+            )
+        )
         return 0
 
     if not instances:
@@ -717,8 +848,11 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     state = PickerState(
-        region=region, profile=profile, nickname=nickname,
-        refresh_interval=args.refresh_interval, demo=args.demo,
+        region=region,
+        profile=profile,
+        nickname=nickname,
+        refresh_interval=args.refresh_interval,
+        demo=args.demo,
         instances=instances,
         # The table is already loaded; start the clock so entering the picker
         # does not immediately fire a second describe-instances call.

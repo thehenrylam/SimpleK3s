@@ -1,5 +1,5 @@
 variable "nickname" {
-  description = "Standalone nickname for this parameter root (referenced from examples/ex_basic via pstore_oauth)"
+  description = "Standalone nickname for this parameter root (referenced from examples/standard_deployment/terraform/standard_cluster via pstore_oauth)"
   type        = string
   default     = "tailscale-standalone"
 }

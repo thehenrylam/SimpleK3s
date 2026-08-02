@@ -1,9 +1,9 @@
 # Tailscale device-cleanup Lambda
 #
-# Deletes this cluster's tailnet devices when the cluster (examples/ex_basic) is
+# Deletes this cluster's tailnet devices when the cluster (examples/standard_deployment/terraform/standard_cluster) is
 # destroyed. It lives HERE — in the durable Tailscale root — so it always exists
 # when the cluster root invokes it; the cluster root only holds the invocation
-# (see aws_lambda_invocation in examples/ex_basic). The function reuses the
+# (see aws_lambda_invocation in examples/standard_deployment/terraform/standard_cluster). The function reuses the
 # operator OAuth client stored in aws_ssm_parameter.tailscale_oauth (which must
 # have "devices" write scope) to call the Tailscale API.
 

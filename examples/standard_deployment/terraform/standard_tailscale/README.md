@@ -1,7 +1,7 @@
 # ex_tailscale — Tailscale lifecycle root
 
 This is the **durable** root that owns everything tailnet-related for a SimpleK3s
-deployment, kept separate from the cluster (`examples/ex_basic/`) so it survives
+deployment, kept separate from the cluster (`examples/standard_deployment/terraform/standard_cluster/`) so it survives
 cluster teardowns — the same way `examples/ex_idp/` owns the IdP. It manages:
 
 1. The Tailscale Kubernetes Operator's **OAuth client**, as a single
@@ -98,11 +98,11 @@ their tokens can only read — never delete. Create a **second** OAuth credentia
 1. Make sure that the right `Client ID` and `Client secret` is inside `terraform.tfvars`
 2. Perform a Terraform/Tofu init and apply onto the TF config
 3. Copy the `ssm_param_name` output into `subsystems.tailscale.pstore_oauth` in
-   `examples/ex_basic/main.tf`
+   `examples/standard_deployment/terraform/standard_cluster/main.tf`
 
 ## Device cleanup on cluster destroy
 
-When a SimpleK3s cluster is destroyed (`tofu destroy` on `examples/ex_basic/`),
+When a SimpleK3s cluster is destroyed (`tofu destroy` on `examples/standard_deployment/terraform/standard_cluster/`),
 the EC2 nodes — and the Kubernetes API with them — are torn down abruptly, so the
 Tailscale operator never gets to deregister its devices. The cluster's two tailnet
 devices (`<nickname>` proxy + `<nickname>-operator`) are left **offline**, and the
@@ -113,7 +113,7 @@ This root ships a Lambda (`lambda_cleanup.tf`, handler `data/cleanup_devices.py`
 that fixes that automatically:
 
 - **Where it lives / how it fires.** The function lives here (durable root) so it
-  always exists when invoked. `examples/ex_basic/` holds a small
+  always exists when invoked. `examples/standard_deployment/terraform/standard_cluster/` holds a small
   `aws_lambda_invocation` (`lifecycle_scope = "CRUD"`) tied to the *cluster's*
   lifecycle. The handler **no-ops on create/update** and only deletes devices on
   the destroy action — so cleanup is **destroy-only**.
@@ -155,7 +155,7 @@ literally cannot delete anything.
   - `{"check":"dns"}` — MagicDNS is enabled (required for the tailnet host + HTTPS
     certificates).
 
-  `examples/ex_basic/` invokes it at plan time (`data.aws_lambda_invocation`) and a
+  `examples/standard_deployment/terraform/standard_cluster/` invokes it at plan time (`data.aws_lambda_invocation`) and a
   `precondition` **blocks the apply** if a check returns `ok=false` — turning the
   tag-setup and MagicDNS gotchas into a fast, clear error instead of a failed
   ~20-minute cluster build. The Lambda **fails open** on Tailscale API errors

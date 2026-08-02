@@ -1,5 +1,5 @@
 output "ssm_param_name" {
-  description = "SSM parameter name — paste this as subsystems.tailscale.pstore_oauth in examples/ex_basic"
+  description = "SSM parameter name — paste this as subsystems.tailscale.pstore_oauth in examples/standard_deployment/terraform/standard_cluster"
   value       = aws_ssm_parameter.tailscale_oauth.name
 }
 
@@ -9,7 +9,7 @@ output "cleanup_lambda_arn" {
 }
 
 output "cleanup_lambda_arn_ssm_param" {
-  description = "SSM parameter name holding the cleanup Lambda ARN (read by examples/ex_basic)"
+  description = "SSM parameter name holding the cleanup Lambda ARN (read by examples/standard_deployment/terraform/standard_cluster)"
   value       = aws_ssm_parameter.cleanup_lambda_arn.name
 }
 
@@ -24,6 +24,6 @@ output "preflight_lambda_arn" {
 }
 
 output "preflight_lambda_arn_ssm_param" {
-  description = "SSM parameter name holding the preflight Lambda ARN (read by examples/ex_basic)"
+  description = "SSM parameter name holding the preflight Lambda ARN (read by examples/standard_deployment/terraform/standard_cluster)"
   value       = aws_ssm_parameter.preflight_lambda_arn.name
 }

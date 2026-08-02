@@ -46,8 +46,10 @@ ArgoCD (GitOps) and Prometheus + Grafana (monitoring), both backed by AWS Cognit
 Parameter Store helpers, S3 object management, and CPU/memory resource presets.
 
 **Examples**
-- `examples/ex_basic/` — Full cluster with apps; the primary reference.
-- `examples/ex_idp/` — Standalone IdP (deploy this first).
+- `examples/standard_deployment/terraform/standard_cluster/` — Full cluster with apps; the primary reference.
+- `examples/standard_deployment/terraform/standard_idp/` — Standalone IdP (deploy this before the cluster).
+- `examples/standard_deployment/terraform/standard_pvc/` — Standalone PVC (deploy this before the cluster).
+- `examples/standard_deployment/terraform/standard_tailscale/` — Standalone Tailscale (deploy this before the cluster).
 - `examples/modules/vpc_cloud/` — Reusable VPC module.
 
 ---
@@ -86,7 +88,7 @@ Present this to the user:
 
 ---
 
-**Locally** (run from an example directory, e.g. `examples/ex_basic/`). These use
+**Locally** (run from an example directory, e.g. `examples/standard_deployment/terraform/standard_cluster/`). These use
 `tofu`; substitute `terraform` if that is what you have installed — the config
 works with both:
 ```bash

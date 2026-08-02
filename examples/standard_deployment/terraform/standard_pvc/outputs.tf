@@ -1,5 +1,5 @@
 output "ssm_param_names" {
-  description = "SSM parameter names per pool — paste these as ebs_volumes_pstore_name in examples/ex_basic"
+  description = "SSM parameter names per pool — paste these as ebs_volumes_pstore_name in examples/standard_deployment/terraform/standard_cluster"
   value = {
     for name, param in aws_ssm_parameter.pool_volumes : name => param.name
   }

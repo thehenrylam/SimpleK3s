@@ -132,9 +132,10 @@ VALIDATE_MODULES=(
     "k3s_cluster"
     "examples/modules/vpc_cloud"
     "examples/modules/idp_cognito"
-    "examples/ex_basic"
-    "examples/ex_idp"
-    "examples/ex_tailscale"
+    "examples/standard_deployment/terraform/standard_cluster"
+    "examples/standard_deployment/terraform/standard_idp"
+    "examples/standard_deployment/terraform/standard_pvc"
+    "examples/standard_deployment/terraform/standard_tailscale"
 )
 
 check_validate() {

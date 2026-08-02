@@ -1,6 +1,6 @@
 # OpenTofu / Terraform : SimpleK3s PVC (EBS Volumes for Longhorn)
 #
-# Deploy this root BEFORE the cluster (examples/ex_basic/).
+# Deploy this root BEFORE the cluster (examples/standard_deployment/terraform/standard_cluster/).
 # It creates the EBS volumes that Longhorn attaches at node bootstrap time and
 # writes their IDs to SSM so the cluster can discover them without hard-coding
 # volume IDs in your cluster configuration.

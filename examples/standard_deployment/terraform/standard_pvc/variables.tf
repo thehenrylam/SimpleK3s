@@ -1,5 +1,5 @@
 variable "nickname" {
-  description = "Cluster nickname — must match the nickname used in examples/ex_basic"
+  description = "Cluster nickname — must match the nickname used in examples/standard_deployment/terraform/standard_cluster"
   type        = string
 }
 
