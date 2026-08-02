@@ -347,6 +347,21 @@ function verify_cluster_fanout() {
     done
     echo ""
 
+    # Nothing to verify: stop here rather than falling through. Two independent
+    # reasons this has to be an explicit failure —
+    #   1. "${NODE_IDS[@]}" on an empty array trips `set -u` on bash 3.2 (macOS),
+    #      so the dispatch below dies with "NODE_IDS[@]: unbound variable".
+    #   2. Worse, if it did not: the verdict logic counts 0 failures and 0 unknowns,
+    #      falls into the all-clear branch, and reports PASS (0/0) with exit 0. A
+    #      cluster that does not exist would come back green.
+    # Consistent with the rest of the script's pessimism: absence is never a pass.
+    if (( _TOTAL == 0 )); then
+        echo "Result: ${C_RED}FAIL${C_RST}  ${C_RED}(no running controlplane instances found)${C_RST}"
+        echo "No running controlplane instances matched nickname='${NICKNAME}' in region='${REGION}' (profile='${PROFILE}')." >&2
+        echo "Check that the cluster is deployed and that the nickname/region/profile are correct." >&2
+        return 1
+    fi
+
     # One dispatch to all nodes, then poll each invocation
     _COMMAND_ID=$(ssm_send_command_multi "${REGION}" "${PROFILE}" "${_REMOTE_COMMAND}" "${NODE_IDS[@]}")
     await_all_invocations "${REGION}" "${PROFILE}" "${_COMMAND_ID}" "${POLL_MAX}" "${POLL_INTERVAL}"

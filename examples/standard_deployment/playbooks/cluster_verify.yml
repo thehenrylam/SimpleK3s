@@ -1,21 +1,56 @@
 ---
+# Verifies a deployed cluster and FAILS the play if it does not pass.
+#
+# ssm_verify_cluster.sh already reaches a pessimistic verdict and reports it as an
+# exit code ("0 only when every controlplane node passes; 1 otherwise") — including
+# INCONCLUSIVE, where a node never answered. This playbook is the gate that acts on
+# it. Do not reintroduce `|| true`: it discards the verdict, and a failing cluster
+# then reports success.
 - name: Verify
   # It takes the hosts that is under the hosts section from inventory.yml
   #   - Used for variables like "inventory_hostname"
-  hosts: wave2_cluster 
+  hosts: wave2_cluster
   strategy: free
   gather_facts: false
 
   vars:
     target_dir: "../"
+    # Single attempt by default — the right behaviour for a cluster that is already
+    # up. Raise both when verifying soon after an apply, where apps are still booting
+    # and a one-shot check would fail a perfectly good deploy.
+    #
+    # Counted as ATTEMPTS, not Ansible's `retries`, which means "extra tries after
+    # the first" — retries: 1 runs the task twice. The task below converts.
+    verify_attempts: 1
+    verify_delay: 30
 
   tasks:
   - name: Verify Cluster
-    shell: "./scripts/ssm_verify_cluster.sh {{ aws_profile }} 2>&1 || true"
+    shell: "./scripts/ssm_verify_cluster.sh {{ aws_profile }} 2>&1"
     args:
       chdir: "{{ target_dir }}"
+    # Left unset unless supplied, so the remote script keeps its own default (300s).
+    # Worth narrowing right after an apply: the check looks BACKWARDS over recent pod
+    # restarts, so boot-time restarts keep failing it well after every rollout is ready.
+    environment:
+      STABILITY_WINDOW_SECONDS: "{{ verify_stability_window | default(omit) }}"
     register: cmdout_verify
+    changed_when: false
+    # Capture the rc rather than aborting here: the report below has to print first,
+    # and this keeps our own message instead of Ansible's "Failed after N retries".
+    failed_when: false
+    # attempts -> retries. Floored at 0 so verify_attempts=0 or 1 both mean one run.
+    retries: "{{ [(verify_attempts | int) - 1, 0] | max }}"
+    delay: "{{ verify_delay | int }}"
+    until: cmdout_verify.rc == 0
 
   - name: Show Verify Output
     debug:
       var: cmdout_verify.stdout_lines
+
+  - name: Fail if verification did not pass
+    ansible.builtin.fail:
+      msg: >-
+        Cluster verification failed (rc={{ cmdout_verify.rc }})
+        after {{ verify_attempts }} attempt(s).
+    when: cmdout_verify.rc != 0
