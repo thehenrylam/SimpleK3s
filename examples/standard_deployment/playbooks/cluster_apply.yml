@@ -18,3 +18,25 @@
       target_dir: "{{ module[inventory_hostname].dir }}"
       plan_file: "{{ inventory_hostname }}.tfplan"
       apply_destroy: false
+
+# Post-apply health gate — a deploy is not "done" until the cluster passes.
+#
+# This runs AFTER the apply, so it cannot block or roll back infrastructure changes:
+# by the time it runs, tofu has already finished. A failure here reports that the
+# cluster came up unhealthy; it never prevents the deploy from happening. And if the
+# apply itself fails, Ansible aborts the run and this never executes at all.
+#
+# Escape hatch for when you are iterating on a broken deploy and a multi-minute
+# verify between attempts is pure friction:
+#
+#     ansible-playbook ./playbooks/cluster_apply.yml -e verify_after_apply=false
+#
+- name: Verify the cluster after apply
+  ansible.builtin.import_playbook: cluster_verify.yml
+  when: verify_after_apply | default(true) | bool
+  vars:
+    # Apps are still booting straight after an apply. A measured cold start reached
+    # PASS in ~2 minutes; this budgets ~8 (10 attempts of ~20s, 9 delays of 30s),
+    # enough headroom to absorb a slow boot without hanging on a genuinely dead one.
+    verify_attempts: 10
+    verify_delay: 30

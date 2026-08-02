@@ -19,12 +19,22 @@
       plan_file: "{{ inventory_hostname }}.tfplan"
       apply_destroy: false
 
+  # Capture the rc rather than aborting here, so the output below prints first.
+  # Do not reintroduce `|| true`: it discards the script's exit code, and a failed
+  # service update then reports success.
   - name: Update Services
-    shell: "./ssm_update_services.sh {{ aws_profile }} 2>&1 || true"
+    shell: "./ssm_update_services.sh {{ aws_profile }} 2>&1"
     args:
       chdir: "{{ toolscript_dir }}"
     register: cmdout_update
+    changed_when: false
+    failed_when: false
 
   - name: Show Update Output
     debug:
       var: cmdout_update.stdout_lines
+
+  - name: Fail if service update did not succeed
+    ansible.builtin.fail:
+      msg: "Service update failed (rc={{ cmdout_update.rc }})"
+    when: cmdout_update.rc != 0
