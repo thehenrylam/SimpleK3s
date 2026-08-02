@@ -49,8 +49,14 @@ Proceed? (yes to run, or tell me what to change)
 3. For each item in the list of tests:
   - `test-out_simplek3s.sh` is a **special case** — it takes `<region> <profile> <nickname>` as required positional args (not the log convention) and uses flags for logging. Execute it like this:
     - `./testcases/test-out_simplek3s.sh <region> <profile> <nickname> --log-name "${LOG_FILENAME}" --log-timestamp "${LOG_TIMESTAMP}"`
-    - **Inferring args**: unless the user supplies them explicitly, infer `region` and `nickname` by reading `examples/ex_basic/terraform.tfvars` (`aws_region` → region, `nickname` → nickname). Always **show the inferred region + nickname to the user to confirm** before running. The `profile` is never inferred — always ask the user to provide it.
-    - Its preconditions: a **deployed** cluster + valid AWS creds/profile. If `region`/`nickname` can't be inferred and the user doesn't supply them, or the user can't supply the `profile`, or no cluster is deployed, skip it and note the skip in the report rather than failing the whole run.
+    - **Inferring args**: unless the user supplies them explicitly, infer all three by reading `examples/standard_deployment/group_vars/all.yml`:
+      - `region` ← `aws_region`
+      - `nickname` ← `tfvars.cluster.nickname`
+      - `profile` ← `aws_profile`
+
+      Always **show all three inferred values to the user to confirm** before running — they name the cluster the probe will hit, and an operator with more than one deployment needs to see which one was picked.
+    - `all.yml` is gitignored (only `all.TEMPLATE.yml` is tracked), so on a fresh clone it will not exist. When it is missing, or a value is absent, or it still holds `__CONFIGURE_THIS__` placeholders, ask the user for the missing args rather than guessing.
+    - Its preconditions: a **deployed** cluster + valid AWS creds/profile. If the args can't be resolved, or no cluster is deployed, skip it and note the skip in the report rather than failing the whole run.
   - Otherwise, if its a `test-out_<specifier>.sh` script:
     - Execute it like this: `./testcases/test-out_<specifier>.sh "${LOG_FILENAME}" "${LOG_TIMESTAMP}"`
   - If its a command:

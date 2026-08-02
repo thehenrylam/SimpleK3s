@@ -1,0 +1,23 @@
+---
+# Gate: refuses to proceed if this tier's config is unconfigured.
+- name: Template and validate support tfvars
+  ansible.builtin.import_playbook: support_template.yml
+
+- name: Destroy
+  # It takes the hosts that is under the hosts section from inventory.yml
+  #   - Used for variables like "inventory_hostname"
+  # NOTE: Teardown order is the REVERSE of apply. This playbook only tears
+  #   down the support tier, so it MUST run AFTER the cluster is destroyed
+  #   (e.g. cluster_destroy.yml && support_destroy.yml).
+  hosts: wave1_support
+  strategy: free
+  gather_facts: false
+
+  tasks:
+  - name: Destroy All
+    include_role:
+      name: apply
+    vars:
+      target_dir: "{{ module[inventory_hostname].dir }}"
+      plan_file: "{{ inventory_hostname }}.destroy.tfplan"
+      apply_destroy: true

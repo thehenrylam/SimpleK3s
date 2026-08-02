@@ -1,0 +1,75 @@
+---
+# 👇 CONFIGURE THIS 👇
+aws_profile: "__CONFIGURE_THIS__"
+
+# This is set ONLY because we are executing this Ansible on localhost only. 
+# If this Ansible setup needs to execute on remote environments, you need to remove this.
+ansible_python_interpreter: "{{ ansible_playbook_python }}"
+
+module:
+  cluster: 
+    dir: "../terraform/standard_cluster/"
+    depends_on: ["idp", "pvc", "tailscale"]
+  idp: 
+    dir: "../terraform/standard_idp/"
+    depends_on: []
+  pvc: 
+    dir: "../terraform/standard_pvc/"
+    depends_on: []
+  tailscale:
+    dir: "../terraform/standard_tailscale/"
+    depends_on: []
+
+# ─── Ownerless shared values ─────────────────────────────────────────────────
+# Only values no single module owns live here: every root needs a region, and
+# the domain exists independently of any root. Anything owned by one module
+# lives in that module's block below and is referenced from there — see how idp
+# reaches for tfvars.cluster.nickname and tfvars.tailscale.magic_dns_name.
+aws_region: "__CONFIGURE_THIS__" # e.g. us-east-1
+
+dns:
+  basename: "__CONFIGURE_THIS__" # e.g. example.com
+  prefix: "__CONFIGURE_THIS__"   # e.g. k3s
+
+# ─── Per-module terraform variables ──────────────────────────────────────────
+tfvars:
+  cluster:
+    nickname: "__CONFIGURE_THIS__" # e.g. simplek3s
+    # The list of IPs that can connect to the EC2 instances via SSH
+    admin_ip_list: ["__CONFIGURE_THIS__"] # e.g. ["123.11.22.33/32", "123.11.22.0/24"] 
+    vpc_cidr_block: "10.0.0.0/16"
+    sbn_cidr_blocks: ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+    sbn_availability_zones: ["us-east-1a", "us-east-1b", "us-east-1c"]
+    node_count: 3
+
+  # idp owns only its nickname; dns comes from the shared block, and
+  # hostname_prefix / magic_dns_name are referenced from the cluster and
+  # tailscale blocks so the three roots cannot drift apart.
+  idp:
+    nickname: "idp-standalone" # e.g. idp-standalone
+
+  pvc:
+    nickname: "pvc-standalone" # e.g. pvc-standalone
+    # All volumes in a pool must be the same size:
+    # Longhorn usable capacity = smallest volume in the pool.
+    pools:
+      - name: "platform"
+        comment: >-
+          Platform pool: hosts SimpleK3s built-in apps (ArgoCD, Grafana, Prometheus,
+          AlertManager).
+        availability_zones: ["us-east-1a", "us-east-1b", "us-east-1c"]
+        volume_size_gb: 10
+
+  tailscale:
+    nickname: "tailscale-standalone" # e.g. tailscale-standalone
+    # Must equal subsystems.tailscale.magic_dns_name in the cluster root.
+    # Also consumed by idp. Only needed if any app uses exposure="internal".
+    magic_dns_name: "__CONFIGURE_THIS__" # e.g. <tailnet-name>.ts.net
+    # Operator OAuth client (write)
+    oauth_client_id: "__CONFIGURE_THIS__"
+    oauth_client_secret: "__CONFIGURE_THIS__"
+    # Read-only OAuth client — a SEPARATE client (scopes: devices:read, acl:read, dns:read)
+    readonly_oauth_client_id: "__CONFIGURE_THIS__"
+    readonly_oauth_client_secret: "__CONFIGURE_THIS__"
+    lambda_log_retention_days: 30
+    lambda_enable_xray_tracing: false

@@ -1,0 +1,28 @@
+---
+# Initialize
+- name: Module Initialize
+  shell: "AWS_PROFILE='{{ aws_profile }}' tofu init -no-color"
+  args:
+    chdir: "{{ target_dir }}"
+  register: cmdout_init
+  changed_when: false
+  failed_when: cmdout_init.rc != 0
+
+# Plan
+#   - Set plan_destroy=true to produce a destroy plan (tofu plan -destroy)
+#   - Set plan_file=<name> to write the plan to a file for a later apply
+- name: Module Plan
+  shell: >
+    AWS_PROFILE='{{ aws_profile }}' tofu plan -no-color -detailed-exitcode
+    {{ '-destroy' if (plan_destroy | default(false) | bool) else '' }}
+    {{ ('-out=' + plan_file) if (plan_file | default('')) else '' }}
+  args:
+    chdir: "{{ target_dir }}"
+  register: cmdout_plan
+  changed_when: cmdout_plan.rc == 2
+  failed_when: cmdout_plan.rc == 1
+
+- name: Show Plan Diff
+  debug:
+    var: cmdout_plan.stdout_lines
+  when: cmdout_plan.rc == 2

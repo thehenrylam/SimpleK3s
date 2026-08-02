@@ -45,6 +45,21 @@ remove_symlinked_binary() {
     fi
 }
 
+# --- Ansible (via uv tool) ---
+
+uninstall_ansible() {
+    echo "==> Removing Ansible"
+
+    # Removed via uv so the isolated tool venv and its BIN_DIR entry points go
+    # together. Must run before uv itself is removed.
+    if [[ -x "${BIN_DIR}/uv" ]]; then
+        UV_TOOL_BIN_DIR="${BIN_DIR}" "${BIN_DIR}/uv" tool uninstall ansible || \
+            echo "  Ansible was not installed via uv — skipping."
+    else
+        echo "  uv not found — skipping Ansible removal."
+    fi
+}
+
 # --- bootstrap python deps ---
 
 uninstall_python_deps() {
@@ -88,7 +103,12 @@ uninstall_uv() {
             removed=1
         fi
     done
-    [[ "$removed" -eq 0 ]] && echo "  Not installed: ${BIN_DIR}/uv"
+    # Use a full if-block, not `[[ ... ]] && echo`: when uv *was* removed the
+    # test is false, making it the function's last (failing) statement, which
+    # under `set -e` aborts the whole uninstall before tofu/terraform/aws run.
+    if [[ "$removed" -eq 0 ]]; then
+        echo "  Not installed: ${BIN_DIR}/uv"
+    fi
 }
 
 # --- OpenTofu ---
@@ -124,6 +144,7 @@ uninstall_awscli() {
 
 # --- main ---
 
+uninstall_ansible
 uninstall_python_deps
 uninstall_python
 uninstall_uv

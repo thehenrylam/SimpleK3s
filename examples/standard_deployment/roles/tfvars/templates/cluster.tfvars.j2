@@ -1,0 +1,21 @@
+{{ ansible_managed | comment }}
+# Generic Settings
+aws_region = "{{ aws_region }}"
+nickname   = "{{ tfvars.cluster.nickname }}"
+
+# Access/Credentials Settings
+admin_ip_list = [{{ tfvars.cluster.admin_ip_list | map('to_json') | join(', ') }}] # Configure this! Example: ["123.11.22.33/32","123.11.22.0/24"]
+
+# Network Settings
+vpc_cidr_block         = "{{ tfvars.cluster.vpc_cidr_block }}"
+sbn_cidr_blocks        = [{{ tfvars.cluster.sbn_cidr_blocks | map('to_json') | join(', ') }}]
+sbn_availability_zones = [{{ tfvars.cluster.sbn_availability_zones | map('to_json') | join(', ') }}]
+
+# K3s Settings
+node_count = {{ tfvars.cluster.node_count | to_json }}
+
+# DNS name
+dns = {
+  basename = "{{ dns.basename }}"
+  prefix   = "{{ dns.prefix }}"
+}

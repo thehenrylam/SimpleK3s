@@ -182,8 +182,10 @@ jobs:
             k3s_cluster \
             examples/modules/vpc_cloud \
             examples/modules/idp_cognito \
-            examples/ex_basic \
-            examples/ex_idp; do
+            examples/standard_deployment/terraform/standard_cluster \
+            examples/standard_deployment/terraform/standard_idp \
+            examples/standard_deployment/terraform/standard_pvc \
+            examples/standard_deployment/terraform/standard_tailscale; do
             echo "::group::${TF_BIN} validate: ${mod}"
             ( cd "${mod}" && "${TF_BIN}" init -backend=false && "${TF_BIN}" validate )
             echo "::endgroup::"

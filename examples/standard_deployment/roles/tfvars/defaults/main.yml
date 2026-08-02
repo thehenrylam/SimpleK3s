@@ -1,0 +1,13 @@
+---
+# Output filename. OpenTofu auto-loads terraform.tfvars, so this name IS live:
+# a render here is what the next plan/apply reads. Set it to something inert
+# (e.g. terraform.ANSIBLE.tfvars) to dry-run a template change and diff it first.
+tfvars_filename: "terraform.tfvars"
+
+# Show a diff against the module's existing terraform.tfvars after rendering.
+tfvars_compare: true
+
+# Placeholder that all.TEMPLATE.yml uses for values the operator must fill in.
+# Any of these reaching a rendered tfvars means all.yml is incomplete, so the
+# role refuses to write the file. See "Refuse to write unconfigured values".
+tfvars_placeholder: "__CONFIGURE_THIS__"

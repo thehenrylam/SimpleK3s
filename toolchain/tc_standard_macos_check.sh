@@ -14,6 +14,7 @@ readonly PYTHON_VERSION="3.13"           # check-versions: update in CLAUDE.md p
 readonly TOFU_VERSION="1.11.2"           # check-versions: update in CLAUDE.md pinned versions table
 readonly TERRAFORM_VERSION="1.14.3"      # check-versions: update in CLAUDE.md pinned versions table
 readonly AWSCLI_VERSION="2.34.63"        # check-versions: update in CLAUDE.md pinned versions table
+readonly ANSIBLE_VERSION="14.2.0"        # check-versions: update in CLAUDE.md pinned versions table
 readonly BIN_DIR="/opt/homebrew/bin"
 
 readonly PY_DIR="${REPO_ROOT}/k3s_cluster/cluster_app/bootstrap/data/py"
@@ -53,6 +54,21 @@ check_python_deps() {
         pass "bootstrap python deps: ${PY_DIR}/.venv present"
     else
         miss "bootstrap python deps: ${PY_DIR}/.venv missing (run uv sync)"
+    fi
+}
+
+# --- Ansible (via uv tool) ---
+
+check_ansible() {
+    local ansible_bin="${BIN_DIR}/ansible"
+    local community_bin="${BIN_DIR}/ansible-community"
+    # Require both the primary CLI ('ansible') and the bundle script
+    # ('ansible-community'): a stale Homebrew ansible would provide the former
+    # but not the latter, and ANSIBLE_VERSION is the community bundle version.
+    if [[ -x "$ansible_bin" && -x "$community_bin" ]]; then
+        pass "ansible: $("$community_bin" --version 2>/dev/null | head -1) (want ${ANSIBLE_VERSION})"
+    else
+        miss "ansible: not found at ${ansible_bin} / ${community_bin}"
     fi
 }
 
@@ -112,6 +128,7 @@ check_awscli() {
 check_uv
 check_python
 check_python_deps
+check_ansible
 check_tofu
 check_terraform
 check_awscli

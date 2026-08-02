@@ -1,0 +1,20 @@
+---
+# Gate: refuses to proceed if this tier's config is unconfigured.
+- name: Template and validate cluster tfvars
+  ansible.builtin.import_playbook: cluster_template.yml
+
+- name: Apply
+  # It takes the hosts that is under the hosts section from inventory.yml
+  #   - Used for variables like "inventory_hostname"
+  hosts: wave2_cluster
+  strategy: free
+  gather_facts: false
+
+  tasks:
+  - name: Apply All
+    include_role:
+      name: apply
+    vars:
+      target_dir: "{{ module[inventory_hostname].dir }}"
+      plan_file: "{{ inventory_hostname }}.tfplan"
+      apply_destroy: false

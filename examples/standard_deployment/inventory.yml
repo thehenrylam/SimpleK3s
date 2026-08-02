@@ -1,0 +1,21 @@
+all:
+  children:
+    # The IaC modules that support the cluster
+    wave1_support:
+      hosts:
+        idp:
+        pvc:
+        tailscale:
+    
+    # The cluster itself
+    wave2_cluster:
+      hosts:
+        cluster:
+    
+    # Determines the order in which the execution will run in
+    modules:
+      children:
+        wave1_support:
+        wave2_cluster:
+      vars:
+        ansible_connection: local

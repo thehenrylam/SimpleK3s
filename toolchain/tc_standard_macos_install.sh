@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # Installs the standard toolchain needed to work on SimpleK3s on macOS.
-# Installs: uv, Python (via uv), the bootstrap Python deps, OpenTofu,
+# Installs: uv, Python (via uv), the bootstrap Python deps, Ansible, OpenTofu,
 # Terraform, and the AWS CLI. Requires Homebrew.
 # For local *testing* tools (shellcheck, tflint, checkov) see tc_testing_*.sh.
 
@@ -17,6 +17,7 @@ readonly PYTHON_VERSION="3.13"           # check-versions: update in CLAUDE.md p
 readonly TOFU_VERSION="1.11.2"           # check-versions: update in CLAUDE.md pinned versions table
 readonly TERRAFORM_VERSION="1.14.3"      # check-versions: update in CLAUDE.md pinned versions table
 readonly AWSCLI_VERSION="2.34.63"        # check-versions: update in CLAUDE.md pinned versions table
+readonly ANSIBLE_VERSION="14.2.0"        # check-versions: update in CLAUDE.md pinned versions table
 readonly BIN_DIR="/opt/homebrew/bin"
 
 # The bootstrap Python project (managed by uv) that the cluster runs on-node.
@@ -102,6 +103,32 @@ install_python_deps() {
     ( cd "${PY_DIR}" && "${BIN_DIR}/uv" sync )
 
     echo "  Synced: ${PY_DIR}/.venv"
+}
+
+# --- Ansible (via uv tool) ---
+
+install_ansible() {
+    echo "==> Installing Ansible ${ANSIBLE_VERSION} (via uv tool)"
+
+    # Ansible is a multi-command Python suite (ansible, ansible-playbook,
+    # ansible-galaxy, ...), so the versioned-binary + symlink pattern used for
+    # single static binaries doesn't fit. Instead uv owns an isolated, pinned
+    # tool venv; UV_TOOL_BIN_DIR drops its entry points into BIN_DIR (already on
+    # PATH), and --force repoints an existing install to the pinned version
+    # (including over a pre-existing Homebrew ansible in the same bin dir).
+    #
+    # The 'ansible' PyPI package (the community bundle) only exposes an
+    # 'ansible-community' console script; the actual CLIs (ansible,
+    # ansible-playbook, ...) belong to its ansible-core dependency, so
+    # --with-executables-from links those too — without it the install is
+    # unusable.
+    UV_TOOL_BIN_DIR="${BIN_DIR}" "${BIN_DIR}/uv" tool install --force \
+        --with-executables-from ansible-core "ansible==${ANSIBLE_VERSION}"
+
+    # ANSIBLE_VERSION is the community bundle version, reported by
+    # 'ansible-community'; 'ansible' itself reports the bundled ansible-core.
+    echo "  Installed: $("${BIN_DIR}/ansible-community" --version 2>/dev/null | head -1)"
+    echo "             $("${BIN_DIR}/ansible" --version | head -1)"
 }
 
 # --- OpenTofu ---
@@ -194,6 +221,7 @@ fi
 install_uv
 install_python
 install_python_deps
+install_ansible
 install_tofu
 install_terraform
 install_awscli

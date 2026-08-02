@@ -1,0 +1,31 @@
+---
+# Call role: Plan
+- name: Plan All (init plan file)
+  include_role:
+    name: plan
+  vars:
+    target_dir: "{{ module[inventory_hostname].dir }}"
+    plan_destroy: "{{ apply_destroy }}"
+
+# Apply all using each plan's outputted plan_file
+- name: Module Apply (via plan file)
+  shell: "AWS_PROFILE='{{ aws_profile }}' tofu apply --auto-approve -no-color {{ plan_file }}"
+  args:
+    chdir: "{{ module[inventory_hostname].dir }}"
+  register: cmdout_apply
+  # cmdout_plan is generated from the "plan" role. 
+  # If it's rc == 2, then it means there are no changes, thus no need to execute an apply
+  when: cmdout_plan.rc == 2 
+  changed_when: cmdout_apply.rc == 0
+
+# Show the apply diff (as long as there the plan shows there is something worth applying)
+- name: Show Apply Diff
+  debug:
+    var: cmdout_apply.stdout_lines
+  when: cmdout_plan.rc == 2
+
+# Clean up the plan file
+- name: Clean Up (plan file)
+  file:
+    path: "{{ module[inventory_hostname].dir }}/{{ plan_file }}"
+    state: absent
