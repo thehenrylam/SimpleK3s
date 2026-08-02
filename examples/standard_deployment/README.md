@@ -60,8 +60,8 @@ ansible-playbook ./playbooks/cluster_verify.yml
 Verification runs once by default, which is what you want for a cluster that is already up. Straight after a `cluster_apply.yml`, a single check will report failure on a perfectly good deploy — the apply only creates the infrastructure, while ArgoCD, Grafana and Prometheus are still starting and are not yet serving. Retry instead of guessing at a fixed wait:
 
 ``` sh
-# Try up to 10 times, 30s apart, until the cluster comes up healthy
-ansible-playbook ./playbooks/cluster_verify.yml -e verify_attempts=10 -e verify_delay=30
+# Try up to 15 times, 30s apart, until the cluster comes up healthy
+ansible-playbook ./playbooks/cluster_verify.yml -e verify_attempts=15 -e verify_delay=30
 ```
 
 | Variable | Default | Purpose |
@@ -70,27 +70,41 @@ ansible-playbook ./playbooks/cluster_verify.yml -e verify_attempts=10 -e verify_
 | `verify_delay` | `30` | Seconds between attempts |
 | `verify_stability_window` | *(unset — script uses 300)* | `STABILITY_WINDOW_SECONDS` for the remote pod-restart check |
 
-`verify_attempts` counts **total attempts**, not Ansible's `retries` (which means "extra tries after the first"). `verify_attempts=1` runs the check exactly once. Budget roughly **20s per attempt** plus `verify_delay` between them.
+`verify_attempts` counts **total attempts**, not Ansible's `retries` (which means "extra
+tries after the first"), so `verify_attempts=1` runs the check exactly once.
 
-One caveat when verifying a freshly-applied cluster: the pod-stability check looks *backwards* over the last `STABILITY_WINDOW_SECONDS` (default 300) for pod restarts. Restarts during boot — pods waiting on External-Secrets to sync, for example — stay inside that window, so verification keeps failing for up to five minutes after every rollout is already ready. Either budget retries past that window, or narrow it:
+Measured on two real cold starts, both with the stability window left at its default:
+
+| Run | Passed on | Elapsed |
+|---|---|---|
+| Verified ~15-30s after apply | attempt 3 | ~2 min |
+| Chained straight off `cluster_apply.yml` | attempt 6 | ~4.5 min |
+
+Budget roughly **20s per attempt** plus `verify_delay` between them, so `k` attempts
+costs about `20k + 30(k-1)` seconds.
+
+The pod-stability check looks *backwards* over the last `STABILITY_WINDOW_SECONDS`
+(default 300) for pod restarts, which sounds like it would block a fresh cluster for
+five minutes — but it counts container *restarts*, and a clean boot has none. Initial
+starts do not count. In both runs above it was a non-issue. It only bites when
+something actually crash-loops on the way up, e.g. pods waiting on External-Secrets to
+sync. If you hit that, narrow the window rather than waiting it out:
 
 ``` sh
 ansible-playbook ./playbooks/cluster_verify.yml \
-  -e verify_attempts=10 -e verify_delay=30 -e verify_stability_window=60
+  -e verify_attempts=15 -e verify_delay=30 -e verify_stability_window=60
 ```
-
-Measured on a real cold start: a cluster verified ~15-30s after `cluster_apply.yml`
-reached PASS in about **2 minutes**, on the third attempt, with the stability window at
-its 300s default. Pod *restarts* are what that window catches, and a clean boot has
-none — initial container starts do not count — so the window only bites when something
-crash-loops on the way up. `verify_attempts=10 -e verify_delay=30` gives roughly five
-minutes of headroom over the measured time.
 
 ### Post-apply verification
 
 `cluster_apply.yml` runs `cluster_verify.yml` automatically once the apply finishes,
-with `verify_attempts=10` and `verify_delay=30` (roughly an 8-minute budget against the
-~2 minutes measured above).
+with `verify_attempts=15` and `verify_delay=30` — roughly a 12-minute ceiling, about
+2.5x the slowest cold start measured above.
+
+That number is sized off observed variance across two samples, not a computed bound.
+Two cold starts spanned a 2x range (attempt 3 and attempt 6), so if you ever see a boot
+land near attempt 12, the real spread is wider than those samples suggested and the
+budget should go up.
 
 This cannot block a deploy. Verification runs *after* `tofu apply` has already
 completed, so a failure reports that the cluster came up unhealthy — it never prevents
