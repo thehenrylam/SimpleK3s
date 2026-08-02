@@ -163,6 +163,26 @@ function ensure_labeled_mount() {
     fi
 }
 
+# One-shot probe: is a control plane answering on 6443 RIGHT NOW?
+#
+# Deliberately not is_controller_okay, which waits up to 3 minutes for a controller to
+# come up. That is the right question when joining a cluster you know exists; it is the
+# wrong one when asking "does a cluster exist at all?", where a 3-minute stall on the
+# expected answer of "no" would delay every fresh deploy.
+#
+# Any HTTP response counts as evidence a cluster is there — hence no `-f`. A control
+# plane that is up but reporting not-ready still means a cluster exists, and treating
+# that as "nothing here" is exactly the mistake that splits a cluster in two.
+function is_controller_alive() {
+    local controller_host="${1:-$CONTROLLER_HOST}"
+    local timeout_s="${2:-3}"
+
+    curl -sk -o /dev/null \
+        --connect-timeout "$timeout_s" \
+        --max-time "$((timeout_s * 2))" \
+        "https://$controller_host:6443/readyz"
+}
+
 # Wait for the controller to be ready
 function is_controller_okay() {
     local controller_host="${1:-$CONTROLLER_HOST}"
