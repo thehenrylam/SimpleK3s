@@ -84,11 +84,19 @@ Budget roughly **20s per attempt** plus `verify_delay` between them, so `k` atte
 costs about `20k + 30(k-1)` seconds.
 
 The pod-stability check looks *backwards* over the last `STABILITY_WINDOW_SECONDS`
-(default 300) for pod restarts, which sounds like it would block a fresh cluster for
-five minutes — but it counts container *restarts*, and a clean boot has none. Initial
-starts do not count. In both runs above it was a non-issue. It only bites when
-something actually crash-loops on the way up, e.g. pods waiting on External-Secrets to
-sync. If you hit that, narrow the window rather than waiting it out:
+(default 300) for pod restarts, which sounds like it would block a fresh cluster for five
+minutes — but it counts container *restarts*, and a clean boot has none. Initial starts
+do not count, and in both runs above it was a non-issue.
+
+It does bite in two cases. One is a pod crash-looping on the way up, e.g. waiting on
+External-Secrets to sync. The other is any **single** restart in the preceding five
+minutes: the check reports only that a restart happened, not how many or whether the pod
+has since stabilised, so one restart from a transient disruption fails the run even
+though the cluster is completely healthy. That makes verification lag recovery by up to
+`STABILITY_WINDOW_SECONDS` — see [RUNBOOKS.md](../../RUNBOOKS.md) for how this shows up
+after a node replacement.
+
+In either case, narrow the window rather than waiting it out:
 
 ``` sh
 ansible-playbook ./playbooks/cluster_verify.yml \

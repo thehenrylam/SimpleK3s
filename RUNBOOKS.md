@@ -116,14 +116,56 @@ Then run the full check:
 ansible-playbook ./playbooks/cluster_verify.yml -e verify_attempts=15 -e verify_delay=30
 ```
 
-### Expect transient failures during recovery
+### Expect verification to fail for a while — in two distinct phases
 
-While a control-plane node is missing, verification legitimately reports failures for
-workloads that were running on it — commonly `coredns`, `local-path-provisioner`, and
-the `kyverno` controllers — plus the `NotReady` node itself and any pod restarts caught
-by the 300s stability window. These clear once pods reschedule. Karpenter may also
-provision a worker to absorb the displaced load; that is expected, and it will scale
-back down.
+These have different causes and different remedies. Do not treat the second as an
+incomplete recovery.
+
+**Phase 1 — while a node is missing.** Verification legitimately fails for workloads that
+were running on the dead node: commonly `coredns`, `local-path-provisioner` and the three
+`kyverno` controllers, plus the `NotReady` node itself. These clear as pods reschedule.
+Karpenter may provision a worker to absorb the displaced load; that is expected, and it
+scales back down afterwards.
+
+**Phase 2 — for up to 5 minutes AFTER the cluster is fully healthy.** This is the one
+that looks like a failed recovery and is not. The pod-stability check looks *backwards*
+over `STABILITY_WINDOW_SECONDS` (default 300). Any restart inside that window fails the
+run **no matter how healthy the cluster now is** — so a cluster that recovered 60 seconds
+ago cannot pass yet, and there is nothing to fix.
+
+Observed on a real recovery: every functional check passed — all nodes `Ready`, every
+subsystem green — and the single failure was
+
+```
+FAIL: Pods with recent restarts (within 300s)
+  monitoring/prometheus-prometheus-node-exporter-... (last restart: 21:36:36Z)
+```
+
+That pod was on a *surviving* node. Its liveness probe timed out while the control plane
+was unavailable, the kubelet restarted it once, and it had been healthy since. Re-running
+after the window elapsed returned `PASS (3/3 nodes passed)` with no intervention.
+
+Either wait it out, or narrow the window so the check only considers genuinely recent
+restarts:
+
+```bash
+ansible-playbook ./playbooks/cluster_verify.yml \
+  -e verify_attempts=15 -e verify_delay=30 -e verify_stability_window=60
+```
+
+**Telling a stale restart from an active crash-loop.** The check reports only *that* a
+restart happened, not how many or how recently the pod stabilised. Inspect the pod
+directly:
+
+```bash
+kubectl -n <namespace> get pod <pod> -o wide     # RESTARTS column
+kubectl -n <namespace> describe pod <pod> | grep -A6 -iE "last state|restart count"
+```
+
+`RESTARTS: 1` with the pod `Running` and `Ready` is a one-off that has already recovered.
+A count that climbs between two checks is a real crash-loop and needs investigating.
+Exit code `143` is SIGTERM — the kubelet killing a container that failed a probe, typical
+of control-plane unavailability rather than a fault in the pod itself.
 
 ---
 
