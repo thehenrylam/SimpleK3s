@@ -52,12 +52,25 @@ function install_k3s_server() {
     # - CONTROLLER_HOST
 
     local token="${1}"
-    local controller_host="${2:-$CONTROLLER_HOST}"
+    # Two different things, deliberately separate arguments:
+    #   join_host — the peer we contact to join. Outbound, someone else's address.
+    #               Overridden during a node-0 repair, where the default is us.
+    #   tls_san   — an extra name OUR serving certificate must be valid for.
+    #               Inbound, and it stays the cluster's advertised address no
+    #               matter which peer we happened to join through.
+    #
+    # They were one variable, which set --tls-san to whichever node we joined via
+    # — advertising an address this node does not own. Harmless while k3s also
+    # auto-adds the node's own IP, but they must be separate before CONTROLLER_HOST
+    # becomes a load balancer, where every node needs the LB as a SAN while the
+    # join target may be the LB or a specific peer.
+    local join_host="${2:-$CONTROLLER_HOST}"
+    local tls_san="${3:-$CONTROLLER_HOST}"
 
     curl -sfL "$K3S_INSTALL_URL" | INSTALL_K3S_VERSION="$K3S_VERSION" K3S_TOKEN="$token" sh -s - server \
-        --server "https://$controller_host:6443" \
+        --server "https://$join_host:6443" \
         --disable=traefik \
-        --tls-san="$controller_host" 2>&1 
+        --tls-san="$tls_san" 2>&1
 }
 
 # Install K3s (Agent)
@@ -161,6 +174,26 @@ function ensure_labeled_mount() {
     else
         log_info "$mount_path already mounted."
     fi
+}
+
+# One-shot probe: is a control plane answering on 6443 RIGHT NOW?
+#
+# Deliberately not is_controller_okay, which waits up to 3 minutes for a controller to
+# come up. That is the right question when joining a cluster you know exists; it is the
+# wrong one when asking "does a cluster exist at all?", where a 3-minute stall on the
+# expected answer of "no" would delay every fresh deploy.
+#
+# Any HTTP response counts as evidence a cluster is there — hence no `-f`. A control
+# plane that is up but reporting not-ready still means a cluster exists, and treating
+# that as "nothing here" is exactly the mistake that splits a cluster in two.
+function is_controller_alive() {
+    local controller_host="${1:-$CONTROLLER_HOST}"
+    local timeout_s="${2:-3}"
+
+    curl -sk -o /dev/null \
+        --connect-timeout "$timeout_s" \
+        --max-time "$((timeout_s * 2))" \
+        "https://$controller_host:6443/readyz"
 }
 
 # Wait for the controller to be ready

@@ -42,6 +42,9 @@ __[Contributing Skills](./CONTRIBUTING.md#ai-cheatsheet-for-contributing)__
 # Pricing
 Estimated monthly costs for common deployment profiles, plus a side-by-side comparison with equivalent EKS setups — see [PRICING.md](./PRICING.md).
 
+# Runbooks
+Manual recovery procedures for failures automation cannot fix on its own — see [RUNBOOKS.md](./RUNBOOKS.md).
+
 # CI and Testing
 Every pull request and push to `main` runs a static analysis pipeline (no AWS credentials required):
 - **`tofu fmt` / `terraform fmt`** — enforces consistent formatting
