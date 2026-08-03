@@ -52,12 +52,25 @@ function install_k3s_server() {
     # - CONTROLLER_HOST
 
     local token="${1}"
-    local controller_host="${2:-$CONTROLLER_HOST}"
+    # Two different things, deliberately separate arguments:
+    #   join_host — the peer we contact to join. Outbound, someone else's address.
+    #               Overridden during a node-0 repair, where the default is us.
+    #   tls_san   — an extra name OUR serving certificate must be valid for.
+    #               Inbound, and it stays the cluster's advertised address no
+    #               matter which peer we happened to join through.
+    #
+    # They were one variable, which set --tls-san to whichever node we joined via
+    # — advertising an address this node does not own. Harmless while k3s also
+    # auto-adds the node's own IP, but they must be separate before CONTROLLER_HOST
+    # becomes a load balancer, where every node needs the LB as a SAN while the
+    # join target may be the LB or a specific peer.
+    local join_host="${2:-$CONTROLLER_HOST}"
+    local tls_san="${3:-$CONTROLLER_HOST}"
 
     curl -sfL "$K3S_INSTALL_URL" | INSTALL_K3S_VERSION="$K3S_VERSION" K3S_TOKEN="$token" sh -s - server \
-        --server "https://$controller_host:6443" \
+        --server "https://$join_host:6443" \
         --disable=traefik \
-        --tls-san="$controller_host" 2>&1 
+        --tls-san="$tls_san" 2>&1
 }
 
 # Install K3s (Agent)

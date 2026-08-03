@@ -235,8 +235,20 @@ function report() {
     if (( ${#STALE_NODES[@]} == 0 )); then
         echo "  stale members  : none"
     else
+        local _SIP _SSTATE _WHY
         for _I in "${STALE_NODES[@]}"; do
-            echo "  stale member   : ${C_YLW}${_I}${C_RST}  (no running instance holds this address)"
+            # State the actual reason. In the replaced-node-0 case an instance DOES
+            # hold the address — it just is not serving — and saying otherwise is
+            # exactly the wrong thing to tell someone deciding whether to trust a
+            # control-plane mutation.
+            _SIP="$(nodename_to_ip "${_I}")"
+            _SSTATE="$(k3s_state_for_ip "${_SIP}")"
+            if [[ "${_SSTATE}" == "none" ]]; then
+                _WHY="no running instance holds ${_SIP}"
+            else
+                _WHY="instance at ${_SIP} is not running k3s (state: ${_SSTATE})"
+            fi
+            echo "  stale member   : ${C_YLW}${_I}${C_RST}  (${_WHY})"
         done
     fi
     if (( ${#UNJOINED_IDS[@]} == 0 )); then
