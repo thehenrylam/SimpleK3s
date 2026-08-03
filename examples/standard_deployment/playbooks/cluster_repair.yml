@@ -1,0 +1,57 @@
+---
+# Repairs a control-plane node that cannot rejoin on its own — the node-0
+# replacement case, where the join target is the node itself and a stale etcd
+# member still holds its hostname. RUNBOOKS.md documents the manual equivalent.
+#
+# Previews by default. Nothing is changed until you pass -e repair_apply=true:
+#
+#     ansible-playbook ./playbooks/cluster_repair.yml                     # preview
+#     ansible-playbook ./playbooks/cluster_repair.yml -e repair_apply=true
+#
+# Deliberately NOT using --check for the preview. Ansible skips shell tasks in
+# check mode, so --check would report "skipped" rather than a diagnosis. The
+# script's own --dry-run does the discovery for real and changes nothing, which is
+# the preview an operator actually wants before touching a control plane.
+- name: Repair
+  # It takes the hosts that is under the hosts section from inventory.yml
+  #   - Used for variables like "inventory_hostname"
+  hosts: wave2_cluster
+  strategy: free
+  gather_facts: false
+
+  vars:
+    target_dir: "../"
+    # Preview unless explicitly told otherwise. Removing an etcd member is not
+    # something to trigger by forgetting a flag.
+    repair_apply: false
+
+  tasks:
+  - name: Repair Cluster
+    shell: >-
+      ./scripts/ssm_repair_cluster.sh {{ aws_profile }}
+      {{ '' if (repair_apply | bool) else '--dry-run' }} 2>&1
+    args:
+      chdir: "{{ target_dir }}"
+    register: cmdout_repair
+    changed_when: repair_apply | bool
+    # Capture the rc so the report prints before the play aborts.
+    failed_when: false
+
+  - name: Show Repair Output
+    debug:
+      var: cmdout_repair.stdout_lines
+
+  - name: Fail if repair did not succeed
+    ansible.builtin.fail:
+      msg: >-
+        Cluster repair {{ 'failed' if (repair_apply | bool) else 'preview failed' }}
+        (rc={{ cmdout_repair.rc }}). Nothing was changed if this was a preview.
+    when: cmdout_repair.rc != 0
+
+  - name: Next step
+    debug:
+      msg: >-
+        {{ 'Repair applied. Run cluster_verify.yml to confirm — allow for the pod-restart
+            stability window before expecting a pass.'
+           if (repair_apply | bool) else
+           'Preview only, nothing changed. Re-run with -e repair_apply=true to apply.' }}

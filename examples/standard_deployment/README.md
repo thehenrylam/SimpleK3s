@@ -56,6 +56,9 @@ ansible-playbook ./playbooks/cluster_verify.yml
 - `./playbooks/cluster_verify.yml`
     - Executes `./scripts/ssm_verify_cluster.sh` to get the health status of the cluster
     - **Fails the play** when the cluster does not pass. A node that cannot be reached counts as a failure, not a pass.
+- `./playbooks/cluster_repair.yml`
+    - Rejoins a control-plane node that cannot rejoin on its own — the node-0 replacement case
+    - **Previews by default**; applies only with `-e repair_apply=true` (see below)
 
 Verification runs once by default, which is what you want for a cluster that is already up. Straight after a `cluster_apply.yml`, a single check will report failure on a perfectly good deploy — the apply only creates the infrastructure, while ArgoCD, Grafana and Prometheus are still starting and are not yet serving. Retry instead of guessing at a fixed wait:
 
@@ -102,6 +105,35 @@ In either case, narrow the window rather than waiting it out:
 ansible-playbook ./playbooks/cluster_verify.yml \
   -e verify_attempts=15 -e verify_delay=30 -e verify_stability_window=60
 ```
+
+### Repairing a control-plane node
+
+A replaced node-0 cannot rejoin unaided: its join target (`CONTROLLER_HOST`) is its own
+address, and the terminated node's etcd member still holds its hostname. `cluster_repair.yml`
+automates the recovery that `RUNBOOKS.md` documents by hand.
+
+``` sh
+# Preview — discovers the real state and changes nothing
+ansible-playbook ./playbooks/cluster_repair.yml
+
+# Apply
+ansible-playbook ./playbooks/cluster_repair.yml -e repair_apply=true
+```
+
+Two safety properties worth knowing, because they decide when it will refuse:
+
+- **A node is only treated as stale when nothing is serving from its address** — either
+  no instance holds it, or the instance that does is not running k3s. `NotReady` alone is
+  never enough: a node that is partitioned or briefly wedged still has a live etcd member,
+  and removing it would turn a recoverable blip into an irreversible membership change.
+- **It refuses to remove members that would drop the cluster below quorum.** Removing a
+  member lowers the member count and with it the failures the cluster tolerates — three
+  members survive one loss, two survive none. If too few nodes are Ready to survive the
+  removal, it stops and says so.
+
+The preview is the script's own `--dry-run`, not Ansible's `--check`. Check mode skips
+`shell` tasks, so it would report "skipped" instead of a diagnosis; `--dry-run` performs
+the discovery for real and changes nothing.
 
 ### Post-apply verification
 
