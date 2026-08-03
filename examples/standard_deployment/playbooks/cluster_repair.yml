@@ -33,7 +33,12 @@
     args:
       chdir: "{{ target_dir }}"
     register: cmdout_repair
-    changed_when: repair_apply | bool
+    # Only "changed" when work was actually done. Apply mode on a consistent
+    # cluster is a no-op, and reporting it as changed would train an operator to
+    # ignore the one signal that tells them a control plane was mutated.
+    changed_when:
+      - repair_apply | bool
+      - "'Nothing to repair' not in cmdout_repair.stdout"
     # Capture the rc so the report prints before the play aborts.
     failed_when: false
 
@@ -51,7 +56,9 @@
   - name: Next step
     debug:
       msg: >-
-        {{ 'Repair applied. Run cluster_verify.yml to confirm — allow for the pod-restart
-            stability window before expecting a pass.'
-           if (repair_apply | bool) else
-           'Preview only, nothing changed. Re-run with -e repair_apply=true to apply.' }}
+        {{ 'Nothing to repair — the cluster is consistent. No changes were made.'
+           if ('Nothing to repair' in cmdout_repair.stdout) else
+           ('Repair applied. Run cluster_verify.yml to confirm — allow for the pod-restart
+             stability window before expecting a pass.'
+            if (repair_apply | bool) else
+            'Preview only, nothing changed. Re-run with -e repair_apply=true to apply.') }}
