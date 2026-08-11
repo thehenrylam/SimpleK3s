@@ -60,10 +60,14 @@ uninstall_ansible() {
     fi
 }
 
-# --- bootstrap python deps ---
+# --- bootstrap python deps (legacy) ---
 
+# The bootstrap py/ tree no longer has a project virtualenv — it is stdlib-only
+# and runs on the system python3. This step remains solely to clean up the ~50 MB
+# .venv left behind on machines that installed the toolchain before that change;
+# nothing recreates it. Safe to delete once no contributor is on the old layout.
 uninstall_python_deps() {
-    echo "==> Removing bootstrap Python deps"
+    echo "==> Removing bootstrap Python deps (legacy .venv)"
 
     if [[ -d "${PY_DIR}/.venv" ]]; then
         rm -rf "${PY_DIR}/.venv"

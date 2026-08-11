@@ -3,14 +3,9 @@
 set -euo pipefail
 
 # Installs the standard toolchain needed to work on SimpleK3s on macOS.
-# Installs: uv, Python (via uv), the bootstrap Python deps, Ansible, OpenTofu,
-# Terraform, and the AWS CLI. Requires Homebrew.
+# Installs: uv, Python (via uv), Ansible, OpenTofu, Terraform, and the AWS CLI.
+# Requires Homebrew.
 # For local *testing* tools (shellcheck, tflint, checkov) see tc_testing_*.sh.
-
-# shellcheck disable=SC2155
-readonly CURR_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck disable=SC2155
-readonly REPO_ROOT="$(cd "${CURR_ROOT}/.." && pwd)"
 
 readonly UV_VERSION="0.11.20"            # check-versions: update in CLAUDE.md pinned versions table
 readonly PYTHON_VERSION="3.13"           # check-versions: update in CLAUDE.md pinned versions table
@@ -20,8 +15,10 @@ readonly AWSCLI_VERSION="2.34.63"        # check-versions: update in CLAUDE.md p
 readonly ANSIBLE_VERSION="14.2.0"        # check-versions: update in CLAUDE.md pinned versions table
 readonly BIN_DIR="/opt/homebrew/bin"
 
-# The bootstrap Python project (managed by uv) that the cluster runs on-node.
-readonly PY_DIR="${REPO_ROOT}/k3s_cluster/cluster_app/bootstrap/data/py"
+# NOTE: there is deliberately no bootstrap Python project to sync. Everything
+# under k3s_cluster/cluster_app/bootstrap/data/py/ is stdlib-only and runs on the
+# system python3, so there is no pyproject.toml and no .venv. Scripts needing a
+# third-party package declare it inline (PEP 723) and run via `uv run`.
 
 # --- helpers ---
 
@@ -87,22 +84,6 @@ install_python() {
     "${BIN_DIR}/uv" python install "${PYTHON_VERSION}"
 
     echo "  Installed: $("${BIN_DIR}/uv" python find "${PYTHON_VERSION}")"
-}
-
-# --- bootstrap python deps (via uv) ---
-
-install_python_deps() {
-    echo "==> Installing bootstrap Python deps (uv sync)"
-
-    if [[ ! -f "${PY_DIR}/pyproject.toml" ]]; then
-        echo "  ERROR: no pyproject.toml found at ${PY_DIR}" >&2
-        return 1
-    fi
-
-    # uv sync creates ${PY_DIR}/.venv and installs everything from pyproject.toml.
-    ( cd "${PY_DIR}" && "${BIN_DIR}/uv" sync )
-
-    echo "  Synced: ${PY_DIR}/.venv"
 }
 
 # --- Ansible (via uv tool) ---
@@ -220,7 +201,6 @@ fi
 
 install_uv
 install_python
-install_python_deps
 install_ansible
 install_tofu
 install_terraform

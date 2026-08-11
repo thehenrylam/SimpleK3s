@@ -133,18 +133,6 @@ module "aws_s3obj" {
       template = null
     },
     {
-      desc     = "Helper Script (Python - pyproject.toml)"
-      key      = "${var.s3_config.keyroot}/py/pyproject.toml",
-      src      = "${path.module}/data/py/pyproject.toml",
-      template = null
-    },
-    {
-      desc     = "Helper Script (Python - .python-version)"
-      key      = "${var.s3_config.keyroot}/py/.python-version",
-      src      = "${path.module}/data/py/.python-version",
-      template = null
-    },
-    {
       desc     = "Helper Script (Python - fetch_UTILITIES.py)"
       key      = "${var.s3_config.keyroot}/py/fetch_UTILITIES.py",
       src      = "${path.module}/data/py/fetch_UTILITIES.py",

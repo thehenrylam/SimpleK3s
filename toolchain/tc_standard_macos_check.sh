@@ -4,11 +4,6 @@ set -euo pipefail
 
 # Verifies that the standard SimpleK3s toolchain is installed and prints versions.
 
-# shellcheck disable=SC2155
-readonly CURR_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck disable=SC2155
-readonly REPO_ROOT="$(cd "${CURR_ROOT}/.." && pwd)"
-
 readonly UV_VERSION="0.11.20"            # check-versions: update in CLAUDE.md pinned versions table
 readonly PYTHON_VERSION="3.13"           # check-versions: update in CLAUDE.md pinned versions table
 readonly TOFU_VERSION="1.11.2"           # check-versions: update in CLAUDE.md pinned versions table
@@ -16,8 +11,6 @@ readonly TERRAFORM_VERSION="1.14.3"      # check-versions: update in CLAUDE.md p
 readonly AWSCLI_VERSION="2.34.63"        # check-versions: update in CLAUDE.md pinned versions table
 readonly ANSIBLE_VERSION="14.2.0"        # check-versions: update in CLAUDE.md pinned versions table
 readonly BIN_DIR="/opt/homebrew/bin"
-
-readonly PY_DIR="${REPO_ROOT}/k3s_cluster/cluster_app/bootstrap/data/py"
 
 PASS=0
 FAIL=0
@@ -44,16 +37,6 @@ check_python() {
         pass "python ${PYTHON_VERSION}: $("$uv_bin" python find "${PYTHON_VERSION}")"
     else
         miss "python ${PYTHON_VERSION}: not installed via uv"
-    fi
-}
-
-# --- bootstrap python deps ---
-
-check_python_deps() {
-    if [[ -d "${PY_DIR}/.venv" ]]; then
-        pass "bootstrap python deps: ${PY_DIR}/.venv present"
-    else
-        miss "bootstrap python deps: ${PY_DIR}/.venv missing (run uv sync)"
     fi
 }
 
@@ -127,7 +110,6 @@ check_awscli() {
 
 check_uv
 check_python
-check_python_deps
 check_ansible
 check_tofu
 check_terraform
