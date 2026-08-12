@@ -148,8 +148,12 @@ module "aws_s3obj" {
           bootstrap_dir     = "/opt/simplek3s/" # TODO: Parameterize this
           aws_cli_version   = local.settings.aws_cli_version
           ssm_agent_version = local.settings.ssm_agent_version
-          # Assume the first object of local.s3keys_default_bootstrap is the installation script
-          s3key_install_script = "${var.s3_config.keyroot}/init.sh" # TODO: Parameterize this
+          # TODO: Parameterize this — and note it does NOT currently match the key
+          # the bootstrap module actually uploads (".../node_init-all.sh", exposed as
+          # module.cluster_app_bootstrap.s3key_install_script). Tracked separately;
+          # left as-is here because changing it alters how Karpenter-provisioned
+          # nodes boot and needs its own verification.
+          s3key_install_script = "${var.s3_config.keyroot}/init.sh"
         })
       })
     },

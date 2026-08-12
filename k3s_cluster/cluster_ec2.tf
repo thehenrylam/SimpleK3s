@@ -132,8 +132,8 @@ resource "aws_instance" "controlplane_ec2_node" {
     bootstrap_dir     = local.bstrap_dir,
     aws_cli_version   = var.aws_cli_version,
     ssm_agent_version = var.ssm_agent_version,
-    # Assume the first object of local.s3keys_default_bootstrap is the installation script
-    s3key_install_script = local.s3keys_default_bootstrap[0],
+    # Referenced by name, not by list position (see local.s3key_install_script)
+    s3key_install_script = local.s3key_install_script,
   })
 
   metadata_options {
@@ -189,8 +189,8 @@ resource "aws_instance" "agentplane_ec2_node" {
     bootstrap_dir     = local.bstrap_dir,
     aws_cli_version   = var.aws_cli_version,
     ssm_agent_version = var.ssm_agent_version,
-    # Assume the first object of local.s3keys_default_bootstrap is the installation script
-    s3key_install_script = local.s3keys_default_bootstrap[0],
+    # Referenced by name, not by list position (see local.s3key_install_script)
+    s3key_install_script = local.s3key_install_script,
   })
 
   metadata_options {
