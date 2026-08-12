@@ -13,14 +13,18 @@ locals {
   module_name = "cluster_app_${basename(path.module)}"
 
   default_settings = {
-    version                = "1.9.0"
-    cluster_name           = var.nickname
-    aws_region             = null
-    controller_host        = null
-    ami_id                 = null
-    k3s_version            = "v1.35.1+k3s1"
-    aws_cli_version        = "2.34.63"
-    ssm_agent_version      = "3.3.4515.0"
+    version           = "1.9.0"
+    cluster_name      = var.nickname
+    aws_region        = null
+    controller_host   = null
+    ami_id            = null
+    k3s_version       = "v1.35.1+k3s1"
+    aws_cli_version   = "2.34.63"
+    ssm_agent_version = "3.3.4515.0"
+    # No default on purpose: the root must supply the key the bootstrap module
+    # actually uploaded. A default here would be a second place naming the file,
+    # which is exactly how it drifted before.
+    s3key_install_script   = null
     token_ssm_name         = "/simplek3s/${var.nickname}/k3s-token"
     subnet_ids             = []
     security_group_name    = null
@@ -42,6 +46,7 @@ locals {
     k3s_version            = coalesce(try(var.settings.k3s_version, null), local.default_settings.k3s_version)
     aws_cli_version        = coalesce(try(var.settings.aws_cli_version, null), local.default_settings.aws_cli_version)
     ssm_agent_version      = coalesce(try(var.settings.ssm_agent_version, null), local.default_settings.ssm_agent_version)
+    s3key_install_script   = coalesce(try(var.settings.s3key_install_script, null), local.default_settings.s3key_install_script)
     token_ssm_name         = coalesce(try(var.settings.token_ssm_name, null), local.default_settings.token_ssm_name)
     subnet_ids             = coalesce(try(var.settings.subnet_ids, null), local.default_settings.subnet_ids)
     security_group_name    = coalesce(try(var.settings.security_group_name, null), local.default_settings.security_group_name)
@@ -62,17 +67,26 @@ module "common" {
 
 resource "terraform_data" "karpenter_settings_guard" {
   input = {
-    ami_id              = local.settings.ami_id
-    aws_region          = local.settings.aws_region
-    controller_host     = local.settings.controller_host
-    subnet_ids_len      = length(local.settings.subnet_ids)
-    security_group_name = local.settings.security_group_name
+    ami_id               = local.settings.ami_id
+    aws_region           = local.settings.aws_region
+    controller_host      = local.settings.controller_host
+    subnet_ids_len       = length(local.settings.subnet_ids)
+    security_group_name  = local.settings.security_group_name
+    s3key_install_script = local.settings.s3key_install_script
   }
 
   lifecycle {
     precondition {
       condition     = local.settings.ami_id != null && local.settings.ami_id != ""
       error_message = "subsystems.karpenter.ami_id must be set."
+    }
+
+    # A wrong value here does not fail the apply — it fails silently at node boot,
+    # where cloud-init cannot find the script and the node never registers. Karpenter
+    # then reaps and relaunches on a loop, so there is no error surface to notice.
+    precondition {
+      condition     = local.settings.s3key_install_script != null && local.settings.s3key_install_script != ""
+      error_message = "subsystems.karpenter.s3key_install_script must be set (pass the bootstrap module's s3key_install_script output)."
     }
 
     precondition {
@@ -142,18 +156,13 @@ module "aws_s3obj" {
         subnet_ids          = local.settings.subnet_ids
         security_group_name = local.settings.security_group_name
         cloudinit_user_data = templatefile("${path.module}/../../cloudinit.sh.tftpl", {
-          count_index       = "0"
-          cluster_type      = "agentplane"
-          bootstrap_bucket  = var.s3_config.id
-          bootstrap_dir     = "/opt/simplek3s/" # TODO: Parameterize this
-          aws_cli_version   = local.settings.aws_cli_version
-          ssm_agent_version = local.settings.ssm_agent_version
-          # TODO: Parameterize this — and note it does NOT currently match the key
-          # the bootstrap module actually uploads (".../node_init-all.sh", exposed as
-          # module.cluster_app_bootstrap.s3key_install_script). Tracked separately;
-          # left as-is here because changing it alters how Karpenter-provisioned
-          # nodes boot and needs its own verification.
-          s3key_install_script = "${var.s3_config.keyroot}/init.sh"
+          count_index          = "0"
+          cluster_type         = "agentplane"
+          bootstrap_bucket     = var.s3_config.id
+          bootstrap_dir        = "/opt/simplek3s/" # TODO: Parameterize this
+          aws_cli_version      = local.settings.aws_cli_version
+          ssm_agent_version    = local.settings.ssm_agent_version
+          s3key_install_script = local.settings.s3key_install_script
         })
       })
     },
