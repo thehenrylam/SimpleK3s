@@ -138,6 +138,10 @@ module "cluster_app_karpenter" {
       k3s_version         = coalesce(try(local.subsystems.karpenter.k3s_version, null), local.subsystems_default.karpenter.k3s_version)
       aws_cli_version     = var.aws_cli_version
       ssm_agent_version   = var.ssm_agent_version
+      # Karpenter nodes run the same bootstrap entry point as the statically
+      # provisioned ones, so it is taken from the bootstrap module by name rather
+      # than reconstructed from a keyroot inside the karpenter module (#121).
+      s3key_install_script = local.s3key_install_script
     }
   )
   # S3 settings

@@ -6,14 +6,19 @@ variable "nickname" {
 variable "settings" {
   description = "The settings of the karpenter subsystem"
   type = object({
-    version                = optional(string)
-    cluster_name           = optional(string)
-    aws_region             = optional(string)
-    controller_host        = optional(string)
-    ami_id                 = optional(string)
-    k3s_version            = optional(string)
-    aws_cli_version        = optional(string)
-    ssm_agent_version      = optional(string)
+    version           = optional(string)
+    cluster_name      = optional(string)
+    aws_region        = optional(string)
+    controller_host   = optional(string)
+    ami_id            = optional(string)
+    k3s_version       = optional(string)
+    aws_cli_version   = optional(string)
+    ssm_agent_version = optional(string)
+    # S3 key of the bootstrap entry point run by a provisioned node's cloud-init.
+    # Supplied by the root from the bootstrap module's own output rather than
+    # rebuilt here — a literal in this module is what let it drift out of sync
+    # with the object actually uploaded (see #121).
+    s3key_install_script   = optional(string)
     token_ssm_name         = optional(string)
     subnet_ids             = optional(list(string))
     security_group_name    = optional(string)
