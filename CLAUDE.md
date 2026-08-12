@@ -39,7 +39,9 @@ aws ssm start-session --target INSTANCE_ID --profile AWS_PROFILE
 
 Scripts in `toolchain/` come in two `install` / `check` / `uninstall` trios, each pinning versions to a `/opt/homebrew/bin` versioned-binary + symlink layout. Both require Homebrew.
 
-**Standard toolchain** (`tc_standard_macos_*.sh`) — everything needed to work on SimpleK3s: `uv`, Python (managed by uv), the bootstrap Python deps (`uv sync` against `k3s_cluster/cluster_app/bootstrap/data/py/`), Ansible (an isolated, pinned `uv tool` whose entry points land in `/opt/homebrew/bin`), OpenTofu, Terraform, and the AWS CLI. The AWS CLI step uses the official pinned `.pkg` and will prompt for `sudo`.
+**Standard toolchain** (`tc_standard_macos_*.sh`) — everything needed to work on SimpleK3s: `uv`, Python (managed by uv), Ansible (an isolated, pinned `uv tool` whose entry points land in `/opt/homebrew/bin`), OpenTofu, Terraform, and the AWS CLI. The AWS CLI step uses the official pinned `.pkg` and will prompt for `sudo`.
+
+There is no bootstrap Python project to sync: everything under `k3s_cluster/cluster_app/bootstrap/data/py/` is **stdlib-only** and runs on the node's system `python3`, so there is no `pyproject.toml` and no `.venv`. A script that genuinely needs a third-party package declares it inline via [PEP 723](https://peps.python.org/pep-0723/) and runs under `uv run`, which resolves into uv's cache instead of creating a virtualenv in the tree — see `examples/standard_deployment/scripts/ssm_pick_instance.py`. Keep it that way: the sync/repair path must never depend on an interpreter environment stored inside the directory it repairs.
 
 ```bash
 # Install the standard toolchain
@@ -174,7 +176,7 @@ These versions are hardcoded defaults in the module. Check here first when inves
 |-----------------|------------|---|---|
 | Tooling         | OpenTofu | `1.11.2` | `.github/workflows/static-analysis.yml`, `toolchain/tc_standard_macos_install.sh` |
 | Tooling         | Terraform | `1.14.3` | `.github/workflows/static-analysis.yml`, `toolchain/tc_standard_macos_install.sh` |
-| Tooling         | Python | `3.13.x` | `.github/workflows/static-analysis.yml`, `k3s_cluster/cluster_app/bootstrap/data/py/pyproject.toml`, `k3s_cluster/cluster_app/bootstrap/data/py/.python-version`, `toolchain/tc_standard_macos_install.sh` |
+| Tooling         | Python | `3.13.x` | `.github/workflows/static-analysis.yml`, `toolchain/tc_standard_macos_install.sh`. **On-node it is whatever the pinned Debian 13 AMI ships (currently 3.13.5) — not pinned by us**, since the probes are stdlib-only. |
 | Tooling         | uv | `0.11.20` | `k3s_cluster/cluster_app/bootstrap/data/bts_01_install_packages.sh`, `toolchain/tc_standard_macos_install.sh` |
 | Tooling         | Ansible | `14.2.0` | `toolchain/tc_standard_macos_install.sh`, `toolchain/tc_standard_macos_check.sh` |
 | Platform        | K3s        | `v1.35.1+k3s1` | `k3s_cluster/variables.tf` |

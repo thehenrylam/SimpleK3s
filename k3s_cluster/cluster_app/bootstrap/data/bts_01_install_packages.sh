@@ -44,17 +44,26 @@ function apt_install_essential() {
         open-iscsi \
         nfs-common || return 1
 
-    # Install python3 environment and our required modules
-    log_info "Installing Python packages via uv"
-    local PYTHON_DIR="${SCRIPT_DIR}/py"
+    # Install uv.
+    #
+    # NOTE: no `uv sync` and no project virtualenv. Everything under py/ is
+    # stdlib-only and runs on the system python3 the Debian AMI already ships,
+    # which keeps the bootstrap tree ~300 KB instead of ~50 MB and — more
+    # importantly — means the scripts that REPAIR this directory never depend on
+    # an interpreter environment stored inside it.
+    #
+    # uv is still installed because a future helper script may legitimately need
+    # a third-party package. Such a script declares its dependencies inline
+    # (PEP 723) and runs under `uv run`, which resolves into uv's own cache
+    # rather than creating a .venv in the bootstrap tree. See
+    # examples/standard_deployment/scripts/ssm_pick_instance.py for the pattern.
+    log_info "Installing uv"
     local UV_VERSION="0.11.20" # check-versions: update in CLAUDE.md pinned versions table
     if uv --version 2>/dev/null | grep -qF "$UV_VERSION"; then
         log_info "uv $UV_VERSION already installed; skipping."
     else
         curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | UV_INSTALL_DIR="/usr/local/bin" sh || return 1
     fi
-    # uv sync: creates .venv/ and installs all dependencies from pyproject.toml
-    (cd "$PYTHON_DIR" && uv sync) || return 1
 
     log_okay "Completed install (mandatory)"
 }

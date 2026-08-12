@@ -17,10 +17,14 @@ locals {
 
 # Output data (Typically used for modules outside the file)
 locals {
-  s3keys_default_bootstrap = concat(
-    try(module.cluster_app_bootstrap.processed_s3obj, []), # Bootstrap files
-    []                                                     # Default empty list (in case no submodules are initalized or commented out)
-  )
+  # The cloud-init entry point, taken BY NAME from the bootstrap module.
+  #
+  # This replaces a s3keys_default_bootstrap[0] lookup, which assumed the install
+  # script was the first entry of the module's key list. That list is now sorted by
+  # key rather than ordered by declaration, so its first element is no longer the
+  # install script — positional access here would silently boot every node with the
+  # wrong file. The list local itself is gone; nothing else consumed it.
+  s3key_install_script = module.cluster_app_bootstrap.s3key_install_script
 }
 
 module "cluster_app_bootstrap" {

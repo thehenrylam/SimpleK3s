@@ -209,8 +209,9 @@ _MARKER_RE = re.compile(
 
 
 def _extract_json(text: str):
-    # A probe's segment may carry a non-JSON preamble (e.g. fetch_hardware prints
-    # the raw disk tuple before its JSON). Decode from the first '{'.
+    # A probe's segment may carry a non-JSON preamble (a sudo warning, a stray
+    # debug print). Decode from the first '{' so one noisy line does not lose the
+    # whole probe result.
     start = text.find("{")
     if start < 0:
         return None
@@ -230,7 +231,11 @@ def _build_batch_command(probes: list[tuple[str, str]], remote_dir: str) -> list
         # --compact: every probe emits compact JSON here so the combined stdout of
         # all probes stays under SSM's ~24KB get-command-invocation truncation
         # limit (a manual run without the flag still prints indented JSON).
-        lines.append(f'sudo uv run ./{script} --compact; echo "{_MARKER_END} {key} $?@@"')
+        #
+        # Plain `python3`, not `uv run`: the probes are stdlib-only and run on the
+        # system interpreter the node's AMI ships. There is no project venv in the
+        # bootstrap tree to activate.
+        lines.append(f'sudo python3 ./{script} --compact; echo "{_MARKER_END} {key} $?@@"')
     return lines
 
 

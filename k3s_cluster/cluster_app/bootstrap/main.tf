@@ -5,6 +5,14 @@ terraform {
 locals {
   module_name = "cluster_app_${basename(path.module)}"
 
+  # The cloud-init entry point, named explicitly.
+  #
+  # This used to be inferred as "whatever is first in s3obj_data", which made the
+  # ORDER of an unordered-looking list load-bearing: reordering it silently changed
+  # which script every node executes at boot. Declared here, used both to register
+  # the object below and to expose it as an output, so the two cannot drift.
+  s3key_install_script = "${var.s3_config.keyroot}/node_init-all.sh"
+
   default_settings = {
     version         = "v1.35.1+k3s1"
     env_vars        = jsonencode({})
@@ -53,10 +61,10 @@ module "aws_s3obj" {
   # S3 settings
   s3_bucket_id = var.s3_config.id
   s3obj_data = [
-    { # Default Installation (Main installation script — MUST remain first; Terraform
-      # picks index [0] as the s3key_install_script passed to cloud-init)
+    { # Default Installation (Main installation script — referenced by key via
+      # local.s3key_install_script, so its position in this list does not matter)
       desc     = "Default Init Script",
-      key      = "${var.s3_config.keyroot}/node_init-all.sh",
+      key      = local.s3key_install_script,
       src      = "${path.module}/data/node_init-all.sh",
       template = null
     },
@@ -130,18 +138,6 @@ module "aws_s3obj" {
       desc     = "Node Script (Verify All — cluster health check)",
       key      = "${var.s3_config.keyroot}/node_verify-all.sh",
       src      = "${path.module}/data/node_verify-all.sh",
-      template = null
-    },
-    {
-      desc     = "Helper Script (Python - pyproject.toml)"
-      key      = "${var.s3_config.keyroot}/py/pyproject.toml",
-      src      = "${path.module}/data/py/pyproject.toml",
-      template = null
-    },
-    {
-      desc     = "Helper Script (Python - .python-version)"
-      key      = "${var.s3_config.keyroot}/py/.python-version",
-      src      = "${path.module}/data/py/.python-version",
       template = null
     },
     {
