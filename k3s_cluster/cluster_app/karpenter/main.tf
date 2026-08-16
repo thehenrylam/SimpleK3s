@@ -18,6 +18,7 @@ locals {
     aws_region        = null
     controller_host   = null
     ami_id            = null
+    root_volume_size  = 24
     k3s_version       = "v1.35.1+k3s1"
     aws_cli_version   = "2.34.63"
     ssm_agent_version = "3.3.4515.0"
@@ -43,6 +44,7 @@ locals {
     aws_region             = coalesce(try(var.settings.aws_region, null), local.default_settings.aws_region)
     controller_host        = coalesce(try(var.settings.controller_host, null), local.default_settings.controller_host)
     ami_id                 = coalesce(try(var.settings.ami_id, null), local.default_settings.ami_id)
+    root_volume_size       = coalesce(try(var.settings.root_volume_size, null), local.default_settings.root_volume_size)
     k3s_version            = coalesce(try(var.settings.k3s_version, null), local.default_settings.k3s_version)
     aws_cli_version        = coalesce(try(var.settings.aws_cli_version, null), local.default_settings.aws_cli_version)
     ssm_agent_version      = coalesce(try(var.settings.ssm_agent_version, null), local.default_settings.ssm_agent_version)
@@ -149,6 +151,7 @@ module "aws_s3obj" {
         cluster_name        = local.settings.cluster_name
         instance_profile    = aws_iam_instance_profile.karpenter_node.name # from iam.tf
         ami_id              = local.settings.ami_id
+        root_volume_size    = local.settings.root_volume_size
         aws_region          = local.settings.aws_region
         controller_host     = local.settings.controller_host
         k3s_version         = local.settings.k3s_version

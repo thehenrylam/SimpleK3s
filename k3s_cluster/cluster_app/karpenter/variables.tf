@@ -6,11 +6,15 @@ variable "nickname" {
 variable "settings" {
   description = "The settings of the karpenter subsystem"
   type = object({
-    version           = optional(string)
-    cluster_name      = optional(string)
-    aws_region        = optional(string)
-    controller_host   = optional(string)
-    ami_id            = optional(string)
+    version         = optional(string)
+    cluster_name    = optional(string)
+    aws_region      = optional(string)
+    controller_host = optional(string)
+    ami_id          = optional(string)
+    # Root volume size (GiB) for Karpenter-provisioned nodes. Must suit the largest
+    # instance the NodePool may pick — blockDeviceMappings cannot vary by instance
+    # type. See issue #124.
+    root_volume_size  = optional(number)
     k3s_version       = optional(string)
     aws_cli_version   = optional(string)
     ssm_agent_version = optional(string)
