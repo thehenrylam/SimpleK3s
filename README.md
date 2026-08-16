@@ -156,8 +156,13 @@ module "k3s_cluster" {
 #                                         (default is Debian 13 for ARM on the us-east-1 region)
 #                                         (WARNING: The default value may not work depending on input VPC's region / instance type)
 #       - ec2_instance_type             : The instance type that the K3s nodes will be made up of
-#                                         (Absolute minimum is t4g.small: Kubernetes can crash if cpu/memory is slow or constrained)
-#                                         (Highly recommend to upgrade to t4g.medium or t4g.large if you are planning to run 3 or more pods)
+#                                         (Default is t4g.large: 2 vCPU / 8 GiB)
+#                                         (Needs at least 2 vCPU. A control-plane node carries ~1.4 vCPU of requests
+#                                          before any workload, so a 1-vCPU type such as r7g.medium cannot schedule
+#                                          its own baseline and pods will sit Pending)
+#                                         (t4g.medium (4 GiB) is enough for a minimal cluster, but not for the full
+#                                          subsystem + application stack: measured at 81% memory allocated, which
+#                                          drove nodes into swap and took a control-plane node NotReady)
 #       - ec2_swapfile_size             : Sets the size of the SWAPFILE
 #                                         (Default is 1G : Should be between 512M - 1G
 #                                          Too much leads to inconsistent k3s behavior because nodes to be responsive to work)

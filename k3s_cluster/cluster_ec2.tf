@@ -18,18 +18,43 @@ locals {
   default_ami_name_pattern = var.ec2_ami_name
 
   default_controlplane = {
-    node_count        = 3
-    ec2_ami_id        = data.aws_ami.default.id
-    ec2_instance_type = "t4g.medium"
+    node_count = 3
+    ec2_ami_id = data.aws_ami.default.id
+    # t4g.large (2 vCPU / 8 GiB), NOT t4g.medium (2 vCPU / 4 GiB).
+    #
+    # A control-plane node carries ~1.4 vCPU and ~1 GiB of requests before any
+    # workload: the k3s server (apiserver, scheduler, controller-manager, etcd)
+    # plus the per-node DaemonSets (longhorn-manager, longhorn-csi-plugin,
+    # engine-image, node-exporter, svclb-traefik) and a Longhorn instance-manager
+    # sized at 12% of node CPU.
+    #
+    # On 4 GiB that left the full platform stack at 81% memory allocated, which
+    # was measured driving nodes into swap, then etcd apply latency of ~59s
+    # against a 100ms expectation, kubelet missing heartbeats, and a node going
+    # NotReady with a Longhorn volume faulted. 8 GiB drops the same stack to ~48%.
+    #
+    # Do not drop to a 1-vCPU type (r7g.medium etc.). The ~1.4 vCPU of baseline
+    # requests exceeds a 1-vCPU node's allocatable, so pods cannot be scheduled —
+    # a hard scheduling failure, not a slow node. Measured: 3x r7g.medium spilled
+    # the platform (Traefik, ArgoCD, Prometheus) onto Karpenter nodes and cost the
+    # same as 3x t4g.large to within $0.15/month.
+    ec2_instance_type = "t4g.large"
     ec2_swapfile_size = "1G"
     ebs_volume_size   = 16
     ebs_volume_type   = "gp3"
   }
 
   default_agentplane = {
-    node_count        = 3
-    ec2_ami_id        = data.aws_ami.default.id
-    ec2_instance_type = "t4g.medium"
+    node_count = 3
+    ec2_ami_id = data.aws_ami.default.id
+    # Matched to the control plane for consistency. An agent node does not run the
+    # k3s server components, so its floor is lower — but it still carries the same
+    # per-node DaemonSets and a Longhorn instance-manager, and it is the plane that
+    # actually hosts workloads. t4g.medium may well be adequate here; it is set to
+    # t4g.large only because the measurements behind that choice were taken on the
+    # control plane, and guessing a smaller size for the agent plane would not be
+    # evidence-backed.
+    ec2_instance_type = "t4g.large"
     ec2_swapfile_size = "1G"
     ebs_volume_size   = 16
     ebs_volume_type   = "gp3"

@@ -96,7 +96,7 @@ The `.claude/commands/` directory contains slash commands for use inside Claude 
 
 **1. Infrastructure Layer** (`k3s_cluster/*.tf`)
 - Provisions EC2 nodes (control plane + agent plane), a Network Load Balancer, S3 bootstrap bucket, IAM roles, and security groups.
-- `cluster_ec2.tf`: EC2 instance configs (default: 3 control-plane nodes, `t4g.medium`, Debian 13 ARM).
+- `cluster_ec2.tf`: EC2 instance configs (default: 3 control-plane nodes, `t4g.large`, Debian 13 ARM). Needs 2 vCPU minimum — a control-plane node carries ~1.4 vCPU of requests before any workload, so 1-vCPU types cannot schedule their own baseline.
 - `cloudinit.sh.tftpl`: User-data template — the entry point for all on-node provisioning.
 
 **2. Bootstrap Layer** (`k3s_cluster/cluster_app/bootstrap/`)

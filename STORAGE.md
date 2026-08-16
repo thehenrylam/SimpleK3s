@@ -42,7 +42,7 @@ Longhorn Engine (on pod's node)
 Every write goes to all replicas synchronously, so any replica is always up to date and can serve immediately when a pod moves.
 
 **Why Longhorn for SimpleK3s specifically:**
-- Rancher maintains both K3s and Longhorn — they are explicitly tested together, including on ARM64 (the default t4g.medium nodes).
+- Rancher maintains both K3s and Longhorn — they are explicitly tested together, including on ARM64 (the default t4g.large nodes).
 - Installs via Helm, fitting the existing subsystems layer pattern.
 - Built-in backup to S3, reusing the IAM role and bucket already provisioned by the SimpleK3s bootstrap layer — no extra AWS resources needed.
 - Volumes are not AZ-locked, so the Descheduler can rebalance stateful pods without hitting `VolumeZoneMismatch`.
