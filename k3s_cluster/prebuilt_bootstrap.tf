@@ -6,7 +6,7 @@ locals {
   # bootstrap = merge(local.bootstrap_default, var.bootstrap)
 
   s3_config_bootstrap = {
-    id      = aws_s3_bucket.bootstrap.id
+    id      = local.s3_bstrap_bucket_id
     keyroot = local.s3_bstrap_key_root_default
   }
   iam_config_bootstrap = {
