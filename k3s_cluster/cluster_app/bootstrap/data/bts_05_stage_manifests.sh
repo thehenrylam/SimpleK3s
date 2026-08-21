@@ -10,8 +10,13 @@ set -euo pipefail
 # converge (level-triggered reconciliation), instead of applying components one
 # at a time with per-component readiness waits. The K3s deploy controller
 # retries failed applies, so manifests that depend on CRDs from other charts
-# (e.g. karpenter-nodepool, traefik-middleware, tailscale-ingress) converge on
-# their own once their dependency is up.
+# (e.g. karpenter-nodepool, traefik-middleware) converge on their own once their
+# dependency is up.
+#
+# CAVEAT: that guarantee covers failed APPLIES only. A manifest that applies
+# cleanly and is then abandoned by its own controller is invisible here, because
+# the deploy controller has nothing left to retry. tailscale-ingress is exactly
+# that case (#126); components like it are repaired in converge_actions.sh.
 #
 # The ordering exceptions are the "head" charts, staged and gated BEFORE the
 # single-pass staging of everything else:
