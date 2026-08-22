@@ -1,4 +1,31 @@
 # OpenTofu / Terraform : SIMPLE K3S
+#
+# PROFILE: standard — 3 control-plane + 1 agent, all t4g.medium
+#
+# Copy over main.tf to use this profile.
+#
+# The reference deployment. Workloads are NOT pinned: no taints are set, and the
+# scheduler places the heavy pods on the agent on its own, because the agent is
+# the emptiest node. Measured on a full stack (Longhorn + monitoring + ArgoCD):
+# Prometheus (the largest consumer, ~967Mi) landed on the agent unprompted.
+#
+# Why an agent node at all: an agent does not run the k3s server components, so
+# it carries ~131m less CPU and ~788Mi less RAM of non-pod overhead than a
+# control-plane node (measured: control plane 128-258m / 1584-1924Mi, agent
+# 48m / 932Mi). On a 4 GiB node that is ~20% of the machine recovered simply by
+# not running etcd and the apiserver.
+#
+# Measured steady state, full stack:
+#   control planes  76-77% memory   (roughly half of which is the k3s server
+#                                    itself, invisible to the scheduler)
+#   agent           62% memory
+#   Karpenter       provisions in ~97s, folds back to zero in ~7m
+#
+# HEADROOM WARNING: the control planes sit near their practical ceiling. With
+# Longhorn's per-node DaemonSets the floor on a t4g.medium control plane is
+# ~58% before anything schedulable lands. If you add subsystems or your own
+# charts, move the control planes to t4g.large rather than shrinking elsewhere —
+# the floor is the control plane itself, not the workloads.
 
 terraform {
   required_version = "~> 1.11"

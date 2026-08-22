@@ -1,4 +1,23 @@
 # OpenTofu / Terraform : SIMPLE K3S
+#
+# PROFILE: control-plane only — 3 control-plane nodes, no agent plane
+#
+# Copy over main.tf to use this profile.
+#
+# The simpler shape: every node runs the k3s server, and workloads share the
+# control plane. No instance type is set, so both planes take the module default
+# (t4g.large, 2 vCPU / 8 GiB) from k3s_cluster/cluster_ec2.tf.
+#
+# Use this when you want fewer moving parts, or when you would rather pay for
+# headroom on three nodes than manage a fourth. It costs more per unit of usable
+# capacity than the standard profile, because every node pays the full k3s server
+# overhead (~1.4 vCPU and ~1 GiB of requests before any workload) instead of only
+# three of four.
+#
+# Do NOT drop these to t4g.medium with the full subsystem + application stack.
+# That was measured at 81% memory allocated, which drove nodes into swap, then
+# etcd apply latency of ~59s against a 100ms expectation, and a control-plane
+# node going NotReady with a Longhorn volume faulted (see issue #123).
 
 terraform {
   required_version = "~> 1.11"
@@ -176,13 +195,11 @@ module "k3s_cluster" {
   subnet_ids    = module.vpc_cloud.subnet_public_ids
 
   controlplane = {
-    node_count        = 3
-    ec2_instance_type = "t4g.medium"
+    node_count = 3
   }
 
   agentplane = {
-    node_count        = 1
-    ec2_instance_type = "t4g.medium"
+    node_count = 0
   }
 
   subsystems = {
