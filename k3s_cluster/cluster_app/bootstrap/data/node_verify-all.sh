@@ -222,6 +222,80 @@ function check_karpenter() {
             verify_fail "CRD $CRD is missing"
         fi
     done
+    check_karpenter_nodeclaims_progressing
+}
+
+# A NodeClaim that never finishes is the failure mode of issue #123: Karpenter
+# asks to remove a node, something refuses to release it, and the instance bills
+# indefinitely. Nothing errors — Karpenter simply retries forever — so without an
+# explicit check the only symptom is the AWS invoice.
+#
+# Two stuck states are reported:
+#   deleting  - deletionTimestamp set but the NodeClaim is still here. Drain is
+#               blocked, most likely by a PodDisruptionBudget that never releases.
+#   launching - never reached Ready. The instance exists but never joined, which
+#               is what a broken bootstrap entry point looks like (issue #121).
+#
+# The threshold is deliberately generous: a healthy node takes ~3 minutes to boot,
+# install packages and register, and Karpenter's own registration timeout is 15
+# minutes. Anything past that is genuinely stuck, not merely slow.
+function check_karpenter_nodeclaims_progressing() {
+    local STUCK_MINUTES="${KARPENTER_NODECLAIM_STUCK_MINUTES:-20}"
+    local STUCK
+
+    STUCK="$(sudo kubectl get nodeclaims -o json 2>/dev/null | python3 -c "
+import json, sys, datetime
+
+limit = int('${STUCK_MINUTES}')
+now = datetime.datetime.now(datetime.timezone.utc)
+cutoff = now - datetime.timedelta(minutes=limit)
+
+
+def parsed(ts):
+    if not ts:
+        return None
+    try:
+        return datetime.datetime.fromisoformat(ts.replace('Z', '+00:00'))
+    except ValueError:
+        return None
+
+
+try:
+    items = json.load(sys.stdin).get('items', [])
+except (json.JSONDecodeError, ValueError):
+    sys.exit(0)
+
+for nc in items:
+    meta = nc.get('metadata', {})
+    name = meta.get('name', '<unknown>')
+
+    deleting = parsed(meta.get('deletionTimestamp'))
+    if deleting is not None:
+        if deleting < cutoff:
+            mins = int((now - deleting).total_seconds() // 60)
+            print(f'{name}: deleting for {mins}m — drain is blocked (check PDBs)')
+        continue
+
+    ready = ''
+    for cond in nc.get('status', {}).get('conditions', []):
+        if cond.get('type') == 'Ready':
+            ready = cond.get('status', '')
+            break
+    if ready == 'True':
+        continue
+
+    created = parsed(meta.get('creationTimestamp'))
+    if created is not None and created < cutoff:
+        mins = int((now - created).total_seconds() // 60)
+        print(f'{name}: not Ready after {mins}m — node never joined')
+" 2>/dev/null || true)"
+
+    if [[ -z "$STUCK" ]]; then
+        verify_pass "No NodeClaims stuck longer than ${STUCK_MINUTES}m"
+    else
+        verify_fail "NodeClaims stuck longer than ${STUCK_MINUTES}m"
+        echo "$STUCK"
+    fi
 }
 
 # ─── Descheduler ─────────────────────────────────────────────────────────────

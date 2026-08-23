@@ -1,31 +1,26 @@
 # OpenTofu / Terraform : SIMPLE K3S
 #
-# PROFILE: standard — 3 control-plane + 1 agent, all t4g.medium
+# PROFILE: cost optimized - No High Availability
 #
-# Copy over main.tf to use this profile.
+# Copy over main.tf to use this profile AND modify all.yml to use it (instructions below):
+# 1. Adapt the following variables to account for the Single AZ setup in `./group_vars/all.yml`
+#   a. sbn_cidr_blocks        <- Have 1 entry in the array
+#   b. sbn_availability_zones <- Have 1 entry in the array
+#   c. node_count             <- Set this to 1
+#   d. availability_zones     <- Have 1 entry in the array (must match sbn_availability_zones)
+# 2. Apply the PVC module to ensure only 1 EBS volume is provisioned that resides in your AZ
 #
-# The reference deployment. Workloads are NOT pinned: no taints are set, and the
-# scheduler places the heavy pods on the agent on its own, because the agent is
-# the emptiest node. Measured on a full stack (Longhorn + monitoring + ArgoCD):
-# Prometheus (the largest consumer, ~967Mi) landed on the agent unprompted.
+# Having 1 control plane and 2 agent nodes allows for less overhead. 
+# As a control plane node, it needs to dedicate ~2 GB of RAM to run K3s,
+# Having 2 nodes to be agent nodes so that it can use the RAM that was supposed to run K3s elsewhere
+# allows us to squeeze more pods more efficiently.
 #
-# Why an agent node at all: an agent does not run the k3s server components, so
-# it carries ~131m less CPU and ~788Mi less RAM of non-pod overhead than a
-# control-plane node (measured: control plane 128-258m / 1584-1924Mi, agent
-# 48m / 932Mi). On a 4 GiB node that is ~20% of the machine recovered simply by
-# not running etcd and the apiserver.
+# CAUTION: Although this is cheaper to run, it has a major trade-off of going without HA (High Availability).
+# In other words, if the single control plane goes down, then the whole cluster will go down with it.
 #
-# Measured steady state, full stack:
-#   control planes  76-77% memory   (roughly half of which is the k3s server
-#                                    itself, invisible to the scheduler)
-#   agent           62% memory
-#   Karpenter       provisions in ~97s, folds back to zero in ~7m
-#
-# HEADROOM WARNING: the control planes sit near their practical ceiling. With
-# Longhorn's per-node DaemonSets the floor on a t4g.medium control plane is
-# ~58% before anything schedulable lands. If you add subsystems or your own
-# charts, move the control planes to t4g.large rather than shrinking elsewhere —
-# the floor is the control plane itself, not the workloads.
+# Use this when you are looking to test, when you are just starting at your project, or have loose SLAs
+# It is recommended to periodically review whether or not you are ok with having no HA for better cost efficiency, 
+# as the cost of downtimes could easily exceed the savings from having no HA can arrive when you least expect it
 
 terraform {
   required_version = "~> 1.11"
@@ -203,12 +198,12 @@ module "k3s_cluster" {
   subnet_ids    = module.vpc_cloud.subnet_public_ids
 
   controlplane = {
-    node_count        = 3
+    node_count        = 1
     ec2_instance_type = "t4g.medium"
   }
 
   agentplane = {
-    node_count        = 1
+    node_count        = 2
     ec2_instance_type = "t4g.medium"
   }
 

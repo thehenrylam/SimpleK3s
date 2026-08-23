@@ -5,12 +5,14 @@
 # the host-scoped path routing (mirrors external mode). Lives in the Traefik
 # Service's namespace because a Kubernetes Ingress backend is same-namespace.
 #
-# Applied by sub_apply_tailscale.sh as a SEPARATE phase, only after the
-# `${hostname_prefix}-proxy` ProxyClass (in tailscale-helmchart.yaml) reports
-# Ready. This ordering is deliberate: if the operator's ingress-reconciler sees
-# this Ingress before the ProxyClass is Ready, it logs "not (yet) Ready, waiting.."
-# and (in operator v1.98.4) never re-reconciles, leaving the proxy device
-# uncreated. Gating the apply on ProxyClass readiness closes that race.
+# Staged with every other manifest. The operator's ingress-reconciler gives up
+# permanently if it sees this Ingress before the `${hostname_prefix}-proxy`
+# ProxyClass (in tailscale-helmchart.yaml) is Ready: it logs "not (yet) Ready,
+# waiting.." and (in operator v1.98.4) is never re-triggered when the ProxyClass
+# does go Ready. That is the normal cold-boot ordering, so the proxy device ends
+# up uncreated. Staging cannot fix this — the Ingress applies cleanly on the
+# first attempt, so the K3s deploy controller has nothing to retry.
+# converge_actions.sh repairs it afterwards by restarting the operator (#126).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

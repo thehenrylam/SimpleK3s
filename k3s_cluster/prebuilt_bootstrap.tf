@@ -6,7 +6,7 @@ locals {
   # bootstrap = merge(local.bootstrap_default, var.bootstrap)
 
   s3_config_bootstrap = {
-    id      = aws_s3_bucket.bootstrap.id
+    id      = local.s3_bstrap_bucket_id
     keyroot = local.s3_bstrap_key_root_default
   }
   iam_config_bootstrap = {
@@ -35,13 +35,15 @@ module "cluster_app_bootstrap" {
     version         = var.k3s_version
     pstore_key_root = local.pstore_key_root
     env_vars = jsonencode({
-      bootstrap_dir      = local.bstrap_dir
-      nickname           = var.nickname
-      aws_region         = var.aws_region
-      controller_host    = local.controller_private_ip          # local.controller_host
-      swapfile_alloc_amt = local.controlplane.ec2_swapfile_size # var.ec2_swapfile_size
-      pstore_key_root    = local.pstore_key_root
-      s3_bucket_name     = local.s3_bstrap_name
+      bootstrap_dir              = local.bstrap_dir
+      nickname                   = var.nickname
+      aws_region                 = var.aws_region
+      controller_host            = local.controller_private_ip          # local.controller_host
+      swapfile_alloc_amt         = local.controlplane.ec2_swapfile_size # var.ec2_swapfile_size
+      pstore_key_root            = local.pstore_key_root
+      s3_bucket_name             = local.s3_bstrap_name
+      kube_reserved_controlplane = "cpu=${local.controlplane.kube_reserved_cpu},memory=${local.controlplane.kube_reserved_memory}"
+      kube_reserved_agent        = "cpu=${local.agentplane.kube_reserved_cpu},memory=${local.agentplane.kube_reserved_memory}"
     })
   }
   # S3 settings

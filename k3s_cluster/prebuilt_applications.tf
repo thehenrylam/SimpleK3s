@@ -6,7 +6,7 @@
 locals {
 
   s3_config_applications = {
-    id      = aws_s3_bucket.bootstrap.id
+    id      = local.s3_bstrap_bucket_id
     keyroot = local.s3_bstrap_key_root_default
   }
   iam_config_applications = {

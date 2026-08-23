@@ -70,8 +70,10 @@ module "aws_s3obj" {
       })
     },
     { # Tailnet entry-point Ingress (fronts Traefik's tsnet entrypoint).
-      # Staged alongside all other manifests; the K3s deploy controller retries
-      # until the ProxyClass is Ready and the operator creates the proxy device.
+      # Staged alongside all other manifests. NOTE: the K3s deploy controller
+      # cannot recover this one — it applies cleanly on the first attempt, and it
+      # is the Tailscale operator that then abandons it (#126). The repair lives
+      # in converge_actions.sh.
       desc = "Tailscale Tailnet Entrypoint Ingress",
       key  = "${var.s3_config.keyroot}/manifests/tailscale-ingress.yaml",
       src  = "${path.module}/data/tailscale-ingress.yaml",

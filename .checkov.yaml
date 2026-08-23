@@ -9,7 +9,7 @@ skip-path:
 #
 # Cost trade-offs (features that add AWS charges not appropriate for a hobbyist/startup tool):
 #   CKV_AWS_126  - EC2 detailed monitoring (CloudWatch detailed metrics are billed per instance)
-#   CKV_AWS_135  - EC2 EBS optimized (t4g.medium on Nitro is automatically EBS-optimized; flag is a false positive)
+#   CKV_AWS_135  - EC2 EBS optimized (Nitro-based instances such as the default t4g.large are EBS-optimized automatically; flag is a false positive)
 #   CKV_AWS_91   - NLB access logging (requires an S3 log bucket; adds cost)
 #   CKV_AWS_152  - NLB cross-zone load balancing (billed per GB processed across AZs)
 #   CKV2_AWS_11  - VPC flow logging (CloudWatch/S3 flow log ingestion is billed)

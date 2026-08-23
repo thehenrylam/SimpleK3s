@@ -21,6 +21,10 @@ set -euo pipefail
 #   - ArgoCD OIDC route restart (#95): argocd-server registers its OIDC HTTP
 #     routes ONCE at startup. On a fresh deploy it boots before External-Secrets
 #     populates the argocd-oidc secret, so the routes 404 until a restart.
+#   - Tailscale entrypoint reconcile (#126): the operator's ingress-reconciler
+#     gives up permanently if it sees the tailnet-entrypoint Ingress before its
+#     ProxyClass is Ready, which is the normal cold-boot ordering. Nothing
+#     re-triggers it, so the proxy device is never created.
 #
 # Long term these should become in-cluster Jobs (or upstream fixes) so this
 # file can be deleted.
@@ -183,6 +187,83 @@ function converge_action_argocd() {
     log_okay "argocd-server restarted with OIDC routes registered"
 }
 
+##################################################
+#  Tailscale : reconcile the tailnet entrypoint  #
+##################################################
+
+function converge_action_tailscale() {
+    if [ ! -f "$PENDING_MANIFEST_DIR/tailscale-ingress.yaml" ]; then
+        log_info "No Tailscale ingress manifest staged; skipping Tailscale entrypoint reconcile"
+        return 0
+    fi
+
+    local NS="tailscale"
+    local DEPLOY_NAME="operator"
+    local INGRESS_NAME="tailnet-entrypoint"
+    local SEL="tailscale.com/parent-resource=${INGRESS_NAME},tailscale.com/parent-resource-type=ingress"
+    local HAS_PROXY="sudo kubectl -n $NS get statefulset -l $SEL -o name 2>/dev/null | grep -q ."
+
+    log_info "Waiting for deployment '$DEPLOY_NAME' to be present..."
+    wait_for_cmd_5min sudo kubectl -n "$NS" get deploy "$DEPLOY_NAME" || {
+        log_fail "deployment '$DEPLOY_NAME' never appeared (Tailscale operator did not converge)"
+        sudo kubectl -n "$NS" get all || true
+        return 1
+    }
+
+    # The Ingress lives in Traefik's namespace (an Ingress backend is same-namespace),
+    # which is configurable via traefik_backend — look it up by name across namespaces
+    # rather than hardcoding one.
+    log_info "Waiting for the '$INGRESS_NAME' Ingress to be applied..."
+    wait_for_cmd_5min bash -c "sudo kubectl get ingress -A --field-selector metadata.name='$INGRESS_NAME' -o name 2>/dev/null | grep -q ." || {
+        log_fail "Ingress '$INGRESS_NAME' never appeared (its manifest did not apply)"
+        return 1
+    }
+
+    log_info "Waiting for the Tailscale ProxyClass to be Ready..."
+    wait_for_cmd_5min sudo kubectl wait --for=condition=ProxyClassReady proxyclass --all --timeout=10s || {
+        log_fail "No Tailscale ProxyClass reached Ready"
+        sudo kubectl get proxyclass -o wide || true
+        return 1
+    }
+
+    # Give the operator a fair chance to reconcile on its own before intervening: when it
+    # wins its own startup race (see below) the proxy appears within seconds of the
+    # ProxyClass going Ready. Only a stuck operator should ever be restarted.
+    if wait_for_cmd_1min bash -c "$HAS_PROXY"; then
+        log_okay "Tailscale proxy for '$INGRESS_NAME' exists; no restart needed"
+        return 0
+    fi
+
+    # Why (see #126): the operator's ingress-reconciler and proxyclass-reconciler start in
+    # the same instant on a cold boot. The Ingress is already in etcd by then, so the
+    # ingress-reconciler runs first, finds the ProxyClass not yet Ready, logs
+    # "not (yet) Ready, waiting.." and returns. Its sibling marks the ProxyClass Ready
+    # moments later, but that transition does not re-trigger the ingress-reconciler
+    # (operator v1.98.4) — so the Ingress is never reconciled and no tailnet device is
+    # created. Staging cannot fix this: the Ingress applied cleanly on the first attempt,
+    # so the K3s deploy controller has nothing to retry. Restarting is what breaks the
+    # deadlock, because on the second boot the ProxyClass is ALREADY Ready and the very
+    # first reconcile pass succeeds.
+    log_info "No proxy StatefulSet for '$INGRESS_NAME'; restarting the operator to force a re-reconcile"
+    sudo kubectl -n "$NS" rollout restart deployment "$DEPLOY_NAME" || return 1
+
+    log_info "Waiting for '$DEPLOY_NAME' to be ready after the restart..."
+    wait_for_cmd_3min sudo kubectl -n "$NS" rollout status "deploy/$DEPLOY_NAME" --timeout=10s || {
+        log_fail "deployment '$DEPLOY_NAME' not ready after restart"
+        sudo kubectl -n "$NS" get pods -o wide || true
+        return 1
+    }
+
+    log_info "Waiting for the proxy StatefulSet for '$INGRESS_NAME'..."
+    wait_for_cmd_3min bash -c "$HAS_PROXY" || {
+        log_fail "operator created no proxy StatefulSet for '$INGRESS_NAME' after the restart"
+        sudo kubectl -n "$NS" logs "deploy/$DEPLOY_NAME" --tail=50 || true
+        return 1
+    }
+
+    log_okay "Tailscale proxy for '$INGRESS_NAME' created"
+}
+
 
 log_info "$0: LAUNCHED"
 
@@ -198,6 +279,11 @@ converge_action_longhorn || {
 
 converge_action_argocd || {
     log_fail "Failed converge action: ArgoCD OIDC restart"
+    exit 1
+}
+
+converge_action_tailscale || {
+    log_fail "Failed converge action: Tailscale entrypoint reconcile"
     exit 1
 }
 

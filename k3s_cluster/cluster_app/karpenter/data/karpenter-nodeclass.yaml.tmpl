@@ -20,6 +20,32 @@ spec:
     securityGroupSelectorTerms:
         - name: "${security_group_name}"
 
+    # Root volume. Without this block a Karpenter node inherits the AMI's default
+    # root volume — 8 GB on the pinned Debian 13 ARM64 image — no matter which
+    # instance type Karpenter picks. See issue #124.
+    #
+    # That default scales the wrong way: a bigger instance attracts more pods,
+    # which pull more images, onto the same 8 GB. Observed on a t4g.2xlarge that
+    # sat at 78% root disk while using 3% of its 31.7 GB of RAM, then hit
+    # DiskPressure and evicted longhorn-manager and longhorn-csi-plugin — which
+    # cascaded into a control-plane node going NotReady and a Longhorn volume
+    # going faulted.
+    #
+    # blockDeviceMappings is static per EC2NodeClass and cannot scale with the
+    # chosen instance type, so this must suit the LARGEST instance the NodePool
+    # may provision, not the typical one.
+    #
+    # deviceName must match the AMI's root device (/dev/xvda for Debian); naming a
+    # different device silently attaches a second, unused volume and leaves the
+    # undersized root in place.
+    blockDeviceMappings:
+        - deviceName: /dev/xvda
+          ebs:
+              volumeSize: ${root_volume_size}Gi
+              volumeType: gp3
+              encrypted: true
+              deleteOnTermination: true
+
     tags:
         Name: "ec2-k3s-${cluster_name}-karpenter-worker"
         Nickname: "${cluster_name}"

@@ -18,21 +18,73 @@ locals {
   default_ami_name_pattern = var.ec2_ami_name
 
   default_controlplane = {
-    node_count        = 3
-    ec2_ami_id        = data.aws_ami.default.id
-    ec2_instance_type = "t4g.medium"
+    node_count = 3
+    ec2_ami_id = data.aws_ami.default.id
+    # t4g.large (2 vCPU / 8 GiB), NOT t4g.medium (2 vCPU / 4 GiB).
+    #
+    # A control-plane node carries ~1.4 vCPU and ~1 GiB of requests before any
+    # workload: the k3s server (apiserver, scheduler, controller-manager, etcd)
+    # plus the per-node DaemonSets (longhorn-manager, longhorn-csi-plugin,
+    # engine-image, node-exporter, svclb-traefik) and a Longhorn instance-manager
+    # sized at 12% of node CPU.
+    #
+    # On 4 GiB that left the full platform stack at 81% memory allocated, which
+    # was measured driving nodes into swap, then etcd apply latency of ~59s
+    # against a 100ms expectation, kubelet missing heartbeats, and a node going
+    # NotReady with a Longhorn volume faulted. 8 GiB drops the same stack to ~48%.
+    #
+    # Do not drop to a 1-vCPU type (r7g.medium etc.). The ~1.4 vCPU of baseline
+    # requests exceeds a 1-vCPU node's allocatable, so pods cannot be scheduled —
+    # a hard scheduling failure, not a slow node. Measured: 3x r7g.medium spilled
+    # the platform (Traefik, ArgoCD, Prometheus) onto Karpenter nodes and cost the
+    # same as 3x t4g.large to within $0.15/month.
+    ec2_instance_type = "t4g.large"
     ec2_swapfile_size = "1G"
     ebs_volume_size   = 16
     ebs_volume_type   = "gp3"
+
+    # kube-reserved: the slice of the node the scheduler must NOT hand out.
+    #
+    # K3s reserves nothing by default, so Allocatable == Capacity and the
+    # scheduler believes it owns memory the k3s server is already using. Measured
+    # on a live cluster (node total minus summed pod usage): a control-plane node
+    # carries 128-258m CPU and 1584-1924Mi RAM of non-pod overhead. Without a
+    # reservation the scheduler overestimated free memory by 2.4x.
+    #
+    # Why this is not merely cosmetic: pods are placed ONCE, and nothing in core
+    # Kubernetes migrates them afterwards. On a cold boot the control plane is
+    # briefly the only node in the cluster, so every manifest schedules onto it;
+    # when an agent joins a minute later, nothing moves back. An honest
+    # Allocatable makes the surplus pods go Pending instead, and Pending is what
+    # lets them land on the agent once it appears.
+    #
+    # Set above the measured ceiling: these figures come from a 3-node control
+    # plane where etcd and apiserver load was split three ways, and a single
+    # control plane carries all of it.
+    kube_reserved_cpu    = "500m"
+    kube_reserved_memory = "1800Mi"
   }
 
   default_agentplane = {
-    node_count        = 3
-    ec2_ami_id        = data.aws_ami.default.id
-    ec2_instance_type = "t4g.medium"
+    node_count = 3
+    ec2_ami_id = data.aws_ami.default.id
+    # Matched to the control plane for consistency. An agent node does not run the
+    # k3s server components, so its floor is lower — but it still carries the same
+    # per-node DaemonSets and a Longhorn instance-manager, and it is the plane that
+    # actually hosts workloads. t4g.medium may well be adequate here; it is set to
+    # t4g.large only because the measurements behind that choice were taken on the
+    # control plane, and guessing a smaller size for the agent plane would not be
+    # evidence-backed.
+    ec2_instance_type = "t4g.large"
     ec2_swapfile_size = "1G"
     ebs_volume_size   = 16
     ebs_volume_type   = "gp3"
+
+    # Lower than the control plane: an agent runs no k3s server components.
+    # Measured non-pod overhead on an agent is 48m CPU / 932Mi RAM, against
+    # 128-258m / 1584-1924Mi on a control plane — roughly 131m and 788Mi cheaper.
+    kube_reserved_cpu    = "200m"
+    kube_reserved_memory = "1000Mi"
   }
 
   controlplane = {
@@ -47,6 +99,10 @@ locals {
     # EBS
     ebs_volume_size = coalesce(try(var.controlplane.ec2_volume_size, null), local.default_controlplane.ebs_volume_size)
     ebs_volume_type = coalesce(try(var.controlplane.ec2_volume_type, null), local.default_controlplane.ebs_volume_type)
+
+    # Kubelet
+    kube_reserved_cpu    = coalesce(try(var.controlplane.kube_reserved_cpu, null), local.default_controlplane.kube_reserved_cpu)
+    kube_reserved_memory = coalesce(try(var.controlplane.kube_reserved_memory, null), local.default_controlplane.kube_reserved_memory)
 
     # Custom (Overrides)
     controller_private_ip_override = local.controller_private_ip
@@ -64,6 +120,10 @@ locals {
     # EBS
     ebs_volume_size = coalesce(try(var.agentplane.ec2_volume_size, null), local.default_agentplane.ebs_volume_size)
     ebs_volume_type = coalesce(try(var.agentplane.ec2_volume_type, null), local.default_agentplane.ebs_volume_type)
+
+    # Kubelet
+    kube_reserved_cpu    = coalesce(try(var.agentplane.kube_reserved_cpu, null), local.default_agentplane.kube_reserved_cpu)
+    kube_reserved_memory = coalesce(try(var.agentplane.kube_reserved_memory, null), local.default_agentplane.kube_reserved_memory)
   }
 }
 

@@ -15,6 +15,32 @@ spec:
       # Only create disks on nodes that have longhorn.io/default-disks-annotation set.
       # This prevents Longhorn from using root disks; only explicitly registered EBS disks are used.
       createDefaultDiskLabeledNodes: true
+
+      # Stop Longhorn's instance-manager PodDisruptionBudgets from pinning autoscaled
+      # nodes in place. See issue #123.
+      #
+      # Longhorn gives every node's instance-manager a PDB with minAvailable:1 against a
+      # selector matching exactly that one pod — so disruptionsAllowed is 0 by arithmetic
+      # and never changes on its own. Longhorn releases it when it sees the node marked
+      # unschedulable (`kubectl cordon`) or carrying the CLUSTER AUTOSCALER's deletion
+      # taint. Karpenter is a different project and taints with karpenter.sh/disrupted,
+      # which Longhorn does not recognise, so the PDB is never released and Karpenter
+      # cannot drain the node. Verified on a live cluster: empty nodes sat unreclaimed
+      # for 30+ minutes until cordoned by hand.
+      #
+      # This setting makes Longhorn keep only the PDBs it genuinely needs — one healthy
+      # replica per volume stays protected, and nodes holding no replicas get no PDB at
+      # all. A Karpenter node never holds replicas (createDefaultDiskLabeledNodes above
+      # means it gets no disks), so it becomes freely drainable. Confirmed on a live
+      # cluster: with this on, the Karpenter node had no instance-manager PDB.
+      #
+      # Trade-off, per Longhorn's docs: "Replica rebuilding could be expensive because
+      # nodes with reusable replicas could get removed." That applies to nodes that hold
+      # replicas — ours are the control-plane nodes with the EBS pools, which Karpenter
+      # never touches. Longhorn also marks this setting Experimental.
+      #
+      # Requires volumes to have more than one replica; ours have one per AZ.
+      kubernetesClusterAutoscalerEnabled: true
 %{ if backup_enabled ~}
       backupTarget: "${backup_target}"
       backupTargetCredentialSecret: ""
