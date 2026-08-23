@@ -42,6 +42,27 @@ locals {
     ec2_swapfile_size = "1G"
     ebs_volume_size   = 16
     ebs_volume_type   = "gp3"
+
+    # kube-reserved: the slice of the node the scheduler must NOT hand out.
+    #
+    # K3s reserves nothing by default, so Allocatable == Capacity and the
+    # scheduler believes it owns memory the k3s server is already using. Measured
+    # on a live cluster (node total minus summed pod usage): a control-plane node
+    # carries 128-258m CPU and 1584-1924Mi RAM of non-pod overhead. Without a
+    # reservation the scheduler overestimated free memory by 2.4x.
+    #
+    # Why this is not merely cosmetic: pods are placed ONCE, and nothing in core
+    # Kubernetes migrates them afterwards. On a cold boot the control plane is
+    # briefly the only node in the cluster, so every manifest schedules onto it;
+    # when an agent joins a minute later, nothing moves back. An honest
+    # Allocatable makes the surplus pods go Pending instead, and Pending is what
+    # lets them land on the agent once it appears.
+    #
+    # Set above the measured ceiling: these figures come from a 3-node control
+    # plane where etcd and apiserver load was split three ways, and a single
+    # control plane carries all of it.
+    kube_reserved_cpu    = "500m"
+    kube_reserved_memory = "1800Mi"
   }
 
   default_agentplane = {
@@ -58,6 +79,12 @@ locals {
     ec2_swapfile_size = "1G"
     ebs_volume_size   = 16
     ebs_volume_type   = "gp3"
+
+    # Lower than the control plane: an agent runs no k3s server components.
+    # Measured non-pod overhead on an agent is 48m CPU / 932Mi RAM, against
+    # 128-258m / 1584-1924Mi on a control plane — roughly 131m and 788Mi cheaper.
+    kube_reserved_cpu    = "200m"
+    kube_reserved_memory = "1000Mi"
   }
 
   controlplane = {
@@ -72,6 +99,10 @@ locals {
     # EBS
     ebs_volume_size = coalesce(try(var.controlplane.ec2_volume_size, null), local.default_controlplane.ebs_volume_size)
     ebs_volume_type = coalesce(try(var.controlplane.ec2_volume_type, null), local.default_controlplane.ebs_volume_type)
+
+    # Kubelet
+    kube_reserved_cpu    = coalesce(try(var.controlplane.kube_reserved_cpu, null), local.default_controlplane.kube_reserved_cpu)
+    kube_reserved_memory = coalesce(try(var.controlplane.kube_reserved_memory, null), local.default_controlplane.kube_reserved_memory)
 
     # Custom (Overrides)
     controller_private_ip_override = local.controller_private_ip
@@ -89,6 +120,10 @@ locals {
     # EBS
     ebs_volume_size = coalesce(try(var.agentplane.ec2_volume_size, null), local.default_agentplane.ebs_volume_size)
     ebs_volume_type = coalesce(try(var.agentplane.ec2_volume_type, null), local.default_agentplane.ebs_volume_type)
+
+    # Kubelet
+    kube_reserved_cpu    = coalesce(try(var.agentplane.kube_reserved_cpu, null), local.default_agentplane.kube_reserved_cpu)
+    kube_reserved_memory = coalesce(try(var.agentplane.kube_reserved_memory, null), local.default_agentplane.kube_reserved_memory)
   }
 }
 

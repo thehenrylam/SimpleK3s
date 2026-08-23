@@ -40,9 +40,19 @@ function install_k3s_controller() {
 
     local controller_host="${1:-$CONTROLLER_HOST}"
 
+    # Same reservation as install_k3s_server: this is still a control-plane node,
+    # it just happens to be the one that initialises the cluster. Missing it here
+    # leaves node-0 with Allocatable == Capacity while every other node is
+    # reserved correctly — and on a single-control-plane cluster node-0 is the
+    # ONLY control plane, so the reservation silently does nothing at all.
+    local extra_args=()
+    [[ -n "${KUBE_RESERVED_CONTROLPLANE:-}" ]] &&
+        extra_args+=(--kubelet-arg="kube-reserved=$KUBE_RESERVED_CONTROLPLANE")
+
     curl -sfL "$K3S_INSTALL_URL" | INSTALL_K3S_VERSION="$K3S_VERSION" sh -s - server \
         --cluster-init \
         --disable=traefik \
+        "${extra_args[@]}" \
         --tls-san="$controller_host" 2>&1
 }
 # Install K3s (Server)
@@ -67,10 +77,53 @@ function install_k3s_server() {
     local join_host="${2:-$CONTROLLER_HOST}"
     local tls_san="${3:-$CONTROLLER_HOST}"
 
+    # Reserve the k3s server's own footprint so the scheduler cannot hand it out.
+    # K3s sets no reservation by default (Allocatable == Capacity), which was
+    # measured overestimating free memory by 2.4x on a control-plane node.
+    local extra_args=()
+    [[ -n "${KUBE_RESERVED_CONTROLPLANE:-}" ]] &&
+        extra_args+=(--kubelet-arg="kube-reserved=$KUBE_RESERVED_CONTROLPLANE")
+
     curl -sfL "$K3S_INSTALL_URL" | INSTALL_K3S_VERSION="$K3S_VERSION" K3S_TOKEN="$token" sh -s - server \
         --server "https://$join_host:6443" \
         --disable=traefik \
+        "${extra_args[@]}" \
         --tls-san="$tls_san" 2>&1
+}
+
+# Scale an agent's kube-reserved memory to the node's ACTUAL size.
+#
+# The configured value is a CEILING, measured on a t4g.large agent (932Mi of
+# non-pod overhead, ~12% of that node). Karpenter chooses agent instance types at
+# runtime and can pick something 17x smaller, where a flat value is catastrophic:
+# 1000Mi on a t4g.small reserves 54% of the machine. After Longhorn's per-node
+# DaemonSets (manager, csi-plugin, engine-image, instance-manager) plus
+# node-exporter and svclb, that leaves room for roughly ONE workload pod — so
+# Karpenter provisions another node, and another. Measured: 8 t4g.small nodes
+# carrying 7-9 pods each, of which only one per node was not a DaemonSet.
+#
+# Control-plane nodes deliberately keep a FLAT value instead: etcd and the
+# apiserver have a largely fixed footprint that does not shrink with the node,
+# and those nodes are sized by the operator rather than by Karpenter.
+function scale_reserved_memory() {
+    local spec="$1"                # e.g. "cpu=200m,memory=1000Mi"
+    local pct="${2:-12}"           # percent of node memory (matches the measurement)
+    local floor_mi="${3:-300}"     # kubelet + containerd + OS never fit under this
+
+    local ceiling_mi
+    ceiling_mi="$(echo "$spec" | sed -n 's/.*memory=\([0-9]\{1,\}\)Mi.*/\1/p')"
+    if [[ -z "$ceiling_mi" ]]; then
+        echo "$spec"
+        return 0
+    fi
+
+    local total_mi scaled_mi
+    total_mi="$(( $(awk '/^MemTotal:/{print $2}' /proc/meminfo) / 1024 ))"
+    scaled_mi="$(( total_mi * pct / 100 ))"
+    (( scaled_mi < floor_mi )) && scaled_mi="$floor_mi"
+    (( scaled_mi > ceiling_mi )) && scaled_mi="$ceiling_mi"
+
+    echo "$spec" | sed "s/memory=[0-9]\{1,\}Mi/memory=${scaled_mi}Mi/"
 }
 
 # Install K3s (Agent)
@@ -85,6 +138,14 @@ function install_k3s_agent() {
 
     local extra_args=()
     [[ -n "$provider_id" ]] && extra_args+=(--kubelet-arg="provider-id=$provider_id")
+    # Lower than the control plane's: an agent runs no k3s server components.
+    # Scaled to this node's real size — see scale_reserved_memory above.
+    if [[ -n "${KUBE_RESERVED_AGENT:-}" ]]; then
+        local reserved
+        reserved="$(scale_reserved_memory "$KUBE_RESERVED_AGENT")"
+        log_info "kube-reserved (agent): $reserved (configured ceiling: $KUBE_RESERVED_AGENT)"
+        extra_args+=(--kubelet-arg="kube-reserved=$reserved")
+    fi
 
     curl -sfL "$K3S_INSTALL_URL" | INSTALL_K3S_VERSION="$K3S_VERSION" K3S_TOKEN="$token" sh -s - agent \
         --server "https://$controller_host:6443" \
