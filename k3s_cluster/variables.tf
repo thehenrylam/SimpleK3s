@@ -102,14 +102,14 @@ variable "controlplane" {
 variable "agentplane" {
   description = "The agent plane settings"
   type = object({
-    node_count            = optional(number)
-    ec2_ami_id            = optional(string)
-    ec2_instance_type     = optional(string)
-    ec2_swapfile_size     = optional(string)
-    ebs_volume_size       = optional(number)
-    ebs_volume_type       = optional(string)
-    kube_reserved_cpu     = optional(string)
-    kube_reserved_memory  = optional(string)
+    node_count           = optional(number)
+    ec2_ami_id           = optional(string)
+    ec2_instance_type    = optional(string)
+    ec2_swapfile_size    = optional(string)
+    ebs_volume_size      = optional(number)
+    ebs_volume_type      = optional(string)
+    kube_reserved_cpu    = optional(string)
+    kube_reserved_memory = optional(string)
   })
   default = {}
 }
