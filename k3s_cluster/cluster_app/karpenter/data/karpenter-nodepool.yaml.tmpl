@@ -33,13 +33,52 @@ spec:
                   operator: Gt
                   values: ["${instance_generation_gt}"]
 
+                # Node size envelope. Karpenter sizes nodes to the pods it is
+                # packing, so without an upper bound a large pod pulls in a much
+                # larger node than the cluster was planned around.
+                #
+                # Gte/Lte, not Gt/Lt: Karpenter treats Gt/Lt as STRICTLY
+                # exclusive, so Gt "4096" would exclude the t4g.medium it names.
+%{ if min_instance_cpu != "" ~}
+                - key: karpenter.k8s.aws/instance-cpu
+                  operator: Gte
+                  values: ["${min_instance_cpu}"]
+%{ endif ~}
+%{ if max_instance_cpu != "" ~}
+                - key: karpenter.k8s.aws/instance-cpu
+                  operator: Lte
+                  values: ["${max_instance_cpu}"]
+%{ endif ~}
+%{ if min_instance_memory_mib != "" ~}
+                - key: karpenter.k8s.aws/instance-memory
+                  operator: Gte
+                  values: ["${min_instance_memory_mib}"]
+%{ endif ~}
+%{ if max_instance_memory_mib != "" ~}
+                - key: karpenter.k8s.aws/instance-memory
+                  operator: Lte
+                  values: ["${max_instance_memory_mib}"]
+%{ endif ~}
+
+    # cpu/memory bound total spend. For t4g, price is exactly $0.0084/GiB-hr at
+    # every size, so memory_limit is an exact ceiling: $/mo = GiB x $6.132.
+    #
+    # `nodes` is unset on purpose: capping node COUNT fights the point of
+    # autoscaling. Set node_limit only when the count itself is the constraint
+    # (subnet IP exhaustion, a per-node licence).
     limits:
+%{ if node_limit != "" ~}
+        nodes: "${node_limit}"
+%{ endif ~}
         cpu: "${cpu_limit}"
         memory: "${memory_limit}"
 
     disruption:
         # Allow at least 1 node to be disrupted at a time.
         # The default budget (10%) rounds down to 0 on small clusters, blocking consolidation entirely.
+        #
+        # Note this makes scale-down SERIAL (~13 min/node measured), so a
+        # multi-node burst unwinds slowly. That is slow, not stuck.
         budgets:
             - nodes: "1" # "10%" is the default. "1" is used since we expect SimpleK3s to work with only a few nodes per cluster
         consolidationPolicy: WhenEmptyOrUnderutilized

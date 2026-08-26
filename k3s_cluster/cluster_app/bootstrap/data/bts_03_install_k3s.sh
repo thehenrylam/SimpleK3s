@@ -282,8 +282,14 @@ function k3s_agent() {
     provider_id="$(get_ec2_provider_id)" || return 1
     log_info "Provider ID: $provider_id"
 
+    # Non-fatal: without it the node still works, it just cannot be consolidated.
+    log_info "Fetching EC2 instance type"
+    local instance_type
+    instance_type="$(get_ec2_instance_type)" || instance_type=""
+    log_info "Instance type: ${instance_type:-<unavailable>}"
+
     log_info "Set up K3s Agent"
-    install_k3s_agent "$token" "$CONTROLLER_HOST" "$provider_id" || return 1
+    install_k3s_agent "$token" "$CONTROLLER_HOST" "$provider_id" "$instance_type" || return 1
     log_okay "K3s Agent successfully installed!"
 }
 

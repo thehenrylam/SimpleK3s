@@ -30,9 +30,18 @@ variable "settings" {
     arch                   = optional(string)
     instance_categories    = optional(list(string))
     instance_generation_gt = optional(number)
-    cpu_limit              = optional(string)
-    memory_limit           = optional(string)
-    consolidate_after      = optional(string)
+    # Node size envelope — bounds the shape of ONE node. Omit either end to
+    # leave it open.
+    min_instance_cpu        = optional(number)
+    max_instance_cpu        = optional(number)
+    min_instance_memory_mib = optional(number)
+    max_instance_memory_mib = optional(number)
+    # Aggregate ceiling for the pool. node_limit caps node COUNT and is unset
+    # by default; cpu/memory are the standing backstop.
+    node_limit        = optional(string)
+    cpu_limit         = optional(string)
+    memory_limit      = optional(string)
+    consolidate_after = optional(string)
   })
 }
 

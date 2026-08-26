@@ -135,9 +135,21 @@ function install_k3s_agent() {
     local token="${1}"
     local controller_host="${2:-$CONTROLLER_HOST}"
     local provider_id="${3:-}"
+    local instance_type="${4:-}"
 
     local extra_args=()
     [[ -n "$provider_id" ]] && extra_args+=(--kubelet-arg="provider-id=$provider_id")
+
+    # Stamp the REAL instance type at registration. K3s's embedded cloud
+    # provider otherwise sets this label to the literal "k3s", which Karpenter
+    # cannot resolve to a price — the node is then marked Unconsolidatable and
+    # can never be scaled back down. Since k3s-io/k3s#9721 a kubelet-supplied
+    # value is respected rather than clobbered.
+    if [[ -n "$instance_type" ]]; then
+        extra_args+=(--node-label "node.kubernetes.io/instance-type=$instance_type")
+    else
+        log_warn "instance type unavailable; node will register as \"k3s\" and Karpenter will not be able to consolidate it"
+    fi
     # Lower than the control plane's: an agent runs no k3s server components.
     # Scaled to this node's real size — see scale_reserved_memory above.
     if [[ -n "${KUBE_RESERVED_AGENT:-}" ]]; then

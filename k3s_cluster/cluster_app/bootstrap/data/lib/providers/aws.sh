@@ -131,6 +131,12 @@ function imds_get() {
     echo "$value"
 }
 
+# Returns this EC2 instance's type (e.g. t4g.medium). Used to stamp
+# node.kubernetes.io/instance-type at registration — see install_k3s_agent.
+function get_ec2_instance_type() {
+    imds_get "instance-type"
+}
+
 # Returns this EC2 instance's ID (e.g. i-0123456789abcdef0)
 function get_ec2_instance_id() {
     imds_get "instance-id"

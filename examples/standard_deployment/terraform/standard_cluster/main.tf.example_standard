@@ -227,9 +227,17 @@ module "k3s_cluster" {
       arch                   = "arm64"
       instance_categories    = ["t"] # ["m", "c", "r"]
       instance_generation_gt = 3
-      cpu_limit              = "32"
-      memory_limit           = "128Gi"
-      consolidate_after      = "5m"
+      # Node size envelope: every Karpenter node lands between t4g.medium and
+      # t4g.xlarge. See the karpenter module for the reasoning.
+      min_instance_cpu        = 2
+      max_instance_cpu        = 4
+      min_instance_memory_mib = 4096
+      max_instance_memory_mib = 16384
+      # node_limit omitted on purpose — cpu/memory already bound spend.
+      # node_limit      = "3"
+      cpu_limit         = "16"
+      memory_limit      = "64Gi"
+      consolidate_after = "5m"
     }
 
     # Persistent storage — deploy examples/ex_pvc first to create the EBS volumes.
