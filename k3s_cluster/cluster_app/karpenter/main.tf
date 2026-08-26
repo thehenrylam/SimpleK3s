@@ -33,9 +33,20 @@ locals {
     arch                   = "arm64"
     instance_categories    = ["m", "c", "r"]
     instance_generation_gt = 3
-    cpu_limit              = "32"
-    memory_limit           = "128Gi"
-    consolidate_after      = "5m"
+    # Node size envelope (#131). Defaults describe a t4g.medium..t4g.xlarge
+    # window: big enough to carry the DaemonSet tax plus real work, small enough
+    # that a t4g.2xlarge (8 vCPU / 32 GiB) cannot appear unprompted. Set any of
+    # these to null to leave that end of the range open.
+    min_instance_cpu        = 2     # 1-vCPU types cannot carry their own baseline
+    max_instance_cpu        = 4     # excludes t4g.2xlarge (8 vCPU)
+    min_instance_memory_mib = 4096  # t4g.medium
+    max_instance_memory_mib = 16384 # t4g.xlarge; excludes 2xlarge (32768)
+    # Aggregate ceiling. memory_limit is an exact spend cap for t4g: $/mo = GiB x $6.132.
+    # node_limit is intentionally unset — see the `limits:` comment in the template.
+    node_limit        = null
+    cpu_limit         = "16"
+    memory_limit      = "64Gi"
+    consolidate_after = "5m"
   }
 
   settings = {
@@ -56,9 +67,18 @@ locals {
     arch                   = coalesce(try(var.settings.arch, null), local.default_settings.arch)
     instance_categories    = coalesce(try(var.settings.instance_categories, null), local.default_settings.instance_categories)
     instance_generation_gt = coalesce(try(var.settings.instance_generation_gt, null), local.default_settings.instance_generation_gt)
-    cpu_limit              = coalesce(try(var.settings.cpu_limit, null), local.default_settings.cpu_limit)
-    memory_limit           = coalesce(try(var.settings.memory_limit, null), local.default_settings.memory_limit)
-    consolidate_after      = coalesce(try(var.settings.consolidate_after, null), local.default_settings.consolidate_after)
+    # Optional bounds: "" tells the template to omit the stanza entirely, so a
+    # caller can open an end of the range. coalesce() cannot express this — it
+    # treats "" as absent and would fall back to the default — hence the explicit
+    # null checks.
+    min_instance_cpu        = try(var.settings.min_instance_cpu, null) != null ? tostring(var.settings.min_instance_cpu) : (local.default_settings.min_instance_cpu == null ? "" : tostring(local.default_settings.min_instance_cpu))
+    max_instance_cpu        = try(var.settings.max_instance_cpu, null) != null ? tostring(var.settings.max_instance_cpu) : (local.default_settings.max_instance_cpu == null ? "" : tostring(local.default_settings.max_instance_cpu))
+    min_instance_memory_mib = try(var.settings.min_instance_memory_mib, null) != null ? tostring(var.settings.min_instance_memory_mib) : (local.default_settings.min_instance_memory_mib == null ? "" : tostring(local.default_settings.min_instance_memory_mib))
+    max_instance_memory_mib = try(var.settings.max_instance_memory_mib, null) != null ? tostring(var.settings.max_instance_memory_mib) : (local.default_settings.max_instance_memory_mib == null ? "" : tostring(local.default_settings.max_instance_memory_mib))
+    node_limit              = try(var.settings.node_limit, null) != null ? tostring(var.settings.node_limit) : (local.default_settings.node_limit == null ? "" : tostring(local.default_settings.node_limit))
+    cpu_limit               = coalesce(try(var.settings.cpu_limit, null), local.default_settings.cpu_limit)
+    memory_limit            = coalesce(try(var.settings.memory_limit, null), local.default_settings.memory_limit)
+    consolidate_after       = coalesce(try(var.settings.consolidate_after, null), local.default_settings.consolidate_after)
   }
 
 }
@@ -174,14 +194,19 @@ module "aws_s3obj" {
       key  = "${var.s3_config.keyroot}/manifests/karpenter-nodepool.yaml"
       src  = "${path.module}/data/karpenter-nodepool.yaml"
       template = jsonencode({
-        cluster_name           = local.settings.cluster_name
-        capacity_type          = local.settings.capacity_type
-        arch                   = local.settings.arch
-        instance_categories    = local.settings.instance_categories
-        instance_generation_gt = local.settings.instance_generation_gt
-        cpu_limit              = local.settings.cpu_limit
-        memory_limit           = local.settings.memory_limit
-        consolidate_after      = local.settings.consolidate_after
+        cluster_name            = local.settings.cluster_name
+        capacity_type           = local.settings.capacity_type
+        arch                    = local.settings.arch
+        instance_categories     = local.settings.instance_categories
+        instance_generation_gt  = local.settings.instance_generation_gt
+        min_instance_cpu        = local.settings.min_instance_cpu
+        max_instance_cpu        = local.settings.max_instance_cpu
+        min_instance_memory_mib = local.settings.min_instance_memory_mib
+        max_instance_memory_mib = local.settings.max_instance_memory_mib
+        node_limit              = local.settings.node_limit
+        cpu_limit               = local.settings.cpu_limit
+        memory_limit            = local.settings.memory_limit
+        consolidate_after       = local.settings.consolidate_after
       })
     },
   ]

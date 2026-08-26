@@ -151,9 +151,23 @@ variable "subsystems" {
       arch                   = optional(string)
       instance_categories    = optional(list(string))
       instance_generation_gt = optional(number)
-      cpu_limit              = optional(string)
-      memory_limit           = optional(string)
-      consolidate_after      = optional(string)
+      # Root volume size (GiB) for provisioned nodes (#124).
+      root_volume_size = optional(number)
+      # Node size envelope — bounds the shape of ONE node (#131). Karpenter
+      # sizes instances to the pods it packs, so without an upper bound a large
+      # pod can pull in a far bigger node than planned. Pass null for either end
+      # to leave it open.
+      min_instance_cpu        = optional(number)
+      max_instance_cpu        = optional(number)
+      min_instance_memory_mib = optional(number)
+      max_instance_memory_mib = optional(number)
+      # Aggregate ceiling for the pool. cpu/memory are the standing backstop
+      # (for t4g, memory_limit is an exact spend cap: $/mo = GiB x $6.132).
+      # node_limit caps node COUNT and is unset by default (#131).
+      node_limit        = optional(string)
+      cpu_limit         = optional(string)
+      memory_limit      = optional(string)
+      consolidate_after = optional(string)
     }))
     longhorn = optional(object({
       version = optional(string)

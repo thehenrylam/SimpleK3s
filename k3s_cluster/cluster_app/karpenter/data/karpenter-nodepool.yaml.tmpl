@@ -33,13 +33,81 @@ spec:
                   operator: Gt
                   values: ["${instance_generation_gt}"]
 
+                # ── Node size envelope ────────────────────────────────────────
+                #
+                # Karpenter does not pick the cheapest instance that clears these
+                # bounds; it bin-packs the pending pods and picks whatever fits
+                # them. Big pods therefore pull in big nodes on their own. These
+                # requirements constrain the SHAPE of a node, which is what makes
+                # provisioning predictable — measured on a live cluster, two pods
+                # requesting 1200m each produced a t4g.2xlarge unprompted.
+                #
+                # Karpenter's Gt/Lt are strictly EXCLUSIVE (unlike Kubernetes
+                # nodeAffinity, where they read as >= and <=). Gte/Lte are used
+                # here so the boundary instance is included as written — Gt with
+                # "4096" would silently exclude the t4g.medium it names.
+                #
+                # Omit a bound in the module settings to leave that end open.
+                #
+                # Floor rationale: a node too small to host a workload cannot
+                # resolve the pod that triggered it, so Karpenter provisions
+                # again. The per-node DaemonSet tax (Longhorn manager, csi-plugin,
+                # engine-image, instance-manager, node-exporter, svclb) is roughly
+                # constant regardless of node size, so it consumes a far larger
+                # fraction of a small node. Measured: 8 t4g.small carrying 7-9
+                # pods each, only one of which was not a DaemonSet.
+%{ if min_instance_cpu != "" ~}
+                - key: karpenter.k8s.aws/instance-cpu
+                  operator: Gte
+                  values: ["${min_instance_cpu}"]
+%{ endif ~}
+%{ if max_instance_cpu != "" ~}
+                - key: karpenter.k8s.aws/instance-cpu
+                  operator: Lte
+                  values: ["${max_instance_cpu}"]
+%{ endif ~}
+%{ if min_instance_memory_mib != "" ~}
+                - key: karpenter.k8s.aws/instance-memory
+                  operator: Gte
+                  values: ["${min_instance_memory_mib}"]
+%{ endif ~}
+%{ if max_instance_memory_mib != "" ~}
+                - key: karpenter.k8s.aws/instance-memory
+                  operator: Lte
+                  values: ["${max_instance_memory_mib}"]
+%{ endif ~}
+
+    # ── Aggregate ceiling ─────────────────────────────────────────────────────
+    #
+    # The size envelope above bounds one node; these bound the whole pool.
+    #
+    # cpu/memory are the standing backstop. For the t4g family, price is exactly
+    # $0.0084 per GiB-hour at every size, so `memory` doubles as an exact spend
+    # ceiling: $/mo = GiB x $6.132. Verified against a live runaway that hit
+    # cpu:16 / 64Gi and cost $392.45/mo.
+    #
+    # `nodes` is deliberately NOT set by default. Karpenter exists to scale with
+    # demand, and a node count caps the wrong axis: it constrains how many nodes
+    # answer the workload rather than what they cost. cpu/memory already bound
+    # spend, and the envelope above bounds each node's shape. Set node_limit only
+    # when the node COUNT itself is what matters — an IP-per-node subnet ceiling,
+    # a per-node licence, or an operator who wants a hard stop while debugging.
     limits:
+%{ if node_limit != "" ~}
+        nodes: "${node_limit}"
+%{ endif ~}
         cpu: "${cpu_limit}"
         memory: "${memory_limit}"
 
     disruption:
         # Allow at least 1 node to be disrupted at a time.
         # The default budget (10%) rounds down to 0 on small clusters, blocking consolidation entirely.
+        #
+        # Note this makes scale-down SERIAL: measured at ~13.5 minutes for a
+        # single node (5m consolidateAfter, then PDB-blocked retries), so a
+        # 3-node burst takes ~40 minutes to unwind fully. That is slow, not
+        # stuck — raise this budget if faster unwinding matters more than
+        # disrupting one node at a time.
         budgets:
             - nodes: "1" # "10%" is the default. "1" is used since we expect SimpleK3s to work with only a few nodes per cluster
         consolidationPolicy: WhenEmptyOrUnderutilized
