@@ -282,8 +282,15 @@ function k3s_agent() {
     provider_id="$(get_ec2_provider_id)" || return 1
     log_info "Provider ID: $provider_id"
 
+    # Non-fatal: a node that registers without this still works, it just cannot be
+    # consolidated by Karpenter. Better a running node than a failed bootstrap.
+    log_info "Fetching EC2 instance type"
+    local instance_type
+    instance_type="$(get_ec2_instance_type)" || instance_type=""
+    log_info "Instance type: ${instance_type:-<unavailable>}"
+
     log_info "Set up K3s Agent"
-    install_k3s_agent "$token" "$CONTROLLER_HOST" "$provider_id" || return 1
+    install_k3s_agent "$token" "$CONTROLLER_HOST" "$provider_id" "$instance_type" || return 1
     log_okay "K3s Agent successfully installed!"
 }
 

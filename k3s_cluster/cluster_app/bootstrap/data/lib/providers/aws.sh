@@ -131,6 +131,17 @@ function imds_get() {
     echo "$value"
 }
 
+# Returns this EC2 instance's type (e.g. t4g.medium).
+#
+# Used to stamp node.kubernetes.io/instance-type at k3s registration. K3s's
+# embedded cloud provider otherwise sets that label to the literal "k3s", which
+# Karpenter cannot resolve to a priced instance type — it then reports
+# `Unconsolidatable: Instance Type "k3s" not found` and the node can never be
+# reclaimed. See install_k3s_agent in lib/common.sh.
+function get_ec2_instance_type() {
+    imds_get "instance-type"
+}
+
 # Returns this EC2 instance's ID (e.g. i-0123456789abcdef0)
 function get_ec2_instance_id() {
     imds_get "instance-id"

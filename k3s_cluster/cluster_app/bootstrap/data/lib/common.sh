@@ -135,9 +135,34 @@ function install_k3s_agent() {
     local token="${1}"
     local controller_host="${2:-$CONTROLLER_HOST}"
     local provider_id="${3:-}"
+    local instance_type="${4:-}"
 
     local extra_args=()
     [[ -n "$provider_id" ]] && extra_args+=(--kubelet-arg="provider-id=$provider_id")
+
+    # Stamp the REAL instance type at registration.
+    #
+    # K3s's embedded cloud provider otherwise sets node.kubernetes.io/instance-type
+    # to the literal "k3s". Karpenter prices a node by looking that label up in its
+    # instance-type catalogue, so "k3s" resolves to nothing and the node is marked
+    # `Unconsolidatable: Instance Type "k3s" not found` — it can never be scaled
+    # back down, and the only symptom is the bill.
+    #
+    # Karpenter also propagates the true type onto the Node, so the two controllers
+    # race and the winner varies per node. Measured on one cluster: a node that won
+    # drained in 13.9 minutes; one that lost sat for 42 minutes across 40 polls with
+    # `DisruptionTerminating` never firing, and had to be deleted by hand. The
+    # NodeClaim read the correct type the whole time — only the Node was wrong.
+    #
+    # Setting it here removes the race: since k3s-io/k3s#9721 the embedded cloud
+    # provider does not clobber instance-type/region/zone when the kubelet supplies
+    # them. Applies at REGISTRATION only, so it takes effect on newly created nodes
+    # — which is every Karpenter node, by definition.
+    if [[ -n "$instance_type" ]]; then
+        extra_args+=(--node-label "node.kubernetes.io/instance-type=$instance_type")
+    else
+        log_warn "instance type unavailable; node will register as \"k3s\" and Karpenter will not be able to consolidate it"
+    fi
     # Lower than the control plane's: an agent runs no k3s server components.
     # Scaled to this node's real size — see scale_reserved_memory above.
     if [[ -n "${KUBE_RESERVED_AGENT:-}" ]]; then
