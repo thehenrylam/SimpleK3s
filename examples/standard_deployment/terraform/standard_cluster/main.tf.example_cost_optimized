@@ -222,21 +222,13 @@ module "k3s_cluster" {
       arch                   = "arm64"
       instance_categories    = ["t"] # ["m", "c", "r"]
       instance_generation_gt = 3
-      # Node size envelope (#131) — every Karpenter node lands between a
-      # t4g.medium and a t4g.xlarge. The floor keeps nodes big enough to carry
-      # the DaemonSet tax plus real work; the ceiling stops a large pod pulling
-      # in a t4g.2xlarge unprompted (measured: two 1200m pods did exactly that).
+      # Node size envelope: every Karpenter node lands between t4g.medium and
+      # t4g.xlarge. See the karpenter module for the reasoning.
       min_instance_cpu        = 2
       max_instance_cpu        = 4
       min_instance_memory_mib = 4096
       max_instance_memory_mib = 16384
-      # Aggregate spend backstop. For t4g, price is exactly $0.0084/GiB-hr at
-      # every size, so memory_limit is an exact cap: $/mo = GiB x $6.132.
-      # 64Gi ~= $392/mo worst case. Lower it to tighten the ceiling.
-      #
-      # node_limit is intentionally omitted: capping node COUNT fights the point
-      # of autoscaling, and cpu/memory already bound spend. Uncomment only if the
-      # count itself is the constraint (e.g. subnet IP exhaustion).
+      # node_limit omitted on purpose — cpu/memory already bound spend.
       # node_limit      = "3"
       cpu_limit         = "16"
       memory_limit      = "64Gi"

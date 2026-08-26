@@ -282,8 +282,7 @@ function k3s_agent() {
     provider_id="$(get_ec2_provider_id)" || return 1
     log_info "Provider ID: $provider_id"
 
-    # Non-fatal: a node that registers without this still works, it just cannot be
-    # consolidated by Karpenter. Better a running node than a failed bootstrap.
+    # Non-fatal: without it the node still works, it just cannot be consolidated.
     log_info "Fetching EC2 instance type"
     local instance_type
     instance_type="$(get_ec2_instance_type)" || instance_type=""

@@ -33,16 +33,12 @@ locals {
     arch                   = "arm64"
     instance_categories    = ["m", "c", "r"]
     instance_generation_gt = 3
-    # Node size envelope (#131). Defaults describe a t4g.medium..t4g.xlarge
-    # window: big enough to carry the DaemonSet tax plus real work, small enough
-    # that a t4g.2xlarge (8 vCPU / 32 GiB) cannot appear unprompted. Set any of
-    # these to null to leave that end of the range open.
+    # Node size envelope: a t4g.medium..t4g.xlarge window. null leaves an end open.
     min_instance_cpu        = 2     # 1-vCPU types cannot carry their own baseline
     max_instance_cpu        = 4     # excludes t4g.2xlarge (8 vCPU)
     min_instance_memory_mib = 4096  # t4g.medium
     max_instance_memory_mib = 16384 # t4g.xlarge; excludes 2xlarge (32768)
-    # Aggregate ceiling. memory_limit is an exact spend cap for t4g: $/mo = GiB x $6.132.
-    # node_limit is intentionally unset — see the `limits:` comment in the template.
+    # Aggregate ceiling. node_limit unset on purpose — see the template.
     node_limit        = null
     cpu_limit         = "16"
     memory_limit      = "64Gi"
@@ -67,10 +63,8 @@ locals {
     arch                   = coalesce(try(var.settings.arch, null), local.default_settings.arch)
     instance_categories    = coalesce(try(var.settings.instance_categories, null), local.default_settings.instance_categories)
     instance_generation_gt = coalesce(try(var.settings.instance_generation_gt, null), local.default_settings.instance_generation_gt)
-    # Optional bounds: "" tells the template to omit the stanza entirely, so a
-    # caller can open an end of the range. coalesce() cannot express this — it
-    # treats "" as absent and would fall back to the default — hence the explicit
-    # null checks.
+    # "" tells the template to omit the stanza. coalesce() cannot express this —
+    # it treats "" as absent — hence the explicit null checks.
     min_instance_cpu        = try(var.settings.min_instance_cpu, null) != null ? tostring(var.settings.min_instance_cpu) : (local.default_settings.min_instance_cpu == null ? "" : tostring(local.default_settings.min_instance_cpu))
     max_instance_cpu        = try(var.settings.max_instance_cpu, null) != null ? tostring(var.settings.max_instance_cpu) : (local.default_settings.max_instance_cpu == null ? "" : tostring(local.default_settings.max_instance_cpu))
     min_instance_memory_mib = try(var.settings.min_instance_memory_mib, null) != null ? tostring(var.settings.min_instance_memory_mib) : (local.default_settings.min_instance_memory_mib == null ? "" : tostring(local.default_settings.min_instance_memory_mib))

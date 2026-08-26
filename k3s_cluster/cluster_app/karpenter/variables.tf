@@ -30,20 +30,14 @@ variable "settings" {
     arch                   = optional(string)
     instance_categories    = optional(list(string))
     instance_generation_gt = optional(number)
-    # Node size envelope — bounds the shape of ONE node (#131). Karpenter sizes
-    # instances to the pods it is packing, so without an upper bound a large pod
-    # can pull in a much larger node than the cluster was planned around.
-    # Omit (or pass null for) either end to leave that end open.
+    # Node size envelope — bounds the shape of ONE node. Omit either end to
+    # leave it open.
     min_instance_cpu        = optional(number)
     max_instance_cpu        = optional(number)
     min_instance_memory_mib = optional(number)
     max_instance_memory_mib = optional(number)
-    # Aggregate ceiling for the whole pool. cpu_limit/memory_limit are the
-    # standing backstop; for t4g, memory_limit is an exact spend cap
-    # ($/mo = GiB x $6.132). node_limit caps node COUNT and is unset by default,
-    # since capping count fights the point of autoscaling — set it only when the
-    # count itself is the constraint. All are enforced eventually-consistently,
-    # so treat them as a blast radius, not a hard gate.
+    # Aggregate ceiling for the pool. node_limit caps node COUNT and is unset
+    # by default; cpu/memory are the standing backstop.
     node_limit        = optional(string)
     cpu_limit         = optional(string)
     memory_limit      = optional(string)
