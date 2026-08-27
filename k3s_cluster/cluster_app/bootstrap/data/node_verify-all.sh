@@ -8,12 +8,12 @@ set -euo pipefail
 
 # Point-in-time cluster health check. Runs all checks and accumulates failures
 # rather than exiting on the first one, so a single run gives the full picture.
-# Exit 0 = all checks passed; exit 1 = one or more checks failed.
+# Exit 0 = all checks passed; 1 = one or more checks failed; 2 = misconfigured.
 #
 # Run via SSM on node-0 after convergence to confirm the cluster is healthy:
 #   aws ssm send-command --instance-ids <node-0-id> \
 #     --document-name AWS-RunShellScript \
-#     --parameters commands=["/opt/simplek3s/bootstrap/default/verify_cluster.sh"]
+#     --parameters commands=["/opt/simplek3s/bootstrap/default/node_verify-all.sh"]
 #
 # Environment variables:
 #   STABILITY_WINDOW_SECONDS  How far back to look for pod restarts (default: 300)
@@ -24,6 +24,10 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 
 STABILITY_WINDOW_SECONDS="${STABILITY_WINDOW_SECONDS:-300}"
+if [[ ! "$STABILITY_WINDOW_SECONDS" =~ ^[1-9][0-9]*$ ]]; then
+    log_fail "STABILITY_WINDOW_SECONDS must be a positive integer (got '${STABILITY_WINDOW_SECONDS}')"
+    exit 2
+fi
 
 VERIFY_FAILURES=0
 
@@ -398,47 +402,101 @@ function check_monitoring() {
 
 # ─── Pod stability ───────────────────────────────────────────────────────────
 
-function check_pod_stability() {
-    log_info "--- Pod stability (restarts in the last ${STABILITY_WINDOW_SECONDS}s) ---"
+function list_recent_restarts() {
+    # List the recent restarted pods inside of the window
 
-    local UNSTABLE_PODS
-    UNSTABLE_PODS="$(sudo kubectl get pods -A -o json 2>/dev/null | python3 -c "
+    local PODS_JSON RESTART_WINDOW
+    # The kubectl get pods output (in JSON format)
+    PODS_JSON="$1"
+    # The cutoff time for restarts to be counted (i.e. restarts are old enough to be outside of the window are ignored)
+    RESTART_WINDOW="$2"
+
+    # Python-blob is single-quoted: bash must not interpolate into the python source; window via argv.
+    printf '%s' "$PODS_JSON" | python3 -c '
 import json, sys, datetime
 
-window = int('${STABILITY_WINDOW_SECONDS}')
+window = int(sys.argv[1])
 now = datetime.datetime.now(datetime.timezone.utc)
 cutoff = now - datetime.timedelta(seconds=window)
 
-pods = json.load(sys.stdin)['items']
-unstable = []
+
+def describe(term, kind):
+    """Describe a termination record if it lands inside the window, else None."""
+    finished_at = term.get("finishedAt", "")
+    if not finished_at:
+        return None
+    try:
+        when = datetime.datetime.fromisoformat(finished_at.replace("Z", "+00:00"))
+    except ValueError:
+        # Reported, not skipped: a timestamp we cannot read must not pass as healthy.
+        return kind + " with unreadable timestamp " + finished_at
+    if when > cutoff:
+        return kind + " at " + finished_at
+    return None
+
+
+def finding(container, count_restarts):
+    """Why this container looks unstable inside the window, or None."""
+    if count_restarts:
+        # lastState is a PREVIOUS incarnation: evidence of a restart, any exit code.
+        found = describe(container.get("lastState", {}).get("terminated", {}), "restarted")
+        if found:
+            return found
+    # state is the CURRENT incarnation. Exit 0 is a normal completion, not instability.
+    current = container.get("state", {}).get("terminated", {})
+    if current.get("exitCode", 0) != 0:
+        return describe(current, "terminated")
+    return None
+
+
+output = []
+pods = json.load(sys.stdin)["items"]
 
 for pod in pods:
-    ns = pod['metadata']['namespace']
-    name = pod['metadata']['name']
-    phase = pod.get('status', {}).get('phase', '')
+    ns = pod["metadata"]["namespace"]
+    name = pod["metadata"]["name"]
+    status = pod.get("status", {})
 
-    # Completed Jobs (Succeeded) are expected to have restart history
-    if phase == 'Succeeded':
+    # If the pod is succeeded, then move onto the next pod
+    if status.get("phase", "") == "Succeeded":
         continue
 
-    for cs in pod.get('status', {}).get('containerStatuses', []):
-        last = cs.get('lastState', {}).get('terminated', {})
-        finished_at = last.get('finishedAt', '')
-        if not finished_at:
-            continue
-        try:
-            ts = datetime.datetime.fromisoformat(finished_at.replace('Z', '+00:00'))
-        except ValueError:
-            continue
-        if ts > cutoff:
-            unstable.append(
-                f'{ns}/{name} (container: {cs[\"name\"]}, last restart: {finished_at})'
-            )
+    # Construct a list candidates to be processed
+    candidates = list()
+    candidates += [(container_status, False) for container_status in status.get("initContainerStatuses", [])]
+    candidates += [(container_status, True) for container_status in status.get("containerStatuses", [])]
+
+    for container_status, count_restarts in candidates:
+        # Determine what is wrong with the candidate, 
+        found = finding(container_status, count_restarts)
+        if found:
+            # Once found, append the data about the failure into the output to be displayed later
+            container_name = container_status["name"]
+            output.append(f"{ns}/{name} (container: {container_name}, {found})")
             break
 
-for line in unstable:
+# Display the output
+for line in output:
     print(line)
-" 2>/dev/null || true)"
+' "$RESTART_WINDOW"
+}
+
+function check_pod_stability() {
+    log_info "--- Pod stability (restarts in the last ${STABILITY_WINDOW_SECONDS}s) ---"
+
+    # Declared before assignment: `local X="$(...)"` returns local's status, not the
+    # substitution's, so the `||` handlers below would never fire.
+    local PODS_JSON UNSTABLE_PODS
+
+    PODS_JSON="$(sudo kubectl get pods -A -o json)" || {
+        verify_fail "Pod stability: could not query pods"
+        return 0
+    }
+
+    UNSTABLE_PODS="$(list_recent_restarts "$PODS_JSON" "$STABILITY_WINDOW_SECONDS")" || {
+        verify_fail "Pod stability: restart analysis failed"
+        return 0
+    }
 
     if [[ -z "$UNSTABLE_PODS" ]]; then
         verify_pass "No pod restarts in the last ${STABILITY_WINDOW_SECONDS}s"

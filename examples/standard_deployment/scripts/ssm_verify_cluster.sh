@@ -531,9 +531,7 @@ if [[ -z "$NICKNAME" || -z "$REGION" ]]; then
     echo "Error: could not infer nickname/region from $IAC_TFVARS — supply them as arguments." >&2
     usage
 fi
-# Reject anything but a positive integer: the value is interpolated into the
-# remote command, and node_verify-all.sh discards the resulting error, so a
-# malformed window silently skips the pod-restart check and still reports PASS.
+# If the STABILITY_WINDOW exists, then ensure that its a positive integer
 if [[ -n "${STABILITY_WINDOW}" && ! "${STABILITY_WINDOW}" =~ ^[1-9][0-9]*$ ]]; then
     echo "Error: STABILITY_WINDOW_SECONDS must be a positive integer (got '${STABILITY_WINDOW}')." >&2
     exit 2
