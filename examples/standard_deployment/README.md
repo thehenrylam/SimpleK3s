@@ -283,13 +283,35 @@ Scripts shipped to nodes (`k3s_cluster/cluster_app/bootstrap/data/`) are
 sync/repair path must never depend on an interpreter environment stored inside
 the directory it repairs.
 
-Node scripts are moving to reporting **structured state rather than prose**, so
-the host reads fields instead of grepping log lines: ⚠️
+Node scripts report **structured state rather than prose**, so the host reads
+fields instead of grepping log lines. `node_verify-all.sh` is the reference:
 
-- an explicit result per check — `passed` / `failed` / `skipped`, never absence
-- a generation stamp, so the host can tell a stale node from a current one
+```bash
+node_verify-all.sh           # prose — the default, for a human on the node
+node_verify-all.sh --json    # JSON on stdout, all prose to stderr
+```
 
-Today `node_verify-all.sh` emits prose and the host greps `FAILED (N check`.
+- **An explicit result per check** — `passed` / `failed` / `skipped`, never
+  absence. A subsystem that is not deployed reports `skipped`; it has not been
+  verified, and letting that read as a pass is the defect class of
+  [#110](https://github.com/thehenrylam/SimpleK3s/issues/110).
+- **A `schema` field**, so a consumer refuses a document it cannot read rather
+  than half-reading a future shape.
+- **A generation stamp**, so the host can tell a stale node from a current one. ⚠️
+
+```json
+{ "schema": 1, "node": "ip-10-0-1-74", "result": "failed",
+  "summary": {"passed": 37, "failed": 1, "skipped": 1, "total": 39},
+  "checks": [{"section": "longhorn", "result": "failed",
+              "message": "...", "detail": "..."}] }
+```
+
+Two rules keep this workable in practice. The mode switch happens **before** the
+checks run, not by appending a block after the prose — SSM truncates stdout at
+24000 characters mid-stream, which would silently eat the tail of a trailing
+block. And prose remains the default: the host falls back to grepping
+`FAILED (N check` for a node that predates `--json`, so a partially-synced
+cluster still reports correctly.
 
 ### Scripts
 
@@ -342,7 +364,7 @@ it arrives in, rather than "unknown verb".
 - `./scripts/ssm_verify_cluster.sh <aws_profile> [--no-color] [--per-node]`
     - On **every** controlplane node, execute a script to verify the health of the cluster, then merge the results into one report (a check every node agrees on is printed once; divergent lines are attributed to the nodes that produced them)
     - Passes only if every node passes — a node that cannot be reached is not a pass
-    - `--no-color` never emits colour (already off when piped); `--per-node` prints each node's log in full instead of the merged report
+    - `--no-color` never emits colour (already off when piped); `--per-node` prints each node's own results instead of the merged report
 
 ### AI Skills
 

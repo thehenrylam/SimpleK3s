@@ -15,6 +15,11 @@ set -euo pipefail
 #     --document-name AWS-RunShellScript \
 #     --parameters commands=["/opt/simplek3s/bootstrap/default/node_verify-all.sh"]
 #
+# Two output modes. Prose is the default, for a human reading the node's log.
+# --json emits a machine-readable report on stdout (prose moves to stderr), and
+# is what the host-side verify tool consumes so it reads fields instead of
+# grepping log lines.
+#
 # Environment variables:
 #   STABILITY_WINDOW_SECONDS  How far back to look for pod restarts (default: 300)
 
@@ -23,21 +28,132 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/common.sh"
 
+function usage() {
+    # Explicit --help goes to stdout and exits 0; usage shown because of an
+    # error goes to stderr and exits 2.
+    local _CODE="${1:-2}"
+    local _FD=2
+    (( _CODE == 0 )) && _FD=1
+    {
+        echo "Usage: $(basename "$0") [--json]"
+        echo ""
+        echo "  --json   Emit the report as JSON on stdout; all prose goes to"
+        echo "           stderr. Field names are stable, and 'schema' is bumped"
+        echo "           whenever they change."
+        echo ""
+        echo "Environment:"
+        echo "  STABILITY_WINDOW_SECONDS           restart lookback (default: 300)"
+        echo "  KARPENTER_NODECLAIM_STUCK_MINUTES  stuck NodeClaim threshold (default: 20)"
+        echo ""
+        echo "Exit: 0 every check passed; 1 one or more failed; 2 misconfigured."
+    } >&"${_FD}"
+    exit "${_CODE}"
+}
+
+JSON_MODE="false"
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --json) JSON_MODE="true" ; shift ;;
+        -h | --help) usage 0 ;;
+        *) echo "Error: unknown option '$1'." >&2 ; usage 2 ;;
+    esac
+done
+
 STABILITY_WINDOW_SECONDS="${STABILITY_WINDOW_SECONDS:-300}"
 if [[ ! "$STABILITY_WINDOW_SECONDS" =~ ^[1-9][0-9]*$ ]]; then
     log_fail "STABILITY_WINDOW_SECONDS must be a positive integer (got '${STABILITY_WINDOW_SECONDS}')"
     exit 2
 fi
 
+VERIFY_PASSES=0
 VERIFY_FAILURES=0
+VERIFY_SKIPS=0
+
+# Which component the assertions below belong to; set by verify_section.
+VERIFY_SECTION="unknown"
+
+# One record per assertion, consumed by emit_json. Fields are separated by US
+# (0x1f) and records by RS (0x1e) — control characters that cannot appear in a
+# kubectl message, so no message can forge a field boundary.
+VERIFY_RECORDS=""
+
+function verify_record() {
+    VERIFY_RECORDS+="${VERIFY_SECTION}"$'\x1f'"${1}"$'\x1f'"${2}"$'\x1f'"${3:-}"$'\x1e'
+}
+
+# Announce the component that the following assertions belong to.
+function verify_section() {
+    VERIFY_SECTION="$1"
+    log_info "--- $2 ---"
+}
 
 function verify_pass() {
+    verify_record "passed" "$1"
+    VERIFY_PASSES=$((VERIFY_PASSES + 1))
     log_okay "  PASS: $1"
 }
 
+# $2 is optional supporting output (typically a kubectl dump). It is printed as
+# before and also carried in the JSON, so the host can show why a check failed
+# without shipping the whole log.
 function verify_fail() {
-    log_fail "  FAIL: $1"
+    verify_record "failed" "$1" "${2:-}"
     VERIFY_FAILURES=$((VERIFY_FAILURES + 1))
+    log_fail "  FAIL: $1"
+    if [[ -n "${2:-}" ]]; then
+        printf '%s\n' "$2"
+    fi
+    # Explicit: the last command must not decide this function's exit status,
+    # since every caller runs under `set -e`.
+    return 0
+}
+
+# A check that could not run. Deliberately distinct from passed: a subsystem
+# that is not deployed has not been verified, and reporting absence as success
+# is the defect class of #110.
+function verify_skip() {
+    verify_record "skipped" "$1"
+    VERIFY_SKIPS=$((VERIFY_SKIPS + 1))
+    log_info "  SKIP: $1"
+}
+
+# Serialise the records as JSON. python3 is stdlib-only here, per the node-side
+# rule; it does the quoting so a message containing a quote cannot break out.
+function emit_json() {
+    printf '%s' "$VERIFY_RECORDS" | python3 -c '
+import json, sys
+
+RS = "\x1e"
+US = "\x1f"
+
+node, passed, failed, skipped = sys.argv[1:5]
+
+checks = []
+for record in sys.stdin.read().split(RS):
+    if not record:
+        continue
+    section, result, message, detail = record.split(US, 3)
+    entry = {"section": section, "result": result, "message": message}
+    if detail:
+        entry["detail"] = detail
+    checks.append(entry)
+
+# schema is the contract version: the host refuses a document it cannot read
+# rather than silently misreading a future shape.
+document = {
+    "schema": 1,
+    "node": node,
+    "result": "failed" if int(failed) else "passed",
+    "summary": {
+        "passed": int(passed),
+        "failed": int(failed),
+        "skipped": int(skipped),
+        "total": len(checks),
+    },
+    "checks": checks,
+}
+print(json.dumps(document, indent=2))
+' "$(hostname)" "$VERIFY_PASSES" "$VERIFY_FAILURES" "$VERIFY_SKIPS"
 }
 
 # Returns 0 if the rollout is currently complete, 1 if not.
@@ -51,7 +167,7 @@ function rollout_ready() {
 # ─── K3s API ─────────────────────────────────────────────────────────────────
 
 function check_k3s_api() {
-    log_info "--- K3s API ---"
+    verify_section "k3s_api" "K3s API"
     if sudo kubectl get --raw=/readyz >/dev/null 2>&1; then
         verify_pass "K3s API is reachable"
     else
@@ -62,22 +178,21 @@ function check_k3s_api() {
 # ─── Nodes ───────────────────────────────────────────────────────────────────
 
 function check_nodes_ready() {
-    log_info "--- Nodes ---"
+    verify_section "nodes" "Nodes"
     local NOT_READY
     NOT_READY="$(sudo kubectl get nodes --no-headers 2>/dev/null \
         | grep -v " Ready" || true)"
     if [[ -z "$NOT_READY" ]]; then
         verify_pass "All nodes are Ready"
     else
-        verify_fail "Some nodes are not Ready"
-        echo "$NOT_READY"
+        verify_fail "Some nodes are not Ready" "$NOT_READY"
     fi
 }
 
 # ─── kube-system ─────────────────────────────────────────────────────────────
 
 function check_kube_system() {
-    log_info "--- kube-system ---"
+    verify_section "kube_system" "kube-system"
     local NS="kube-system"
     local DEPLOY
     for DEPLOY in coredns local-path-provisioner; do
@@ -92,11 +207,11 @@ function check_kube_system() {
 # ─── Traefik ─────────────────────────────────────────────────────────────────
 
 function check_traefik() {
+    verify_section "traefik" "Traefik"
     if ! sudo kubectl -n kube-system get deploy traefik >/dev/null 2>&1; then
-        log_info "--- Traefik: not deployed, skipping ---"
+        verify_skip "deployment kube-system/traefik not present (subsystem not enabled)"
         return
     fi
-    log_info "--- Traefik ---"
     if rollout_ready kube-system deploy traefik; then
         verify_pass "kube-system/traefik deployment is ready"
     else
@@ -115,11 +230,11 @@ function check_traefik() {
 # ─── Kyverno ─────────────────────────────────────────────────────────────────
 
 function check_kyverno() {
+    verify_section "kyverno" "Kyverno"
     if ! sudo kubectl get ns kyverno >/dev/null 2>&1; then
-        log_info "--- Kyverno: not deployed, skipping ---"
+        verify_skip "namespace 'kyverno' not present (subsystem not enabled)"
         return
     fi
-    log_info "--- Kyverno ---"
     local NS="kyverno"
     local DEPLOYS=(
         "kyverno-admission-controller"
@@ -147,11 +262,11 @@ function check_kyverno() {
 # ─── Longhorn ────────────────────────────────────────────────────────────────
 
 function check_longhorn() {
+    verify_section "longhorn" "Longhorn"
     if ! sudo kubectl get ns longhorn-system >/dev/null 2>&1; then
-        log_info "--- Longhorn: not deployed, skipping ---"
+        verify_skip "namespace 'longhorn-system' not present (subsystem not enabled)"
         return
     fi
-    log_info "--- Longhorn ---"
     local NS="longhorn-system"
     local DS
     for DS in longhorn-manager longhorn-csi-plugin; do
@@ -178,11 +293,11 @@ function check_longhorn() {
 # ─── External Secrets ────────────────────────────────────────────────────────
 
 function check_external_secrets() {
+    verify_section "external_secrets" "External Secrets"
     if ! sudo kubectl get ns external-secrets >/dev/null 2>&1; then
-        log_info "--- External Secrets: not deployed, skipping ---"
+        verify_skip "namespace 'external-secrets' not present (subsystem not enabled)"
         return
     fi
-    log_info "--- External Secrets ---"
     local NS="external-secrets"
     if rollout_ready "$NS" deploy external-secrets; then
         verify_pass "external-secrets/external-secrets deployment is ready"
@@ -205,11 +320,11 @@ function check_external_secrets() {
 # ─── Karpenter ───────────────────────────────────────────────────────────────
 
 function check_karpenter() {
+    verify_section "karpenter" "Karpenter"
     if ! sudo kubectl get crd nodepools.karpenter.sh >/dev/null 2>&1; then
-        log_info "--- Karpenter: not deployed, skipping ---"
+        verify_skip "CRD nodepools.karpenter.sh not present (subsystem not enabled)"
         return
     fi
-    log_info "--- Karpenter ---"
     if rollout_ready kube-system deploy karpenter; then
         verify_pass "kube-system/karpenter deployment is ready"
     else
@@ -297,30 +412,29 @@ for nc in items:
     if [[ -z "$STUCK" ]]; then
         verify_pass "No NodeClaims stuck longer than ${STUCK_MINUTES}m"
     else
-        verify_fail "NodeClaims stuck longer than ${STUCK_MINUTES}m"
-        echo "$STUCK"
+        verify_fail "NodeClaims stuck longer than ${STUCK_MINUTES}m" "$STUCK"
     fi
 }
 
 # ─── Descheduler ─────────────────────────────────────────────────────────────
 
 function check_descheduler() {
+    verify_section "descheduler" "Descheduler"
     if ! sudo kubectl -n kube-system get cronjob descheduler >/dev/null 2>&1; then
-        log_info "--- Descheduler: not deployed, skipping ---"
+        verify_skip "cronjob kube-system/descheduler not present (subsystem not enabled)"
         return
     fi
-    log_info "--- Descheduler ---"
     verify_pass "kube-system/descheduler CronJob exists"
 }
 
 # ─── Tailscale ───────────────────────────────────────────────────────────────
 
 function check_tailscale() {
+    verify_section "tailscale" "Tailscale"
     if ! sudo kubectl get ns tailscale >/dev/null 2>&1; then
-        log_info "--- Tailscale: not deployed, skipping ---"
+        verify_skip "namespace 'tailscale' not present (subsystem not enabled)"
         return
     fi
-    log_info "--- Tailscale ---"
     local NS="tailscale"
     if rollout_ready "$NS" deploy operator; then
         verify_pass "tailscale/operator deployment is ready"
@@ -350,11 +464,11 @@ function check_tailscale() {
 # ─── ArgoCD ──────────────────────────────────────────────────────────────────
 
 function check_argocd() {
+    verify_section "argocd" "ArgoCD"
     if ! sudo kubectl get ns argocd >/dev/null 2>&1; then
-        log_info "--- ArgoCD: not deployed, skipping ---"
+        verify_skip "namespace 'argocd' not present (application not enabled)"
         return
     fi
-    log_info "--- ArgoCD ---"
     local NS="argocd"
     if rollout_ready "$NS" deploy argocd-server; then
         verify_pass "argocd/argocd-server deployment is ready"
@@ -372,11 +486,11 @@ function check_argocd() {
 # ─── Monitoring ──────────────────────────────────────────────────────────────
 
 function check_monitoring() {
+    verify_section "monitoring" "Monitoring"
     if ! sudo kubectl get ns monitoring >/dev/null 2>&1; then
-        log_info "--- Monitoring: not deployed, skipping ---"
+        verify_skip "namespace 'monitoring' not present (application not enabled)"
         return
     fi
-    log_info "--- Monitoring ---"
     local NS="monitoring"
     # Deployments: Prometheus operator and Grafana (release name: prometheus)
     local DEPLOY
@@ -482,7 +596,7 @@ for line in output:
 }
 
 function check_pod_stability() {
-    log_info "--- Pod stability (restarts in the last ${STABILITY_WINDOW_SECONDS}s) ---"
+    verify_section "pod_stability" "Pod stability (restarts in the last ${STABILITY_WINDOW_SECONDS}s)"
 
     # Declared before assignment: `local X="$(...)"` returns local's status, not the
     # substitution's, so the `||` handlers below would never fire.
@@ -501,12 +615,21 @@ function check_pod_stability() {
     if [[ -z "$UNSTABLE_PODS" ]]; then
         verify_pass "No pod restarts in the last ${STABILITY_WINDOW_SECONDS}s"
     else
-        verify_fail "Pods with recent restarts (within ${STABILITY_WINDOW_SECONDS}s)"
-        echo "$UNSTABLE_PODS"
+        verify_fail "Pods with recent restarts (within ${STABILITY_WINDOW_SECONDS}s)" "$UNSTABLE_PODS"
     fi
 }
 
 # ─── Main ────────────────────────────────────────────────────────────────────
+
+# In --json mode stdout is reserved for the JSON document, so every prose line
+# (including the checks' own kubectl dumps) is redirected to stderr and the real
+# stdout is parked on fd 3 until emit_json. Doing this here, rather than
+# appending a JSON block after the prose, is what keeps the document intact:
+# SSM truncates stdout at 24000 characters mid-stream, which would silently eat
+# the tail of a trailing block on a verbose run.
+if [[ "$JSON_MODE" == "true" ]]; then
+    exec 3>&1 1>&2
+fi
 
 log_info "$0: LAUNCHED"
 log_info "Stability window: ${STABILITY_WINDOW_SECONDS}s"
@@ -525,6 +648,13 @@ check_argocd
 check_monitoring
 check_pod_stability
 
+if [[ "$JSON_MODE" == "true" ]]; then
+    emit_json >&3
+fi
+
+# The PASSED/FAILED prose lines below are retained deliberately: the host still
+# greps them when a node predates --json, so both contracts hold during the
+# transition.
 if [[ "$VERIFY_FAILURES" -gt 0 ]]; then
     log_fail "$0: FAILED ($VERIFY_FAILURES check(s) failed)"
     exit 1
