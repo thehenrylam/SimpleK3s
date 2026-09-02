@@ -43,13 +43,24 @@ run_check() {
 
 # --- shellcheck ---
 
+# *.sh, plus extensionless executables carrying a sh/bash shebang. The second
+# pass exists because the operator entry point is `sk3s` — named without an
+# extension so it reads as a command — and a glob on *.sh would leave the one
+# file everybody runs as the only one nothing checks.
 shellcheck_all() {
-    find "${REPO_ROOT}" -name "*.sh" -not -path "${REPO_ROOT}/_tmp/*" -print0 \
-        | xargs -0 shellcheck -x -S warning
+    {
+        find "${REPO_ROOT}" -name "*.sh" -not -path "${REPO_ROOT}/_tmp/*" -print0
+        find "${REPO_ROOT}" -type f -perm -u+x ! -name "*.*" \
+            -not -path "${REPO_ROOT}/.git/*" \
+            -not -path "${REPO_ROOT}/_tmp/*" \
+            -not -path "*/.terraform/*" \
+            -exec sh -c 'head -n 1 "${1}" | grep -qE "^#!.*/(env +)?(ba)?sh$"' _ {} \; \
+            -print0
+    } | xargs -0 shellcheck -x -S warning
 }
 
 check_shellcheck() {
-    run_check "shellcheck (all *.sh)" shellcheck_all
+    run_check "shellcheck (all *.sh + shebang scripts)" shellcheck_all
 }
 
 # --- main ---
