@@ -1,6 +1,8 @@
 ---
-# 👇 CONFIGURE THIS 👇
+# 👇 CONFIGURE THIS 👇 (This profile will be used for IaC activities, like `tofu apply`)
 aws_profile: "__CONFIGURE_THIS__"
+# 👇 CONFIGURE THIS 👇 (This profile will be used for helper scripts, like connecting or executing commands to the instances)
+aws_profile_for_scripts: "__CONFIGURE_THIS__"
 
 # This is set ONLY because we are executing this Ansible on localhost only. 
 # If this Ansible setup needs to execute on remote environments, you need to remove this.

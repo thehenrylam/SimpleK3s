@@ -186,7 +186,147 @@ ansible-playbook ./playbooks/support_destroy.yml --limit '!idp'
 - `./playbooks/tfvars_template.yml`
     - Templates the `terraform.tfvars` for IaC modules (*Will stop in place if `__CONFIGURE_THIS__` string is detected*)
 
+### Script Conventions
+
+Everything under `./scripts/` follows one grammar, so a verb learned once
+transfers to the rest. New tooling is expected to obey it.
+
+Marked ⚠️ below means **target, not yet universal** — the gap is tracked in
+[#118](https://github.com/thehenrylam/SimpleK3s/issues/118), which also plans a
+single `sk3s` entry point over these same rules.
+
+#### Command shape
+
+```
+./scripts/<script>.sh <profile> [<nickname> <region>] [flags]
+```
+
+- `profile` is required and always first. Through `./sk3s` it may be
+  omitted, and `aws_profile_for_scripts` from `group_vars/all.yml` is used
+  instead; called directly, the scripts still require it.
+- `nickname` and `region` are **a pair** — supply both or neither. Omitted, they
+  are inferred from `terraform/standard_cluster/terraform.tfvars`. Two
+  positionals is always an error, and is rejected as one.
+- Flags are parsed out *before* positionals are counted, so
+  `<profile> --no-color` is not mistaken for the rejected two-positional form.
+- `--` ends flag parsing. ⚠️
+
+#### Context resolution
+
+Every script prints what it resolved, before it does any work:
+
+```
+Cluster  : nickname=birch  region=us-east-1  profile=dev
+Instance : i-0abc123def456789
+```
+
+This is what catches "wrong cluster" *before* the damage rather than after. A
+script that cannot resolve nickname/region fails with an error naming the
+tfvars file — it never guesses.
+
+#### Standard flags
+
+A flag means the same thing in every script, or it gets a different name.
+
+| Flag | Meaning |
+|---|---|
+| `-h`, `--help` | Usage to stderr, exit 2 |
+| `--instance-id <id>` | Target one instance instead of the script's default scope ⚠️ |
+| `--json [compact\|pretty]` | Machine-readable output on stdout ⚠️ |
+| `--no-color` | Never emit colour ⚠️ |
+| `--dry-run` | Preview; change nothing ⚠️ |
+
+#### Exit codes
+
+`ssm_execute.sh` is the reference implementation — it names them as constants.
+
+| Code | Meaning |
+|---|---|
+| `0` | Succeeded |
+| `1` | Ran correctly, and the answer is bad (checks failed, repair needed) |
+| `2` | Usage error — bad arguments, missing profile, unresolvable context |
+| `3` | Not finished (async command still running) |
+
+**Absence is never success.** A script that could not reach the cluster, could
+not parse a response, or never ran its checks exits non-zero. Reporting a green
+result for a check that did not run is the bug class behind
+[#110](https://github.com/thehenrylam/SimpleK3s/issues/110); do not reintroduce
+it with a bare `|| true`.
+
+#### Output
+
+- **Human-readable is the default.** Colour is on for terminals, off when piped
+  or redirected, and off entirely with `--no-color`.
+- **`--json` is the contract for machines**: stable field names, stdout only.
+- **Progress and diagnostics go to stderr.** Command IDs, poll ticks and
+  warnings are stderr so that `2>/dev/null` always leaves clean, parseable
+  stdout. Never merge them with `2>&1` when parsing.
+- Colour is semantic, not decorative — green passed, yellow warning or unknown,
+  red failed, cyan section header. Unknown is *not* green.
+
+#### Safety
+
+- **Mutating operations preview by default** and act only on an explicit flag.
+  `ssm_repair_cluster.sh` is the reference: `--dry-run` does the discovery for
+  real and changes nothing, and `cluster_repair.yml` requires
+  `-e repair_apply=true` before anything is touched.
+- Read-only operations never ask for confirmation. Confirming reads trains an
+  operator to rubber-stamp, which is what makes the rare real prompt dangerous.
+- Destructive operations name what they will touch before touching it.
+- A multi-step change is **one** decision: show the whole plan, get one
+  approval, then execute it — not a prompt per step.
+
+#### Node-side scripts
+
+Scripts shipped to nodes (`k3s_cluster/cluster_app/bootstrap/data/`) are
+**stdlib-only Python and bash** — no virtualenv, no third-party packages. The
+sync/repair path must never depend on an interpreter environment stored inside
+the directory it repairs.
+
+Node scripts are moving to reporting **structured state rather than prose**, so
+the host reads fields instead of grepping log lines: ⚠️
+
+- an explicit result per check — `passed` / `failed` / `skipped`, never absence
+- a generation stamp, so the host can tell a stale node from a current one
+
+Today `node_verify-all.sh` emits prose and the host greps `FAILED (N check`.
+
 ### Scripts
+
+`./sk3s` is the single entry point. It sits at the deployment root, beside the
+playbooks, so it is run as `./sk3s` from there; the scripts it dispatches to stay
+under `./scripts/` and stay directly callable. `sk3s` adds no behaviour of its
+own beyond supplying the profile.
+
+```bash
+./sk3s help             # every verb, with a one-line summary
+./sk3s <verb> --help    # usage for that verb
+./sk3s status dev       # same as ./scripts/ssm_verify_cluster.sh dev
+./sk3s status           # profile taken from group_vars/all.yml
+```
+
+Omit the profile and `sk3s` supplies `aws_profile_for_scripts` from
+`group_vars/all.yml`, reporting it on stderr so the resolved value is still
+visible. An explicit profile always wins. This is deliberately a *separate* key
+from `aws_profile`, so day-to-day script access can use different credentials
+from the ones that run `tofu apply`.
+
+Nothing is injected when `all.yml` is absent, the key is missing, or the value
+is still `__CONFIGURE_THIS__` — the verb then reports its own missing-profile
+error rather than authenticating as a placeholder.
+
+| Verb | Dispatches to |
+|---|---|
+| `status` | `ssm_verify_cluster.sh` |
+| `pull` | `ssm_update_services.sh` |
+| `nodes` | `ssm_list_instances.sh` |
+| `connect` | `ssm_connect.sh` |
+| `exec` | `ssm_execute.sh` |
+| `repair` | `ssm_repair_cluster.sh` |
+
+`apply` and `refresh` are listed by `sk3s help` but not built yet. Running one
+reports which phase of [#118](https://github.com/thehenrylam/SimpleK3s/issues/118)
+it arrives in, rather than "unknown verb".
 
 - `./scripts/ssm_connect.sh <aws_profile>`
     - Connects to an EC2 environment in the cluster (Pick the instance to connect to via a GUI)

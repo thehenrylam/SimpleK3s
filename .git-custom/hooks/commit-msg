@@ -5,7 +5,6 @@ set -euo pipefail
 
 # Define color variables
 RED=$'\033[0;91m'
-MGN=$'\033[0;95m'
 YLW=$'\033[0;93m'
 CYN=$'\033[0;96m'
 NC=$'\033[0m'
@@ -51,17 +50,17 @@ if [[ ! "$SUBJECT" =~ $PATTERN ]]; then
 $(red "✖ Invalid commit message format.")
 
 Expected:
-  $(ylw $(underline document))/#$(issue_id) - Commit message for documentation
-  $(ylw $(underline feature))/#$(issue_id) - Commit message for features
-  $(ylw $(underline bugfix))/#$(issue_id) - Commit message for bug fixes
-  $(ylw $(underline refactor))/#$(issue_id) - Commit message for refactoring
-  $(ylw $(underline chore))/#$(issue_id) - Commit message for misc (dep update)
-  $(ylw $(underline sandbox))/#$(issue_id) - Commit message for sandboxing (testing only)
+  $(ylw "$(underline document)")/#$(issue_id) - Commit message for documentation
+  $(ylw "$(underline feature)")/#$(issue_id) - Commit message for features
+  $(ylw "$(underline bugfix)")/#$(issue_id) - Commit message for bug fixes
+  $(ylw "$(underline refactor)")/#$(issue_id) - Commit message for refactoring
+  $(ylw "$(underline chore)")/#$(issue_id) - Commit message for misc (dep update)
+  $(ylw "$(underline sandbox)")/#$(issue_id) - Commit message for sandboxing (testing only)
 
 Examples:
-  $(ylw $(underline feature))/#$(cyn 123) - Add S3 bootstrap for k3s nodes
-  $(ylw $(underline bugfix))/#$(cyn 264) - Fix token fetch from SSM
-  $(ylw $(underline document))/#$(cyn 3908) - Update README with cost comparison
+  $(ylw "$(underline feature)")/#$(cyn 123) - Add S3 bootstrap for k3s nodes
+  $(ylw "$(underline bugfix)")/#$(cyn 264) - Fix token fetch from SSM
+  $(ylw "$(underline document)")/#$(cyn 3908) - Update README with cost comparison
 
 Notes:
   - $(issue_id) is the relevant GitHub Issue Number (e.g. #123)

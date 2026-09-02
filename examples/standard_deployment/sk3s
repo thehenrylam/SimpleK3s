@@ -1,0 +1,169 @@
+#!/bin/bash
+
+set -euo pipefail
+
+# SimpleK3s cluster CLI — one entry point over the ssm_*.sh tools.
+#
+# Phase 1 of #118: this dispatches to the existing scripts unchanged. Every
+# script stays directly callable, and nothing here adds, removes or alters
+# behaviour — arguments are passed through verbatim.
+#
+# Lives at the deployment root, beside the playbooks it will eventually drive,
+# so it is invoked as ./sk3s rather than ./scripts/sk3s. The scripts it
+# dispatches to stay in ./scripts/ and stay directly callable.
+#
+#   ./sk3s <verb> [args...]
+#   ./sk3s help
+#   ./sk3s <verb> --help     # the underlying script's own usage
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPTS_DIR="${SCRIPT_DIR}/scripts"
+GROUP_VARS="${SCRIPT_DIR}/group_vars/all.yml"
+
+EXIT_OK=0
+EXIT_USAGE=2
+
+# verb|script|summary
+VERBS=(
+    "status|ssm_verify_cluster.sh|Health of the cluster, merged across control-plane nodes"
+    "pull|ssm_update_services.sh|Sync bootstrap files from S3 and re-stage manifests"
+    "nodes|ssm_list_instances.sh|List the cluster's EC2 instances"
+    "connect|ssm_connect.sh|Open an interactive shell on a node"
+    "exec|ssm_execute.sh|Run a command on a node"
+    "repair|ssm_repair_cluster.sh|Repair a control-plane node that cannot rejoin"
+)
+
+# verb|phase|summary — named so an unbuilt verb reports its plan instead of
+# "unknown", which would read as a typo rather than a roadmap.
+PLANNED=(
+    "apply|4|Stage manifests without re-syncing from S3"
+    "refresh|5|Restart failing services (--auto, --hard)"
+)
+
+function field() {
+    # field <entry> <n>   — nth |-separated field, 1-indexed
+    local _ENTRY="${1}" _N="${2}" _I
+    for ((_I = 1; _I < _N; _I++)); do
+        _ENTRY="${_ENTRY#*|}"
+    done
+    printf '%s' "${_ENTRY%%|*}"
+}
+
+# Read a top-level scalar out of group_vars/all.yml. Returns non-zero when the
+# file is absent (it is gitignored, so a fresh clone has none), when the key is
+# missing, or when the value is still the __CONFIGURE_THIS__ placeholder.
+#
+# Deliberately not a YAML parser: this reads one top-level scalar, and the
+# alternative is a third-party dependency for a single string.
+function infer_group_var() {
+    local _FILE="${1}" _KEY="${2}" _VALUE
+    [[ -f "${_FILE}" ]] || return 1
+    _VALUE="$(grep -m1 -E "^${_KEY}[[:space:]]*:" "${_FILE}" | cut -d: -f2-)" || return 1
+    # trim surrounding whitespace, then a matched pair of quotes
+    _VALUE="${_VALUE#"${_VALUE%%[![:space:]]*}"}"
+    _VALUE="${_VALUE%"${_VALUE##*[![:space:]]}"}"
+    if [[ "${_VALUE}" == \"*\" || "${_VALUE}" == \'*\' ]]; then
+        _VALUE="${_VALUE:1:${#_VALUE}-2}"
+    fi
+    [[ -n "${_VALUE}" && "${_VALUE}" != "__CONFIGURE_THIS__" ]] || return 1
+    printf '%s' "${_VALUE}"
+}
+
+function usage() {
+    # Explicit --help goes to stdout and exits 0; usage shown because of an
+    # error goes to stderr and exits 2.
+    local _CODE="${1:-${EXIT_USAGE}}"
+    local _FD=2
+    local _ENTRY
+    (( _CODE == EXIT_OK )) && _FD=1
+    {
+        echo "SimpleK3s cluster CLI"
+        echo ""
+        echo "Usage: $(basename "$0") <verb> [args...]"
+        echo ""
+        echo "Verbs:"
+        for _ENTRY in "${VERBS[@]}"; do
+            printf '  %-9s %s\n' "$(field "${_ENTRY}" 1)" "$(field "${_ENTRY}" 3)"
+        done
+        echo ""
+        echo "Planned:"
+        for _ENTRY in "${PLANNED[@]}"; do
+            printf '  %-9s %s (phase %s)\n' \
+                "$(field "${_ENTRY}" 1)" "$(field "${_ENTRY}" 3)" "$(field "${_ENTRY}" 2)"
+        done
+        echo ""
+        echo "Every verb takes <profile> [<nickname> <region>] first. Omit the"
+        echo "profile and aws_profile_for_scripts from group_vars/all.yml is used;"
+        echo "nickname and region are inferred from terraform.tfvars. See the"
+        echo "Script Conventions section of README.md."
+        echo ""
+        echo "  $(basename "$0") <verb> --help    Usage for that verb"
+        echo ""
+        echo "Note: pull currently targets a single control-plane node. Multi-node"
+        echo "      sync arrives in phase 4."
+    } >&"${_FD}"
+    exit "${_CODE}"
+}
+
+function script_for() {
+    local _VERB="${1}" _ENTRY
+    for _ENTRY in "${VERBS[@]}"; do
+        if [[ "$(field "${_ENTRY}" 1)" == "${_VERB}" ]]; then
+            field "${_ENTRY}" 2
+            return 0
+        fi
+    done
+    return 1
+}
+
+function planned_phase_for() {
+    local _VERB="${1}" _ENTRY
+    for _ENTRY in "${PLANNED[@]}"; do
+        if [[ "$(field "${_ENTRY}" 1)" == "${_VERB}" ]]; then
+            field "${_ENTRY}" 2
+            return 0
+        fi
+    done
+    return 1
+}
+
+# GATHER INPUTS
+VERB="${1:-}"
+
+# VERIFY INPUTS
+if [[ -z "${VERB}" ]]; then
+    usage "${EXIT_USAGE}"
+fi
+case "${VERB}" in
+    -h | --help | help)
+        usage "${EXIT_OK}"
+        ;;
+esac
+shift
+
+if PHASE="$(planned_phase_for "${VERB}")"; then
+    echo "Error: '${VERB}' is planned but not implemented yet (#118, phase ${PHASE})." >&2
+    exit "${EXIT_USAGE}"
+fi
+
+if ! TARGET="$(script_for "${VERB}")"; then
+    echo "Error: unknown verb '${VERB}'." >&2
+    echo "" >&2
+    usage "${EXIT_USAGE}"
+fi
+
+# Supply the profile when none was given. Every verb takes it as the first
+# positional, so "absent" means no arguments at all or a flag in first position.
+# On failure this stays silent and passes through — the target script already
+# reports a missing profile, and inventing a second error path helps nobody.
+if [[ $# -eq 0 || "${1}" == -* ]]; then
+    if PROFILE="$(infer_group_var "${GROUP_VARS}" "aws_profile_for_scripts")"; then
+        echo "Profile  : ${PROFILE}  (group_vars/all.yml: aws_profile_for_scripts)" >&2
+        set -- "${PROFILE}" "$@"
+    fi
+fi
+
+# EXECUTE SCRIPT
+# exec, not a call: the target owns the terminal from here (connect opens an
+# interactive session, nodes runs a curses picker) and its exit code is ours.
+exec "${SCRIPTS_DIR}/${TARGET}" "$@"

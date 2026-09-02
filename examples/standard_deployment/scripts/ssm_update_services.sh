@@ -56,6 +56,19 @@ function update_services() {
     ssm_report_result "${_RESULT}"
 }
 
+# PARSE OPTIONS
+# The only script with no flag handling at all, so `--help` was read as the AWS
+# profile and the run proceeded against a profile literally named "--help".
+case "${1:-}" in
+    -h | --help)
+        usage
+        ;;
+    -*)
+        echo "Error: unknown option '${1}'." >&2
+        usage
+        ;;
+esac
+
 # GATHER INPUTS
 PROFILE="${1:-}"
 NICKNAME="${2:-$(infer_tfvar "${IAC_TFVARS}" "nickname")}"
