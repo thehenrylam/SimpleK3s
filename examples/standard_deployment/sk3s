@@ -152,11 +152,22 @@ if ! TARGET="$(script_for "${VERB}")"; then
     usage "${EXIT_USAGE}"
 fi
 
+# A help request is not a cluster operation, so it must never be given a
+# profile: injecting one pushes --help into $2, where a target that only
+# inspects $1 stops recognising it and reports a bogus argument-count error.
+WANTS_HELP="false"
+for _ARG in "$@"; do
+    if [[ "${_ARG}" == "-h" || "${_ARG}" == "--help" ]]; then
+        WANTS_HELP="true"
+        break
+    fi
+done
+
 # Supply the profile when none was given. Every verb takes it as the first
 # positional, so "absent" means no arguments at all or a flag in first position.
 # On failure this stays silent and passes through — the target script already
 # reports a missing profile, and inventing a second error path helps nobody.
-if [[ $# -eq 0 || "${1}" == -* ]]; then
+if [[ "${WANTS_HELP}" == "false" ]] && [[ $# -eq 0 || "${1}" == -* ]]; then
     if PROFILE="$(infer_group_var "${GROUP_VARS}" "aws_profile_for_scripts")"; then
         echo "Profile  : ${PROFILE}  (group_vars/all.yml: aws_profile_for_scripts)" >&2
         set -- "${PROFILE}" "$@"

@@ -33,4 +33,18 @@ log_info "Setting execute permissions on bootstrap scripts..."
 find "${BOOTSTRAP_DIR}" -type f -name "*.sh" -exec chmod u+x {} \;
 find "${BOOTSTRAP_DIR}" -type f -name "*.py" -exec chmod u+x {} \;
 
+# Record the generation LAST — after the sync and the chmod have both succeeded.
+# The stamp answers "what did this node successfully take from S3", so it must
+# never advance past a partial refresh.
+log_info "Recording the bootstrap generation..."
+if GENERATION="$(s3_generation)"; then
+    printf '%s\n' "${GENERATION}" > "${GENERATION_FILE}"
+    log_okay "Bootstrap generation: ${GENERATION}"
+else
+    # Not fatal: the files themselves synced. Verify reports the generation as
+    # unknown, which is honest — better than leaving a stale stamp that would
+    # read as "current".
+    log_warn "Could not compute the bootstrap generation; stamp left unchanged"
+fi
+
 log_okay "$0: COMPLETED"

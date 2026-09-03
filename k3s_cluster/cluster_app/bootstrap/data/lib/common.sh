@@ -10,6 +10,49 @@ SCRIPT_DIR="$LIBRARY_DIR/../"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/simplek3s.env"
 
+# ─── Bootstrap generation ────────────────────────────────────────────────────
+
+# Where a node records the generation it last synced. Lives inside BOOTSTRAP_DIR
+# alongside the node-local init logs. NOTE: `aws s3 sync` is deliberately run
+# WITHOUT --delete; adding it later would wipe this file, so the two must stay
+# consistent.
+GENERATION_FILE="${BOOTSTRAP_DIR}/.simplek3s-generation"
+
+# Digest of the bootstrap bucket's current contents.
+#
+# The sync path and the verify path both call THIS function, so "what I last
+# synced" and "what is in S3 now" are computed the same way from the same source
+# and are directly comparable. Deriving the node's side from local files instead
+# would not work: the bootstrap directory also holds node-generated logs, which
+# would make every node's digest differ from every other's.
+#
+# ETag is the content MD5 for these objects (single-part uploads of small text
+# files), so the digest changes if and only if some object's content changes.
+# sort_by makes the listing order explicit rather than relying on S3 returning
+# keys lexicographically.
+function s3_generation() {
+    local _LISTING
+    _LISTING="$(aws s3api list-objects-v2 \
+        --bucket "${S3_BUCKET_NAME}" \
+        --region "${AWS_REGION}" \
+        --query 'sort_by(Contents, &Key)[].[Key,ETag,Size]' \
+        --output text 2>/dev/null)" || return 1
+    # An empty listing is a failure, not a generation: a bucket that answers
+    # with nothing must never compare equal to a node that synced real content.
+    [[ -n "${_LISTING}" ]] || return 1
+    printf '%s' "${_LISTING}" | sha256sum | cut -c1-12
+}
+
+# Generation this node last synced, or empty if it has never recorded one
+# (a node that predates this feature).
+function recorded_generation() {
+    [[ -r "${GENERATION_FILE}" ]] || return 1
+    local _VALUE
+    _VALUE="$(head -n 1 "${GENERATION_FILE}" | tr -d '[:space:]')"
+    [[ -n "${_VALUE}" ]] || return 1
+    printf '%s' "${_VALUE}"
+}
+
 # Get date
 function print_date() {
     date +'%Y-%m-%dT%H:%M:%S.%3N'

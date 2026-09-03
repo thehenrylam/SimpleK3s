@@ -94,7 +94,7 @@ function usage() {
     echo "  nickname    Cluster nickname (default: inferred from terraform.tfvars)" >&2
     echo "  region      AWS region      (default: inferred from terraform.tfvars)" >&2
     echo "  --no-color  Never emit colour (already off when stdout is not a terminal)" >&2
-    echo "  --per-node  Print each node's log in full instead of one merged report" >&2
+    echo "  --per-node  Print each node's own results instead of one merged report" >&2
     echo "" >&2
     echo "Exit: 0 only when every controlplane node passes; 1 otherwise" >&2
     echo "      (a node that cannot be reached is not a pass)." >&2
@@ -169,15 +169,75 @@ function await_all_invocations() {
     return 0
 }
 
-# node_verify-all.sh ends with "FAILED (N check(s) failed)". Pull N from it so
-# the summary can say how much failed, not just that something did.
+# Render a node's --json document as one line per check, so the merge below
+# compares structured results rather than prose. Empty output means the node did
+# not return a document this script understands — the caller then falls back to
+# the prose path.
+function render_check_lines() {
+    printf '%s' "${1}" | python3 -c '
+import json, sys
+
+try:
+    doc = json.load(sys.stdin)
+except ValueError:
+    sys.exit(0)
+# Refuse a shape we do not know rather than half-reading a future one.
+if not isinstance(doc, dict) or doc.get("schema") != 1:
+    sys.exit(0)
+
+for check in doc.get("checks", []):
+    print("[%s] %-18s %s" % (check["result"].upper()[:4], check["section"], check["message"]))
+    for line in (check.get("detail") or "").splitlines():
+        print("       | " + line)
+' 2>/dev/null
+}
+
+# Pull the generation triple out of a node's document as
+# "<synced>\t<current>\t<state>". Empty output means the node reported no
+# generation at all — a node predating the stamp — which must stay
+# distinguishable from a node that reported one and is stale.
+function node_generation() {
+    printf '%s' "${1}" | python3 -c '
+import json, sys
+
+try:
+    doc = json.load(sys.stdin)
+except ValueError:
+    raise SystemExit(0)
+if not isinstance(doc, dict) or doc.get("schema") != 1:
+    raise SystemExit(0)
+gen = doc.get("generation")
+if not isinstance(gen, dict):
+    raise SystemExit(0)
+state = "" if gen.get("stale") is None else ("stale" if gen["stale"] else "current")
+print("\t".join([gen.get("synced") or "", gen.get("current") or "", state]))
+' 2>/dev/null
+}
+
+# How many checks failed on a node. Preferred source is the JSON summary; the
+# grep is retained for a node still running a pre---json script.
 function count_failed_checks() {
     # VARIABLES
     local _STDOUT
     local _MATCH
+    local _JSON_COUNT
     # INPUTS
     _STDOUT="${1}"
     # PROCESS
+    # Declared before assignment: `local X="$(...)"` masks the substitution's
+    # exit status behind local's own, which is always 0.
+    _JSON_COUNT="$(printf '%s' "${_STDOUT}" | python3 -c '
+import json, sys
+
+doc = json.load(sys.stdin)
+if not isinstance(doc, dict) or doc.get("schema") != 1:
+    raise SystemExit(1)
+print(doc["summary"]["failed"])
+' 2>/dev/null)" || _JSON_COUNT=""
+    if [[ -n "${_JSON_COUNT}" ]]; then
+        printf '%s' "${_JSON_COUNT}"
+        return 0
+    fi
     _MATCH=$(printf '%s' "${_STDOUT}" | grep -oE 'FAILED \([0-9]+ check' | tail -1 || true)
     if [[ -n "${_MATCH}" ]]; then
         printf '%s' "${_MATCH}" | grep -oE '[0-9]+'
@@ -200,7 +260,7 @@ function count_failed_checks() {
 # is a finding to look at, not a tie to resolve.
 function consolidated_report() {
     # VARIABLES
-    local _TMPDIR _IDX _STDOUT
+    local _TMPDIR _IDX _STDOUT _LINES
     local _LABELS
     # PROCESS
     _TMPDIR="$(mktemp -d)"
@@ -212,7 +272,13 @@ function consolidated_report() {
             continue
         fi
         _STDOUT=$(parse_command_invocation_result "${NODE_RESULT[$_IDX]}" "StandardOutputContent")
-        printf '%s\n' "${_STDOUT}" > "${_TMPDIR}/${#_LABELS[@]}.log"
+        # Structured lines when the node returned a document; its raw prose
+        # otherwise, so a node predating --json still merges.
+        _LINES="$(render_check_lines "${_STDOUT}")"
+        if [[ -z "${_LINES}" ]]; then
+            _LINES="${_STDOUT}"
+        fi
+        printf '%s\n' "${_LINES}" > "${_TMPDIR}/${#_LABELS[@]}.log"
         _LABELS[${#_LABELS[@]}]="${NODE_IDS[$_IDX]}"
     done
 
@@ -268,7 +334,8 @@ for _, lines, _ in nodes:
 def tint(line):
     if "[FAIL]" in line:
         return RED + line + RST
-    if "[WARN]" in line:
+    # Skipped is not a pass: it is called out, never left to read as green.
+    if "[SKIP]" in line or "[WARN]" in line:
         return YLW + line + RST
     if "[INFO]" in line and "---" in line:
         return CYN + line + RST
@@ -314,7 +381,8 @@ function verify_cluster_fanout() {
     # VARIABLES
     local _ENV_VARS _REMOTE_COMMAND _COMMAND_ID
     local _LINE _ID _NAME _IDX
-    local _STATUS _STDOUT _STDERR _VERDICT _DETAIL _FAILED
+    local _STATUS _STDOUT _STDERR _VERDICT _DETAIL _FAILED _LINES
+    local _GEN _GSYNC _GCUR _GSTATE _GLABEL _STALE_SEEN _NOSTAMP_SEEN _S3_GEN
     local _J _MATCHED
     local _ERR_TEXTS _ERR_NODES
     local _PASSED _FAILEDN _UNKNOWN _TOTAL _EXIT _SUMMARY
@@ -327,7 +395,11 @@ function verify_cluster_fanout() {
     if [[ -n "${STABILITY_WINDOW}" ]]; then
         _ENV_VARS="STABILITY_WINDOW_SECONDS=${STABILITY_WINDOW}"
     fi
-    _REMOTE_COMMAND="$(build_remote_command "${SIMPLEK3S_VERIFY}" "${_ENV_VARS}")"
+    # --json: the node reports structured results on stdout and sends its prose
+    # to stderr, so this script reads fields instead of grepping log lines. A
+    # node that predates --json still returns prose, and every consumer below
+    # falls back to the old parsing when the document is absent or unreadable.
+    _REMOTE_COMMAND="$(build_remote_command "${SIMPLEK3S_VERIFY} --json" "${_ENV_VARS}")"
 
     # Find EVERY running controlplane instance for this cluster
     while IFS=$'\t' read -r _ID _NAME; do
@@ -339,7 +411,7 @@ function verify_cluster_fanout() {
     done < <(get_controlplane_instances "${REGION}" "${PROFILE}" "${NICKNAME}")
 
     _TOTAL=${#NODE_IDS[@]}
-    echo "Script   : ${SIMPLEK3S_VERIFY}"
+    echo "Script   : ${SIMPLEK3S_VERIFY} --json"
     echo "Env Vars : ${_ENV_VARS:-"--N/A--"}"
     echo "Nodes    : ${_TOTAL} controlplane"
     for ((_IDX=0; _IDX<_TOTAL; _IDX++)); do
@@ -391,18 +463,79 @@ function verify_cluster_fanout() {
     done
     echo ""
 
+    # --- generation ---
+    # Which bootstrap generation each node last synced, against what is in S3
+    # now. Reported, never voted on: `pull` still targets one node, so a stale
+    # peer is the tooling's own doing rather than a fault.
+    _STALE_SEEN=0
+    _NOSTAMP_SEEN=0
+    _S3_GEN=""
+    echo "--- generation ---"
+    for ((_IDX=0; _IDX<_TOTAL; _IDX++)); do
+        _STDOUT=$(parse_command_invocation_result "${NODE_RESULT[$_IDX]}" "StandardOutputContent")
+        _GEN="$(node_generation "${_STDOUT}")"
+        if [[ -z "${_GEN}" ]]; then
+            printf '  %-20s %-40s %-14s %s\n' \
+                "${NODE_IDS[$_IDX]}" "${NODE_NAMES[$_IDX]}" "--" "${C_YLW}not reported${C_RST}"
+            continue
+        fi
+        # cut, not `IFS=$'\t' read`: tab is an IFS *whitespace* character, so read
+        # skips leading tabs and collapses runs. A node with no stamp emits an
+        # empty first field, and read would shift the current digest into
+        # synced — reporting the S3 value as though the node held it.
+        _GSYNC="$(printf '%s' "${_GEN}" | cut -s -f1)"
+        _GCUR="$(printf '%s' "${_GEN}" | cut -s -f2)"
+        _GSTATE="$(printf '%s' "${_GEN}" | cut -s -f3)"
+        [[ -n "${_GCUR}" ]] && _S3_GEN="${_GCUR}"
+        if [[ "${_GSTATE}" == "current" ]]; then
+            _GLABEL="${C_GRN}current${C_RST}"
+        elif [[ "${_GSTATE}" == "stale" ]]; then
+            _GLABEL="${C_YLW}STALE${C_RST}"
+            _STALE_SEEN=1
+        elif [[ -z "${_GSYNC}" ]]; then
+            # Distinct from STALE: the node has never recorded a stamp, so we
+            # know nothing about what it holds rather than knowing it is behind.
+            _GLABEL="${C_YLW}no stamp${C_RST}"
+            _NOSTAMP_SEEN=1
+        else
+            _GLABEL="${C_YLW}S3 unreadable${C_RST}"
+        fi
+        printf '  %-20s %-40s %-14s %s\n' \
+            "${NODE_IDS[$_IDX]}" "${NODE_NAMES[$_IDX]}" "${_GSYNC:-"--"}" "${_GLABEL}"
+    done
+    if [[ -n "${_S3_GEN}" ]]; then
+        echo "  S3 now: ${_S3_GEN}"
+    fi
+    if (( _STALE_SEEN == 1 )); then
+        echo "  ${C_YLW}Note: 'sk3s pull' refreshes ONE control-plane node, so peers stay behind"
+        echo "        until they are refreshed too. Multi-node sync arrives in #118 phase 4.${C_RST}"
+    fi
+    if (( _NOSTAMP_SEEN == 1 )); then
+        echo "  ${C_YLW}Note: a node records its stamp during refresh, so the refresh that first"
+        echo "        delivers the stamping script cannot write one. Refresh again to stamp it.${C_RST}"
+    fi
+    echo ""
+
     if (( PER_NODE == 1 )); then
-        # Every node's log in full, verbatim. Verbose and largely duplicated —
-        # kept for when a node's exact, unmerged output is what you need.
+        # Each node's own results, unmerged — for when a specific node's view is
+        # what you need rather than the consensus.
         for ((_IDX=0; _IDX<_TOTAL; _IDX++)); do
             echo "=== ${NODE_IDS[$_IDX]} (${NODE_NAMES[$_IDX]}) — ${NODE_STATUS[$_IDX]:-no response} ==="
             _STDOUT=$(parse_command_invocation_result "${NODE_RESULT[$_IDX]}" "StandardOutputContent")
             _STDERR=$(parse_command_invocation_result "${NODE_RESULT[$_IDX]}" "StandardErrorContent")
-            if [[ -n "${_STDOUT}" ]]; then
+            _LINES="$(render_check_lines "${_STDOUT}")"
+            if [[ -n "${_LINES}" ]]; then
+                echo "--- checks ---"
+                printf '%s\n' "${_LINES}" | highlight_log
+            elif [[ -n "${_STDOUT}" ]]; then
                 echo "--- stdout ---"
                 printf '%s\n' "${_STDOUT}" | highlight_log
             fi
-            if [[ -n "${_STDERR}" ]]; then
+            # Only when no document parsed. A node running --json sends its full
+            # prose log to stderr, which restates the checks above line for line;
+            # printing both would duplicate every result, and SSM caps stderr at
+            # 8000 characters, so the duplicate is the copy that gets truncated.
+            if [[ -z "${_LINES}" && -n "${_STDERR}" ]]; then
                 echo "--- stderr ---"
                 printf '%s\n' "${_STDERR}" | highlight_log
             fi
@@ -420,6 +553,14 @@ function verify_cluster_fanout() {
     if (( PER_NODE == 0 )); then
         _ERR_TEXTS=() ; _ERR_NODES=()
         for ((_IDX=0; _IDX<_TOTAL; _IDX++)); do
+            # In --json mode a node's stderr IS its full prose log, so dumping it
+            # per node would reproduce exactly the duplication this report exists
+            # to remove. Only nodes that returned no readable document fall
+            # through here, where their stderr is the diagnostic.
+            _STDOUT=$(parse_command_invocation_result "${NODE_RESULT[$_IDX]}" "StandardOutputContent")
+            if [[ -n "$(render_check_lines "${_STDOUT}")" ]]; then
+                continue
+            fi
             _STDERR=$(parse_command_invocation_result "${NODE_RESULT[$_IDX]}" "StandardErrorContent")
             [[ -z "${_STDERR}" ]] && continue
             _MATCHED=0
