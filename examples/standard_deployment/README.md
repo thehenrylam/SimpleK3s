@@ -296,15 +296,34 @@ node_verify-all.sh --json    # JSON on stdout, all prose to stderr
   verified, and letting that read as a pass is the defect class of
   [#110](https://github.com/thehenrylam/SimpleK3s/issues/110).
 - **A `schema` field**, so a consumer refuses a document it cannot read rather
-  than half-reading a future shape.
-- **A generation stamp**, so the host can tell a stale node from a current one. ⚠️
+  than half-reading a future shape. It is bumped only when existing fields
+  change meaning — adding an optional field is not a break, since a node that
+  predates it simply omits it and the host reports it as unknown.
+- **A generation stamp**, so the host can tell a stale node from a current one.
+  `node_refresh-bootstrap-files.sh` records a digest of the bootstrap bucket's
+  contents after a successful sync; verify recomputes it live and reports both.
+  Staleness is `synced != current`.
 
 ```json
 { "schema": 1, "node": "ip-10-0-1-74", "result": "failed",
+  "generation": {"synced": "e1cbb2338cc6", "current": "cc1dc98f09d7", "stale": true},
   "summary": {"passed": 37, "failed": 1, "skipped": 1, "total": 39},
   "checks": [{"section": "longhorn", "result": "failed",
               "message": "...", "detail": "..."}] }
 ```
+
+Both sides of the generation comparison come from the same source — a digest of
+the S3 object listing (key, ETag, size), computed by one shared function in
+`lib/common.sh`. Hashing the node's local files instead would not work: the
+bootstrap directory also holds node-generated logs, so every node would differ
+from every other. `null` means unknown and never compares equal, so an
+unreadable bucket cannot make a stale node look current.
+
+Staleness is **reported, not voted on**. `sk3s pull` still refreshes a single
+control-plane node, so a stale peer is the tooling's own doing rather than a
+fault; failing on it would break the deploy gate for a condition SimpleK3s
+causes. It becomes a hard failure once `pull` fans out to every node (#118
+phase 4).
 
 Two rules keep this workable in practice. The mode switch happens **before** the
 checks run, not by appending a block after the prose — SSM truncates stdout at

@@ -117,6 +117,33 @@ function verify_skip() {
     log_info "  SKIP: $1"
 }
 
+# ─── Bootstrap generation ────────────────────────────────────────────────────
+
+GEN_SYNCED=""
+GEN_CURRENT=""
+
+# Compare what this node last synced against what is in S3 now.
+#
+# Deliberately NOT a pass/fail check. `sk3s pull` still targets a single
+# control-plane node, so a stale peer is the expected state after an apply
+# rather than a fault — making it fail would break the deploy gate for a
+# condition the tooling itself causes. It is reported prominently instead, and
+# becomes a hard failure once pull fans out to every node (#118 phase 4).
+function collect_generation() {
+    GEN_SYNCED="$(recorded_generation)" || GEN_SYNCED=""
+    GEN_CURRENT="$(s3_generation)" || GEN_CURRENT=""
+
+    if [[ -z "${GEN_SYNCED}" ]]; then
+        log_warn "Generation: node has no stamp (not refreshed since stamping was added)"
+    elif [[ -z "${GEN_CURRENT}" ]]; then
+        log_warn "Generation: ${GEN_SYNCED} synced; S3 unreadable, cannot compare"
+    elif [[ "${GEN_SYNCED}" == "${GEN_CURRENT}" ]]; then
+        log_okay "Generation: ${GEN_SYNCED} (current)"
+    else
+        log_warn "Generation: synced ${GEN_SYNCED}, S3 has ${GEN_CURRENT} — NODE IS STALE"
+    fi
+}
+
 # Serialise the records as JSON. python3 is stdlib-only here, per the node-side
 # rule; it does the quoting so a message containing a quote cannot break out.
 function emit_json() {
@@ -126,7 +153,7 @@ import json, sys
 RS = "\x1e"
 US = "\x1f"
 
-node, passed, failed, skipped = sys.argv[1:5]
+node, passed, failed, skipped, gen_synced, gen_current = sys.argv[1:7]
 
 checks = []
 for record in sys.stdin.read().split(RS):
@@ -138,11 +165,22 @@ for record in sys.stdin.read().split(RS):
         entry["detail"] = detail
     checks.append(entry)
 
-# schema is the contract version: the host refuses a document it cannot read
-# rather than silently misreading a future shape.
+# An empty argv value means "unknown" — never conflate it with a real digest.
+# stale stays null unless BOTH sides are known, so an unreadable bucket cannot
+# make a current node look stale or a stale node look current.
+generation = {
+    "synced": gen_synced or None,
+    "current": gen_current or None,
+    "stale": (gen_synced != gen_current) if (gen_synced and gen_current) else None,
+}
+
+# schema is the contract version, bumped only when existing fields change
+# meaning. Adding an optional field (like generation) is not a break: a node
+# that predates it simply omits it, and the host reports it as unknown.
 document = {
     "schema": 1,
     "node": node,
+    "generation": generation,
     "result": "failed" if int(failed) else "passed",
     "summary": {
         "passed": int(passed),
@@ -153,7 +191,8 @@ document = {
     "checks": checks,
 }
 print(json.dumps(document, indent=2))
-' "$(hostname)" "$VERIFY_PASSES" "$VERIFY_FAILURES" "$VERIFY_SKIPS"
+' "$(hostname)" "$VERIFY_PASSES" "$VERIFY_FAILURES" "$VERIFY_SKIPS" \
+        "$GEN_SYNCED" "$GEN_CURRENT"
 }
 
 # Returns 0 if the rollout is currently complete, 1 if not.
@@ -633,6 +672,8 @@ fi
 
 log_info "$0: LAUNCHED"
 log_info "Stability window: ${STABILITY_WINDOW_SECONDS}s"
+
+collect_generation
 
 check_k3s_api
 check_nodes_ready

@@ -192,6 +192,28 @@ for check in doc.get("checks", []):
 ' 2>/dev/null
 }
 
+# Pull the generation triple out of a node's document as
+# "<synced>\t<current>\t<state>". Empty output means the node reported no
+# generation at all — a node predating the stamp — which must stay
+# distinguishable from a node that reported one and is stale.
+function node_generation() {
+    printf '%s' "${1}" | python3 -c '
+import json, sys
+
+try:
+    doc = json.load(sys.stdin)
+except ValueError:
+    raise SystemExit(0)
+if not isinstance(doc, dict) or doc.get("schema") != 1:
+    raise SystemExit(0)
+gen = doc.get("generation")
+if not isinstance(gen, dict):
+    raise SystemExit(0)
+state = "" if gen.get("stale") is None else ("stale" if gen["stale"] else "current")
+print("\t".join([gen.get("synced") or "", gen.get("current") or "", state]))
+' 2>/dev/null
+}
+
 # How many checks failed on a node. Preferred source is the JSON summary; the
 # grep is retained for a node still running a pre---json script.
 function count_failed_checks() {
@@ -360,6 +382,7 @@ function verify_cluster_fanout() {
     local _ENV_VARS _REMOTE_COMMAND _COMMAND_ID
     local _LINE _ID _NAME _IDX
     local _STATUS _STDOUT _STDERR _VERDICT _DETAIL _FAILED _LINES
+    local _GEN _GSYNC _GCUR _GSTATE _GLABEL _STALE_SEEN _NOSTAMP_SEEN _S3_GEN
     local _J _MATCHED
     local _ERR_TEXTS _ERR_NODES
     local _PASSED _FAILEDN _UNKNOWN _TOTAL _EXIT _SUMMARY
@@ -438,6 +461,59 @@ function verify_cluster_fanout() {
         fi
         printf '  %-20s %-40s %s%s\n' "${NODE_IDS[$_IDX]}" "${NODE_NAMES[$_IDX]}" "${_VERDICT}" "${_DETAIL}"
     done
+    echo ""
+
+    # --- generation ---
+    # Which bootstrap generation each node last synced, against what is in S3
+    # now. Reported, never voted on: `pull` still targets one node, so a stale
+    # peer is the tooling's own doing rather than a fault.
+    _STALE_SEEN=0
+    _NOSTAMP_SEEN=0
+    _S3_GEN=""
+    echo "--- generation ---"
+    for ((_IDX=0; _IDX<_TOTAL; _IDX++)); do
+        _STDOUT=$(parse_command_invocation_result "${NODE_RESULT[$_IDX]}" "StandardOutputContent")
+        _GEN="$(node_generation "${_STDOUT}")"
+        if [[ -z "${_GEN}" ]]; then
+            printf '  %-20s %-40s %-14s %s\n' \
+                "${NODE_IDS[$_IDX]}" "${NODE_NAMES[$_IDX]}" "--" "${C_YLW}not reported${C_RST}"
+            continue
+        fi
+        # cut, not `IFS=$'\t' read`: tab is an IFS *whitespace* character, so read
+        # skips leading tabs and collapses runs. A node with no stamp emits an
+        # empty first field, and read would shift the current digest into
+        # synced — reporting the S3 value as though the node held it.
+        _GSYNC="$(printf '%s' "${_GEN}" | cut -s -f1)"
+        _GCUR="$(printf '%s' "${_GEN}" | cut -s -f2)"
+        _GSTATE="$(printf '%s' "${_GEN}" | cut -s -f3)"
+        [[ -n "${_GCUR}" ]] && _S3_GEN="${_GCUR}"
+        if [[ "${_GSTATE}" == "current" ]]; then
+            _GLABEL="${C_GRN}current${C_RST}"
+        elif [[ "${_GSTATE}" == "stale" ]]; then
+            _GLABEL="${C_YLW}STALE${C_RST}"
+            _STALE_SEEN=1
+        elif [[ -z "${_GSYNC}" ]]; then
+            # Distinct from STALE: the node has never recorded a stamp, so we
+            # know nothing about what it holds rather than knowing it is behind.
+            _GLABEL="${C_YLW}no stamp${C_RST}"
+            _NOSTAMP_SEEN=1
+        else
+            _GLABEL="${C_YLW}S3 unreadable${C_RST}"
+        fi
+        printf '  %-20s %-40s %-14s %s\n' \
+            "${NODE_IDS[$_IDX]}" "${NODE_NAMES[$_IDX]}" "${_GSYNC:-"--"}" "${_GLABEL}"
+    done
+    if [[ -n "${_S3_GEN}" ]]; then
+        echo "  S3 now: ${_S3_GEN}"
+    fi
+    if (( _STALE_SEEN == 1 )); then
+        echo "  ${C_YLW}Note: 'sk3s pull' refreshes ONE control-plane node, so peers stay behind"
+        echo "        until they are refreshed too. Multi-node sync arrives in #118 phase 4.${C_RST}"
+    fi
+    if (( _NOSTAMP_SEEN == 1 )); then
+        echo "  ${C_YLW}Note: a node records its stamp during refresh, so the refresh that first"
+        echo "        delivers the stamping script cannot write one. Refresh again to stamp it.${C_RST}"
+    fi
     echo ""
 
     if (( PER_NODE == 1 )); then
