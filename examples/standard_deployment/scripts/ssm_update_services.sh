@@ -30,6 +30,10 @@ function usage() {
     echo "  profile   AWS CLI profile (required)" >&2
     echo "  nickname  Cluster nickname (default: inferred from terraform.tfvars)" >&2
     echo "  region    AWS region      (default: inferred from terraform.tfvars)" >&2
+    echo "" >&2
+    echo "Targets ONE running controlplane node, chosen automatically. Node" >&2
+    echo "selection and fan-out to every node are not yet supported — see" >&2
+    echo "issue #118 phase 4. 'sk3s status' reports which nodes are behind." >&2
     exit 2
 }
 
@@ -57,17 +61,22 @@ function update_services() {
 }
 
 # PARSE OPTIONS
-# The only script with no flag handling at all, so `--help` was read as the AWS
-# profile and the run proceeded against a profile literally named "--help".
-case "${1:-}" in
-    -h | --help)
-        usage
-        ;;
-    -*)
-        echo "Error: unknown option '${1}'." >&2
-        usage
-        ;;
-esac
+# Every argument is scanned, not just $1: `sk3s` supplies the AWS profile as the
+# first positional when one is omitted, so a flag the caller typed first ends up
+# at $2. Checking only $1 made `sk3s pull --help` fall through to the positional
+# count and report a bogus "expected <profile>" error. Matches the loop the
+# sibling ssm_*.sh scripts use.
+for _ARG in "$@"; do
+    case "${_ARG}" in
+        -h | --help)
+            usage
+            ;;
+        -*)
+            echo "Error: unknown option '${_ARG}'." >&2
+            usage
+            ;;
+    esac
+done
 
 # GATHER INPUTS
 PROFILE="${1:-}"
