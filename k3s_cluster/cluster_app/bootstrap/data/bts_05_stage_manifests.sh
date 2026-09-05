@@ -62,13 +62,29 @@ HEAD_MANIFESTS=(
     "$KARPENTER_CRD_MANIFEST"
 )
 
+STAGED_CHANGED=0
+STAGED_TOTAL=0
+STAGED_FILES=""
+
 function stage_manifest() {
     local FILENAME="$1"
     local PENDING_FILEPATH="$PENDING_MANIFEST_DIR/$FILENAME"
     local MANIFEST_FILEPATH="$K3S_MANIFEST_DIR/$FILENAME"
 
+    STAGED_TOTAL=$((STAGED_TOTAL + 1))
+
+    # Compare before copying. The unconditional cp emitted two log lines per
+    # manifest regardless, so a run that changed one file and a run that changed
+    # none produced byte-identical output — it reported effort, not change.
+    # A missing destination makes cmp fail, which is correctly "changed".
+    if sudo cmp -s "$PENDING_FILEPATH" "$MANIFEST_FILEPATH" 2>/dev/null; then
+        return 0
+    fi
+
     log_info "Staging manifest '$FILENAME' to $MANIFEST_FILEPATH"
     sudo cp "$PENDING_FILEPATH" "$MANIFEST_FILEPATH" || return 1
+    STAGED_CHANGED=$((STAGED_CHANGED + 1))
+    STAGED_FILES="${STAGED_FILES}${FILENAME}"$'\n'
     log_okay "Staged manifest '$FILENAME'"
 }
 
@@ -182,6 +198,8 @@ function prep_longhorn_disk_annotations() {
     # Longhorn subsystem not enabled; nothing to annotate
     if [ ! -f "$POOLS_CONFIG_FILE" ]; then
         log_info "No Longhorn pools config present; skipping disk annotations"
+        pull_report_kv step action name longhorn_node_annotations performed false \
+            detail "no pools configured"
         return 0
     fi
 
@@ -228,13 +246,17 @@ PYEOF
 
     if [ -z "$NODE_ANNOTATIONS" ]; then
         log_info "No nodes match any pool's node_target; nothing to annotate"
+        pull_report_kv step action name longhorn_node_annotations performed false \
+            detail "no nodes match any pool"
         return 0
     fi
 
     local NODE ANNOTATION
+    local ANNOTATED=0
     while IFS=$'\t' read -r NODE ANNOTATION; do
         [ -z "$NODE" ] && continue
 
+        ANNOTATED=$((ANNOTATED + 1))
         log_info "Node '$NODE': setting longhorn.io/default-disks-annotation"
         sudo kubectl annotate node "$NODE" \
             "longhorn.io/default-disks-annotation=$ANNOTATION" \
@@ -244,6 +266,8 @@ PYEOF
         }
     done <<< "$NODE_ANNOTATIONS"
 
+    pull_report_kv step action name longhorn_node_annotations performed true \
+        detail "annotated ${ANNOTATED} node(s) with their disk configuration"
     log_okay "Longhorn disk annotations set."
 }
 
@@ -276,7 +300,33 @@ function stage_remaining_manifests() {
 }
 
 
+# Count what staging WOULD change, then stop. Deliberately placed before the
+# readiness gates: those exist to sequence real staging, and prep_longhorn_disk_
+# annotations mutates node annotations, so a preview must not reach any of it.
+function dry_run_scan() {
+    local PENDING_FILEPATH FILENAME
+    for PENDING_FILEPATH in "$PENDING_MANIFEST_DIR"/*.yaml; do
+        [ -e "$PENDING_FILEPATH" ] || continue
+        FILENAME="$(basename "$PENDING_FILEPATH")"
+        STAGED_TOTAL=$((STAGED_TOTAL + 1))
+        if sudo cmp -s "$PENDING_FILEPATH" "$K3S_MANIFEST_DIR/$FILENAME" 2>/dev/null; then
+            continue
+        fi
+        STAGED_CHANGED=$((STAGED_CHANGED + 1))
+        STAGED_FILES="${STAGED_FILES}${FILENAME}"$'\n'
+    done
+    log_info "DRY RUN: ${STAGED_CHANGED} of ${STAGED_TOTAL} manifests would change"
+    pull_report_kv step stage result ok changed "${STAGED_CHANGED}" total "${STAGED_TOTAL}" \
+        files "$(printf '%s' "${STAGED_FILES}" | json_array)"
+}
+
 log_info "$0: LAUNCHED"
+
+if is_dry_run; then
+    dry_run_scan
+    log_okay "$0: COMPLETED (dry run — nothing changed)"
+    exit 0
+fi
 
 wait_for_k3s_api || {
     log_fail "Unable to confirm that K3s API is ready"
@@ -312,7 +362,12 @@ prep_longhorn_disk_annotations || {
 
 stage_remaining_manifests || {
     log_fail "Failed to stage the remaining manifests"
+    pull_report_kv step stage result failed changed "${STAGED_CHANGED}" total "${STAGED_TOTAL}"
     exit 1
 }
+
+log_info "Manifests: ${STAGED_CHANGED} changed of ${STAGED_TOTAL}"
+pull_report_kv step stage result ok changed "${STAGED_CHANGED}" total "${STAGED_TOTAL}" \
+    files "$(printf '%s' "${STAGED_FILES}" | json_array)"
 
 log_okay "$0: COMPLETED"
