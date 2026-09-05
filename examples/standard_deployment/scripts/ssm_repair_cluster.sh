@@ -33,17 +33,31 @@ NO_COLOR=0
 POLL_MAX=60
 POLL_INTERVAL=5
 
+EXIT_USAGE=2
+
 function usage() {
-    echo "Usage: $(basename "$0") <profile> [<nickname> <region>] [--dry-run] [--no-color]" >&2
-    echo "" >&2
-    echo "  profile     AWS CLI profile (required)" >&2
-    echo "  nickname    Cluster nickname (default: inferred from terraform.tfvars)" >&2
-    echo "  region      AWS region      (default: inferred from terraform.tfvars)" >&2
-    echo "  --dry-run   Report the plan and change nothing" >&2
-    echo "  --no-color  Never emit colour" >&2
-    echo "" >&2
-    echo "Exit: 0 repaired or nothing to do; 1 failed; 2 bad usage" >&2
-    exit 2
+    # An explicit --help is a successful request: stdout, exit 0. Usage shown
+    # because the invocation was wrong goes to stderr and exits EXIT_USAGE.
+    local _CODE
+    _CODE="${1:-${EXIT_USAGE}}"
+    if (( _CODE == 0 )); then
+        print_usage
+    else
+        print_usage >&2
+    fi
+    exit "${_CODE}"
+}
+
+function print_usage() {
+    echo "Usage: $(basename "$0") <profile> [<nickname> <region>] [--dry-run] [--no-color]"
+    echo ""
+    echo "  profile     AWS CLI profile (required)"
+    echo "  nickname    Cluster nickname (default: inferred from terraform.tfvars)"
+    echo "  region      AWS region      (default: inferred from terraform.tfvars)"
+    echo "  --dry-run   Report the plan and change nothing"
+    echo "  --no-color  Never emit colour"
+    echo ""
+    echo "Exit: 0 repaired or nothing to do; 1 failed; 2 bad usage"
 }
 
 # ─── Colours ────────────────────────────────────────────────────────────────────
@@ -323,7 +337,7 @@ while [[ $# -gt 0 ]]; do
     case "${1}" in
         --dry-run)  DRY_RUN=1 ; shift ;;
         --no-color) NO_COLOR=1 ; shift ;;
-        -h|--help)  usage ;;
+        -h|--help)  usage 0 ;;
         -*)         echo "Unknown option: ${1}" >&2 ; usage ;;
         *)          POSITIONAL[${#POSITIONAL[@]}]="${1}" ; shift ;;
     esac

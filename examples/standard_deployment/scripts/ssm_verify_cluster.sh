@@ -87,18 +87,32 @@ NODE_NAMES=()
 NODE_STATUS=()   # raw SSM invocation status ("" until terminal)
 NODE_RESULT=()   # raw invocation JSON
 
+EXIT_USAGE=2
+
 function usage() {
-    echo "Usage: $(basename "$0") <profile> [<nickname> <region>] [--no-color] [--per-node]" >&2
-    echo "" >&2
-    echo "  profile     AWS CLI profile (required)" >&2
-    echo "  nickname    Cluster nickname (default: inferred from terraform.tfvars)" >&2
-    echo "  region      AWS region      (default: inferred from terraform.tfvars)" >&2
-    echo "  --no-color  Never emit colour (already off when stdout is not a terminal)" >&2
-    echo "  --per-node  Print each node's own results instead of one merged report" >&2
-    echo "" >&2
-    echo "Exit: 0 only when every controlplane node passes; 1 otherwise" >&2
-    echo "      (a node that cannot be reached is not a pass)." >&2
-    exit 2
+    # An explicit --help is a successful request: stdout, exit 0. Usage shown
+    # because the invocation was wrong goes to stderr and exits EXIT_USAGE.
+    local _CODE
+    _CODE="${1:-${EXIT_USAGE}}"
+    if (( _CODE == 0 )); then
+        print_usage
+    else
+        print_usage >&2
+    fi
+    exit "${_CODE}"
+}
+
+function print_usage() {
+    echo "Usage: $(basename "$0") <profile> [<nickname> <region>] [--no-color] [--per-node]"
+    echo ""
+    echo "  profile     AWS CLI profile (required)"
+    echo "  nickname    Cluster nickname (default: inferred from terraform.tfvars)"
+    echo "  region      AWS region      (default: inferred from terraform.tfvars)"
+    echo "  --no-color  Never emit colour (already off when stdout is not a terminal)"
+    echo "  --per-node  Print each node's own results instead of one merged report"
+    echo ""
+    echo "Exit: 0 only when every controlplane node passes; 1 otherwise"
+    echo "      (a node that cannot be reached is not a pass)."
 }
 
 
@@ -627,7 +641,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -h|--help)
-            usage
+            usage 0
             ;;
         --)
             shift

@@ -17,14 +17,28 @@ source "${SCRIPT_DIR}/common.sh"
 IAC_NAME_CLUSTER="standard_cluster"
 IAC_TFVARS="$(get_tfvar_filepath "${SCRIPT_DIR}" "${IAC_NAME_CLUSTER}")"
 
+EXIT_USAGE=2
+
 function usage() {
-    echo "Usage: $(basename "$0") <profile> [<nickname> <region>] [--instance-id <instance-id>]" >&2
-    echo "" >&2
-    echo "  profile       AWS CLI profile (required)" >&2
-    echo "  nickname      Cluster nickname (default: inferred from terraform.tfvars)" >&2
-    echo "  region        AWS region      (default: inferred from terraform.tfvars)" >&2
-    echo "  --instance-id Connect straight to this instance, skipping the picker" >&2
-    exit 2
+    # An explicit --help is a successful request: stdout, exit 0. Usage shown
+    # because the invocation was wrong goes to stderr and exits EXIT_USAGE.
+    local _CODE
+    _CODE="${1:-${EXIT_USAGE}}"
+    if (( _CODE == 0 )); then
+        print_usage
+    else
+        print_usage >&2
+    fi
+    exit "${_CODE}"
+}
+
+function print_usage() {
+    echo "Usage: $(basename "$0") <profile> [<nickname> <region>] [--instance-id <instance-id>]"
+    echo ""
+    echo "  profile       AWS CLI profile (required)"
+    echo "  nickname      Cluster nickname (default: inferred from terraform.tfvars)"
+    echo "  region        AWS region      (default: inferred from terraform.tfvars)"
+    echo "  --instance-id Connect straight to this instance, skipping the picker"
 }
 
 function ssm_start_session() {
@@ -75,7 +89,7 @@ while (( $# > 0 )); do
             shift 2
             ;;
         -h|--help)
-            usage
+            usage 0
             ;;
         -*)
             echo "Error: unknown option '${1}'." >&2
