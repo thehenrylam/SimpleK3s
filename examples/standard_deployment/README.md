@@ -364,6 +364,105 @@ Nothing is injected when `all.yml` is absent, the key is missing, or the value
 is still `__CONFIGURE_THIS__` — the verb then reports its own missing-profile
 error rather than authenticating as a placeholder.
 
+#### Every run is logged
+
+`sk3s` writes a log per invocation to `logs/` (gitignored), whether or not anyone
+asked for one. `--verbose` only helps the run you predicted would fail; a log
+written unconditionally is the one that exists after the failure you did not
+predict — and re-running a *mutating* command just to capture output is not an
+option.
+
+```
+logs/sk3s_pull_20260905T194848Z.log
+```
+
+Each file records the command as invoked (including the injected profile), start
+and finish times, the target script, and the exit code, around the run's full
+output.
+
+- Both streams are captured, but **teed separately**, so `sk3s nodes --json | jq`
+  still receives clean JSON while progress goes to stderr and to the log.
+- `connect` is **not** logged: it owns the terminal, and piping an interactive
+  SSM session through `tee` would break it.
+- `--help` is not logged either — no cluster interaction worth keeping.
+
+#### `logs/history.log` — the sequence
+
+One line per run, so a session's worth of activity reads in order without opening
+50 files:
+
+```
+2026-09-05T20:24:13Z  exit=0     0s  nodes            sk3s_nodes_20260905T202413Z.log   sk3s nodes deployer
+2026-09-05T20:24:16Z  exit=0     2s  pull             sk3s_pull_20260905T202414Z.log    sk3s pull deployer
+2026-09-05T20:24:16Z  exit=1     0s  status           sk3s_status_20260905T202416Z.log  sk3s status deployer
+2026-09-05T20:24:17Z  opened      -  connect[f76444]  -                                 sk3s connect deployer --instance-id i-0abc
+2026-09-05T20:24:20Z  exit=0     3s  connect[f76444]  -                                 (session closed)
+```
+
+Timestamp, exit code, duration, verb, the detail file to open, and the command as
+invoked.
+
+- **It is not pruned with the per-run logs.** Detail is capped at
+  `SK3S_LOG_KEEP` (50); the sequence outliving it is the point. `history.log` is
+  capped separately at `SK3S_HISTORY_KEEP` (10000 lines) purely so it cannot grow
+  forever.
+- **`SK3S_NO_LOG=1` still writes here.** It is metadata, which is exactly what has
+  to survive opting out.
+- **`connect` appears, as a pair.** It has no per-run log — its output cannot be
+  teed without breaking the session — but somebody opening an interactive shell on
+  a node is the most audit-relevant event this tool produces, and it was
+  previously invisible. A session gets an `opened` line immediately and a closed
+  line with its duration on exit, tied by a short id. Writing only on close would
+  put the entry out of order relative to everything done *during* the session.
+- **An interrupted run is still recorded**, as `interrupted` with the elapsed
+  time and exit 130. Ctrl-C signals the whole process group, so without a handler
+  the run would vanish from the trail entirely — the case most worth keeping.
+- **An `opened` line with no matching close** means the session died with its
+  terminal. That is deliberately visible rather than tidied away.
+- `--help` is not recorded — no cluster interaction.
+
+| Variable | Effect |
+|---|---|
+| `SK3S_NO_LOG=1` | Withhold the **output**; the entry itself is still written |
+| `SK3S_HISTORY_KEEP` | Lines kept in `history.log` (default 10000) |
+| `SK3S_LOG_DIR` | Write logs somewhere else |
+| `SK3S_LOG_KEEP` | How many to retain (default 50; older are pruned after each run) |
+
+#### `SK3S_NO_LOG` withholds output, not the record
+
+It is deliberately **not** an off switch. The runs an operator opts out of are the
+ones handling sensitive output — which makes them the entries an audit trail most
+needs. Erasing them would remove exactly the record worth keeping, so the command,
+timings and exit code are still written and the body is replaced by a marker:
+
+```
+# sk3s exec deployer --instance-id i-0abc --exec-cmd "kubectl get secret argocd-oidc -o yaml"
+# started : 2026-09-05T19:49:39Z
+# target  : .../scripts/ssm_execute.sh
+#
+# (output withheld — SK3S_NO_LOG=1)
+#
+# exit    : 0
+# finished: 2026-09-05T19:49:41Z
+```
+
+The directory therefore stays chronologically complete: it can answer "what was
+run against this cluster, by whom, and when" even for runs whose output was not
+kept — which is what makes it usable for review, or for replaying a window of
+activity after an incident.
+
+⚠️ **The command line itself is always recorded.** That is the point, but it means
+a secret passed *as an argument* is written to the log. Note that such a secret is
+already exposed in shell history, in `ps` output, and in the SSM command record
+AWS keeps server-side — so withholding it locally would create a false sense of
+privacy while the authoritative copy survives. Do not pass secrets as arguments;
+reference them by name and let External-Secrets resolve them.
+
+⚠️ **Logged output is unredacted.** No attempt is made to detect and mask secrets
+in captured output: pattern-matching for sensitive data fails quietly and gives
+false confidence. `SK3S_NO_LOG=1` is the honest control — it says what is missing
+and why.
+
 | Verb | Dispatches to |
 |---|---|
 | `status` | `ssm_verify_cluster.sh` |

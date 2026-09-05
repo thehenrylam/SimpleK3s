@@ -59,6 +59,9 @@ terraform.rc
 # CUSTOM: Ignore tmp folders
 _tmp*/
 
+# sk3s writes a log per run; forensic, local, and not worth versioning
+examples/*/logs/
+
 # CUSTOM: Lambda build artifacts (zipped by data.archive_file at plan time)
 examples/ex_tailscale/data/*.zip
 **/*tailscale/data/*.zip
