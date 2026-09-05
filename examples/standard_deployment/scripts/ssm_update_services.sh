@@ -24,17 +24,31 @@ SIMPLEK3S_UPDATE="${SIMPLEK3S_SCRIPT_DIR}/node_init-services.sh"
 POLL_INTERVAL=5
 POLL_MAX=180  # 15 minutes
 
+EXIT_USAGE=2
+
 function usage() {
-    echo "Usage: $(basename "$0") <profile> [<nickname> <region>]" >&2
-    echo "" >&2
-    echo "  profile   AWS CLI profile (required)" >&2
-    echo "  nickname  Cluster nickname (default: inferred from terraform.tfvars)" >&2
-    echo "  region    AWS region      (default: inferred from terraform.tfvars)" >&2
-    echo "" >&2
-    echo "Targets ONE running controlplane node, chosen automatically. Node" >&2
-    echo "selection and fan-out to every node are not yet supported — see" >&2
-    echo "issue #118 phase 4. 'sk3s status' reports which nodes are behind." >&2
-    exit 2
+    # An explicit --help is a successful request: stdout, exit 0. Usage shown
+    # because the invocation was wrong goes to stderr and exits EXIT_USAGE.
+    local _CODE
+    _CODE="${1:-${EXIT_USAGE}}"
+    if (( _CODE == 0 )); then
+        print_usage
+    else
+        print_usage >&2
+    fi
+    exit "${_CODE}"
+}
+
+function print_usage() {
+    echo "Usage: $(basename "$0") <profile> [<nickname> <region>]"
+    echo ""
+    echo "  profile   AWS CLI profile (required)"
+    echo "  nickname  Cluster nickname (default: inferred from terraform.tfvars)"
+    echo "  region    AWS region      (default: inferred from terraform.tfvars)"
+    echo ""
+    echo "Targets ONE running controlplane node, chosen automatically. Node"
+    echo "selection and fan-out to every node are not yet supported — see"
+    echo "issue #118 phase 4. 'sk3s status' reports which nodes are behind."
 }
 
 function update_services() {
@@ -69,7 +83,7 @@ function update_services() {
 for _ARG in "$@"; do
     case "${_ARG}" in
         -h | --help)
-            usage
+            usage 0
             ;;
         -*)
             echo "Error: unknown option '${_ARG}'." >&2

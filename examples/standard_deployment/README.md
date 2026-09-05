@@ -230,7 +230,7 @@ A flag means the same thing in every script, or it gets a different name.
 
 | Flag | Meaning |
 |---|---|
-| `-h`, `--help` | Usage to stderr, exit 2 |
+| `-h`, `--help` | Usage to **stdout**, exit **0** — asking for help is a request that succeeded |
 | `--instance-id <id>` | Target one instance instead of the script's default scope ⚠️ |
 | `--json [compact\|pretty]` | Machine-readable output on stdout ⚠️ |
 | `--no-color` | Never emit colour ⚠️ |
@@ -242,10 +242,18 @@ A flag means the same thing in every script, or it gets a different name.
 
 | Code | Meaning |
 |---|---|
-| `0` | Succeeded |
+| `0` | Succeeded — including an explicit `--help` |
 | `1` | Ran correctly, and the answer is bad (checks failed, repair needed) |
 | `2` | Usage error — bad arguments, missing profile, unresolvable context |
 | `3` | Not finished (async command still running) |
+
+`1` and `2` are kept apart on purpose: `1` means go and look at the cluster,
+`2` means fix the command line. A wrapper can act on that difference.
+
+Usage text is printed by `print_usage`, and `usage <code>` decides where it goes
+— stdout on 0, stderr otherwise. Returning non-zero for a deliberate `--help`
+would abort any caller running under `set -e`, and would put the text on the one
+stream a pipeline cannot read.
 
 **Absence is never success.** A script that could not reach the cluster, could
 not parse a response, or never ran its checks exits non-zero. Reporting a green
