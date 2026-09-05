@@ -94,6 +94,18 @@ if [[ -z "$NO_REFRESH" ]]; then
         log_fail "Failed to refresh bootstrap files"
         exit 1
     }
+else
+    # cloud-init has just downloaded the bucket, so this node IS at the current
+    # generation — it simply has no record of it, because the stamp is written
+    # by the refresh step that --no-refresh skips. Without this, every freshly
+    # booted node reports "no stamp" while being perfectly current, which is
+    # indistinguishable from a node that has genuinely never been refreshed.
+    log_info "Recording the bootstrap generation (cloud-init already synced)..."
+    if GENERATION="$(record_generation)"; then
+        log_okay "Bootstrap generation: ${GENERATION}"
+    else
+        log_warn "Could not compute the bootstrap generation; node will report unknown"
+    fi
 fi
 
 # Perform node type

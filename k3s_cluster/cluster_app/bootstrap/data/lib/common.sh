@@ -10,6 +10,65 @@ SCRIPT_DIR="$LIBRARY_DIR/../"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/simplek3s.env"
 
+# ─── Pull report ─────────────────────────────────────────────────────────────
+
+# Steps of a pull append one JSON object per line to the file named by
+# PULL_REPORT, and the host assembles them into a single document. JSON lines
+# because three different scripts write to it and none of them can know what the
+# others produced.
+#
+# The HOST owns the file's lifecycle — it truncates before the run and reads
+# after — so a report always belongs to exactly one invocation. A step that
+# never ran leaves no record, which is what lets the host say "not attempted"
+# instead of silently reporting nothing.
+#
+# No-op when PULL_REPORT is unset, so the boot path (which runs the same
+# staging code) does not accumulate records nobody reads.
+function pull_report() {
+    [[ -n "${PULL_REPORT:-}" ]] || return 0
+    printf '%s\n' "$1" >> "${PULL_REPORT}"
+}
+
+# True when the caller asked for a preview. Set by the host alongside
+# PULL_REPORT; unset everywhere else, so the boot path can never be a dry run.
+function is_dry_run() {
+    [[ "${PULL_DRY_RUN:-false}" == "true" ]]
+}
+
+# Build a JSON object from key/value pairs, quoting through python so a filename
+# containing a quote cannot break the document.
+#   pull_report_kv step sync changed 3
+function pull_report_kv() {
+    [[ -n "${PULL_REPORT:-}" ]] || return 0
+    python3 -c '
+import json, sys
+pairs = sys.argv[1:]
+out = {}
+for i in range(0, len(pairs) - 1, 2):
+    key, value = pairs[i], pairs[i + 1]
+    # A value of the form "[...]" is a pre-built JSON array (a file list);
+    # anything else is a scalar, and digits become numbers so the host does
+    # not have to re-parse counts.
+    if value.startswith("[") and value.endswith("]"):
+        out[key] = json.loads(value)
+    elif value.lstrip("-").isdigit():
+        out[key] = int(value)
+    elif value in ("true", "false"):
+        out[key] = value == "true"
+    else:
+        out[key] = value
+print(json.dumps(out))
+' "$@" >> "${PULL_REPORT}"
+}
+
+# Turn a newline-separated list into a JSON array, for pull_report_kv.
+function json_array() {
+    python3 -c '
+import json, sys
+print(json.dumps([ln for ln in sys.stdin.read().split("\n") if ln.strip()]))
+'
+}
+
 # ─── Bootstrap generation ────────────────────────────────────────────────────
 
 # Where a node records the generation it last synced. Lives inside BOOTSTRAP_DIR
@@ -41,6 +100,19 @@ function s3_generation() {
     # with nothing must never compare equal to a node that synced real content.
     [[ -n "${_LISTING}" ]] || return 1
     printf '%s' "${_LISTING}" | sha256sum | cut -c1-12
+}
+
+# Record the generation currently in S3 as this node's. Call ONLY after the
+# node's files are known to match the bucket — after a successful sync, or at
+# boot, where cloud-init has just downloaded them.
+#
+# Returns non-zero without touching the stamp if the bucket is unreadable: a
+# stale stamp is better than a wrong one, and verify reports "unknown" either way.
+function record_generation() {
+    local _GEN
+    _GEN="$(s3_generation)" || return 1
+    printf '%s\n' "${_GEN}" > "${GENERATION_FILE}"
+    printf '%s' "${_GEN}"
 }
 
 # Generation this node last synced, or empty if it has never recorded one

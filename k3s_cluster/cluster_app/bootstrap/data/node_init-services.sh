@@ -43,10 +43,20 @@ log_info "$0: LAUNCHED"
     exit 1
 }
 
-"$SCRIPT_DIR/converge_actions.sh" || {
-    log_fail "Failed to run converge actions"
-    exit 1
-}
+# Converge actions restart live deployments (argocd-server, the Tailscale
+# operator), so a preview reports them rather than running them. They are named
+# individually because "converge actions" tells an operator nothing about what
+# is at risk.
+if is_dry_run; then
+    log_info "DRY RUN: skipping converge actions"
+    pull_report_kv step action name converge_actions performed false \
+        detail "may restart argocd-server and the tailscale operator"
+else
+    "$SCRIPT_DIR/converge_actions.sh" || {
+        log_fail "Failed to run converge actions"
+        exit 1
+    }
+fi
 
 log_okay "$0: COMPLETED"
 echo "=== $(basename "$0") completed ==="

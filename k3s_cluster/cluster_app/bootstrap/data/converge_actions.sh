@@ -130,11 +130,13 @@ print(json.dumps({'spec': {'disks': disks}}))
 function converge_action_longhorn() {
     if [ ! -f "$PENDING_MANIFEST_DIR/longhorn.yaml" ]; then
         log_info "No Longhorn manifest staged; skipping Longhorn disk registration"
+        pull_report_kv step action name longhorn_disks performed false detail "not deployed"
         return 0
     fi
 
     wait_longhorn_node_crs || return 1
     register_longhorn_disks || return 1
+    pull_report_kv step action name longhorn_disks performed true detail "disk registration reconciled"
 }
 
 ##################################################
@@ -144,6 +146,7 @@ function converge_action_longhorn() {
 function converge_action_argocd() {
     if [ ! -f "$PENDING_MANIFEST_DIR/argocd.yaml" ]; then
         log_info "No ArgoCD manifest staged; skipping ArgoCD OIDC restart"
+        pull_report_kv step action name argocd_oidc_restart performed false detail "not deployed"
         return 0
     fi
 
@@ -184,6 +187,7 @@ function converge_action_argocd() {
         return 1
     }
 
+    pull_report_kv step action name argocd_oidc_restart performed true detail "OIDC route registration"
     log_okay "argocd-server restarted with OIDC routes registered"
 }
 
@@ -194,6 +198,7 @@ function converge_action_argocd() {
 function converge_action_tailscale() {
     if [ ! -f "$PENDING_MANIFEST_DIR/tailscale-ingress.yaml" ]; then
         log_info "No Tailscale ingress manifest staged; skipping Tailscale entrypoint reconcile"
+        pull_report_kv step action name tailscale_reconcile performed false detail "not deployed"
         return 0
     fi
 
@@ -231,6 +236,7 @@ function converge_action_tailscale() {
     # ProxyClass going Ready. Only a stuck operator should ever be restarted.
     if wait_for_cmd_1min bash -c "$HAS_PROXY"; then
         log_okay "Tailscale proxy for '$INGRESS_NAME' exists; no restart needed"
+        pull_report_kv step action name tailscale_reconcile performed false detail "proxy present"
         return 0
     fi
 
@@ -261,6 +267,7 @@ function converge_action_tailscale() {
         return 1
     }
 
+    pull_report_kv step action name tailscale_reconcile performed true detail "operator restarted to re-reconcile"
     log_okay "Tailscale proxy for '$INGRESS_NAME' created"
 }
 
