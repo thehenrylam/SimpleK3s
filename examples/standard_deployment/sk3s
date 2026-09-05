@@ -23,6 +23,26 @@ GROUP_VARS="${SCRIPT_DIR}/group_vars/all.yml"
 EXIT_OK=0
 EXIT_USAGE=2
 
+# Every run is logged here, whether or not anyone asked. --verbose only helps the
+# run you predicted would fail; a log written unconditionally is the one that is
+# there after the failure you did not predict. Gitignored.
+LOG_DIR="${SK3S_LOG_DIR:-${SCRIPT_DIR}/logs}"
+
+# Oldest logs beyond this are removed after each run, so the directory cannot
+# grow without bound on a machine that is never tidied.
+LOG_KEEP="${SK3S_LOG_KEEP:-50}"
+
+# One line per run, so a sequence can be read without opening 50 files. NOT
+# pruned alongside them: the whole point is that the trail outlives the detail.
+# Capped only so it cannot grow forever — at ~150 bytes a line, the default is
+# years of use.
+HISTORY_FILE="${LOG_DIR}/history.log"
+HISTORY_KEEP="${SK3S_HISTORY_KEEP:-10000}"
+
+# Verbs that own the terminal. Their output cannot be piped through tee without
+# breaking the session, so they run unlogged rather than half-working.
+LOG_EXCLUDE=("connect")
+
 # verb|script|summary
 VERBS=(
     "status|ssm_verify_cluster.sh|Health of the cluster, merged across control-plane nodes"
@@ -99,6 +119,11 @@ function usage() {
         echo ""
         echo "  $(basename "$0") <verb> --help    Usage for that verb"
         echo ""
+        echo "Every run is logged to logs/ (except 'connect', which owns the"
+        echo "terminal). SK3S_NO_LOG=1 withholds the OUTPUT but still records the"
+        echo "command, timings and exit code. SK3S_LOG_DIR relocates the"
+        echo "directory; SK3S_LOG_KEEP sets how many are kept (default ${LOG_KEEP})."
+        echo ""
         echo "Note: pull currently targets a single control-plane node. Multi-node"
         echo "      sync arrives in phase 4."
     } >&"${_FD}"
@@ -174,7 +199,198 @@ if [[ "${WANTS_HELP}" == "false" ]] && [[ $# -eq 0 || "${1}" == -* ]]; then
     fi
 fi
 
+function logging_wanted() {
+    local _V
+    # A help request produces no cluster interaction worth keeping.
+    [[ "${WANTS_HELP}" == "true" ]] && return 1
+    for _V in "${LOG_EXCLUDE[@]}"; do
+        [[ "${VERB}" == "${_V}" ]] && return 1
+    done
+    return 0
+}
+
+# SK3S_NO_LOG withholds the OUTPUT, not the entry. Suppressing the whole record
+# would delete the audit trail exactly where it matters most: the runs an
+# operator opts out of are the ones handling sensitive output, so erasing them
+# removes the entry most worth having. Command, timings and exit code are still
+# recorded, and the log states plainly that the body was withheld.
+function log_output_wanted() {
+    [[ "${SK3S_NO_LOG:-0}" != "1" ]]
+}
+
+# Shell-quote one argument so the log preserves where arguments began and ended.
+# Without this, `--exec-cmd "rm -rf /tmp/a b"` and `--exec-cmd rm -rf /tmp/a b`
+# log identically, which for an audit trail is the difference between two very
+# different commands. Only arguments that need quoting get it, so the ordinary
+# case stays readable.
+function quote_arg() {
+    local _A="${1}"
+    if [[ -n "${_A}" && "${_A}" =~ ^[A-Za-z0-9_./:=@%+,-]+$ ]]; then
+        printf '%s' "${_A}"
+        return 0
+    fi
+    # POSIX single-quoting: close the quote, emit an escaped quote, reopen —
+    # i.e. ' becomes '\''. Done with sed rather than parameter expansion because
+    # inside double quotes bash does not treat \' as an escape, so the expansion
+    # form silently emits literal backslashes.
+    printf "'%s'" "$(printf '%s' "${_A}" | sed "s/'/'\\\\''/g")"
+}
+
+function quote_cmd() {
+    local _OUT="" _A
+    for _A in "$@"; do
+        _OUT+="$(quote_arg "${_A}") "
+    done
+    printf '%s' "${_OUT% }"
+}
+
+function utc_now() {
+    date -u +%Y-%m-%dT%H:%M:%SZ
+}
+
+# Append one history line. Failure here must never take down the command it is
+# describing, hence the swallowed error.
+#   history_write <status> <duration> <verb> <detail-file> <command...>
+function history_write() {
+    local _STATUS="${1}" _DURATION="${2}" _VERB="${3}" _DETAIL="${4}"
+    shift 4
+    mkdir -p "${LOG_DIR}" 2>/dev/null || return 0
+    printf '%s  %-8s %6s  %-18s %-34s %s\n' \
+        "$(utc_now)" "${_STATUS}" "${_DURATION}" "${_VERB}" "${_DETAIL}" "$(quote_cmd "$@")" \
+        >> "${HISTORY_FILE}" 2>/dev/null || true
+}
+
+function prune_history() {
+    local _LINES _TMP
+    [[ -f "${HISTORY_FILE}" ]] || return 0
+    _LINES="$(wc -l < "${HISTORY_FILE}" 2>/dev/null | tr -d ' ')"
+    [[ "${_LINES}" =~ ^[0-9]+$ ]] || return 0
+    (( _LINES <= HISTORY_KEEP )) && return 0
+    _TMP="${HISTORY_FILE}.tmp.$$"
+    tail -n "${HISTORY_KEEP}" "${HISTORY_FILE}" > "${_TMP}" 2>/dev/null \
+        && mv "${_TMP}" "${HISTORY_FILE}" 2>/dev/null || rm -f "${_TMP}"
+}
+
+# Short id tying a connect session's opened/closed pair together.
+function session_id() {
+    printf '%06x' "$(( (RANDOM << 15 | RANDOM) & 0xFFFFFF ))"
+}
+
+# Keep the newest LOG_KEEP files and drop the rest. Sorted by name, which is
+# chronological because the timestamp is fixed-width and UTC.
+function prune_logs() {
+    local _FILES
+    _FILES="$(ls -1 "${LOG_DIR}"/sk3s_*.log 2>/dev/null | sort -r | tail -n +"$((LOG_KEEP + 1))")"
+    [[ -z "${_FILES}" ]] && return 0
+    printf '%s\n' "${_FILES}" | while IFS= read -r _F; do
+        [[ -n "${_F}" ]] && rm -f "${_F}"
+    done
+}
+
 # EXECUTE SCRIPT
-# exec, not a call: the target owns the terminal from here (connect opens an
-# interactive session, nodes runs a curses picker) and its exit code is ours.
-exec "${SCRIPTS_DIR}/${TARGET}" "$@"
+
+# A help request touches no cluster and is not part of the audit trail, so it is
+# the one path that still replaces this process outright.
+if [[ "${WANTS_HELP}" == "true" ]]; then
+    exec "${SCRIPTS_DIR}/${TARGET}" "$@"
+fi
+
+STARTED_EPOCH="$(date -u +%s)"
+
+# Recorded for the interrupt handler, which cannot take arguments.
+HISTORY_CMD=("sk3s" "${VERB}" "$@")
+HISTORY_DETAIL="-"
+
+# An interrupted run must still appear. Ctrl-C signals the whole process group,
+# so without this bash exits before reaching the history write and the run
+# vanishes — the same hole SK3S_NO_LOG was changed to avoid. 130 is the
+# conventional status for SIGINT.
+function on_interrupt() {
+    trap - INT TERM
+    history_write "interrupted" "$(( $(date -u +%s) - STARTED_EPOCH ))s" \
+        "${VERB}" "${HISTORY_DETAIL}" "${HISTORY_CMD[@]}"
+    prune_history
+    exit 130
+}
+trap on_interrupt INT TERM
+
+# `connect` owns the terminal: its output cannot be teed without breaking the
+# session, so no per-run log exists for it. It IS recorded in history though —
+# somebody opening an interactive shell on a node is the single most
+# audit-relevant thing this tool does, and leaving it invisible was the largest
+# gap in the trail.
+#
+# Two lines, because a session can last hours: one when it opens, one when it
+# closes. Writing only on close would place the entry out of order relative to
+# everything that happened during the session, and would make a session that is
+# still open — or that died with the terminal — invisible entirely.
+if ! logging_wanted; then
+    SESSION="$(session_id)"
+    VERB="${VERB}[${SESSION}]"
+    history_write "opened" "-" "${VERB}" "-" "${HISTORY_CMD[@]}"
+
+    # A child, not exec: this shell has to survive to close the session out. The
+    # terminal still passes through, so the session itself is unaffected.
+    set +e
+    "${SCRIPTS_DIR}/${TARGET}" "$@"
+    TARGET_STATUS=$?
+    set -e
+
+    history_write "exit=${TARGET_STATUS}" "$(( $(date -u +%s) - STARTED_EPOCH ))s" \
+        "${VERB}" "-" "(session closed)"
+    prune_history
+    exit "${TARGET_STATUS}"
+fi
+
+mkdir -p "${LOG_DIR}"
+LOG_FILE="${LOG_DIR}/sk3s_${VERB}_$(date -u +%Y%m%dT%H%M%SZ).log"
+
+HISTORY_DETAIL="$(basename "${LOG_FILE}")"
+
+{
+    printf '# %s\n' "$(quote_cmd "${HISTORY_CMD[@]}")"
+    printf '# started : %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    printf '# target  : %s\n' "${SCRIPTS_DIR}/${TARGET}"
+    printf '#\n'
+} >> "${LOG_FILE}"
+
+if log_output_wanted; then
+    # Streams are teed SEPARATELY rather than merged. Merging would put progress
+    # on stdout and break `sk3s nodes --json | jq`, which the conventions promise
+    # works.
+    #
+    # fd 3/4 are closed before waiting so each tee sees EOF and drains; without
+    # that the last lines — usually the interesting ones — can be lost when the
+    # shell exits first.
+    exec 3> >(tee -a "${LOG_FILE}")
+    exec 4> >(tee -a "${LOG_FILE}" >&2)
+
+    set +e
+    "${SCRIPTS_DIR}/${TARGET}" "$@" >&3 2>&4
+    TARGET_STATUS=$?
+    set -e
+
+    exec 3>&- 4>&-
+    wait
+else
+    # Stated explicitly, so a reader can tell a withheld body from a command that
+    # simply produced no output.
+    printf '# (output withheld — SK3S_NO_LOG=1)\n' >> "${LOG_FILE}"
+    set +e
+    "${SCRIPTS_DIR}/${TARGET}" "$@"
+    TARGET_STATUS=$?
+    set -e
+fi
+
+{
+    printf '#\n'
+    printf '# exit    : %d\n' "${TARGET_STATUS}"
+    printf '# finished: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+} >> "${LOG_FILE}"
+
+history_write "exit=${TARGET_STATUS}" "$(( $(date -u +%s) - STARTED_EPOCH ))s" \
+    "${VERB}" "${HISTORY_DETAIL}" "${HISTORY_CMD[@]}"
+
+prune_logs
+prune_history
+exit "${TARGET_STATUS}"

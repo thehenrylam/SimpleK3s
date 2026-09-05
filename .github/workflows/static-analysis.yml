@@ -8,6 +8,13 @@ on:
       - "**/*.tftpl"
       - "**/*.tmpl"
       - "**/*.sh"
+      # sk3s carries no extension on purpose — it is the operator entry point and
+      # reads as a command. Without this line a PR touching only sk3s triggers no
+      # checks at all, which is how #149 reached "mergeable" having run none.
+      # Deliberately not a shebang-based catch-all: sk3s is the sole exception,
+      # and .git-custom/hooks/ is excluded because it cannot affect the deployed
+      # project (it is still covered by testcases/test-out_shellscripts.sh).
+      - "examples/*/sk3s"
       - "**/*.py"
       - "**/*.yml"
       - "**/*.yaml"
@@ -24,6 +31,13 @@ on:
       - "**/*.tftpl"
       - "**/*.tmpl"
       - "**/*.sh"
+      # sk3s carries no extension on purpose — it is the operator entry point and
+      # reads as a command. Without this line a PR touching only sk3s triggers no
+      # checks at all, which is how #149 reached "mergeable" having run none.
+      # Deliberately not a shebang-based catch-all: sk3s is the sole exception,
+      # and .git-custom/hooks/ is excluded because it cannot affect the deployed
+      # project (it is still covered by testcases/test-out_shellscripts.sh).
+      - "examples/*/sk3s"
       - "**/*.py"
       - "**/*.yml"
       - "**/*.yaml"
