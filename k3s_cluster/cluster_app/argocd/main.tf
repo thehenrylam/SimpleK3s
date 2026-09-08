@@ -74,12 +74,6 @@ module "aws_s3obj" {
         region_idp_config = module.aws_pstore.processed_pstores[local.settings.pstore_idp_config].region
         cfg               = merge({}, local.performance_profile["standard"])
       })
-    },
-    {
-      desc     = "ArgoCD installation script (to be executed by the Default Init Script)"
-      key      = "${var.s3_config.keyroot}/app_argocd.sh"
-      src      = "${path.module}/data/app_argocd.sh"
-      template = null
     }
   ]
 }
