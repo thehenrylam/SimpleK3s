@@ -112,12 +112,6 @@ module "aws_s3obj" {
         # re-interpreted by templatefile.
         recommended_dashboard_json = file("${path.module}/data/dashboards/simplek3s-start-here.json")
       })
-    },
-    {
-      desc     = "Monitoring (Prometheus & Grafana) installation script (to be executed by the Default Init Script)"
-      key      = "${var.s3_config.keyroot}/app_monitoring.sh"
-      src      = "${path.module}/data/app_monitoring.sh"
-      template = null
     }
   ]
 }

@@ -49,7 +49,8 @@ resource "aws_s3_bucket_public_access_block" "bootstrap" {
 #     enabled. A PutObject issued inside that window succeeds, but the provider's
 #     follow-up read-back can 404 ("couldn't find resource"), failing the apply on
 #     an object that is actually present and correct. Hit on a fresh build in
-#     August 2026 (app_argocd.sh); only reproducible on a from-scratch bucket,
+#     August 2026 (app_argocd.sh, since deleted in #153); only reproducible on
+#     a from-scratch bucket,
 #     since versioning is created exactly once per bucket lifetime.
 #   - server-side encryption: sets DEFAULT encryption, which applies only to
 #     objects written AFTER it exists and does NOT retroactively encrypt earlier
