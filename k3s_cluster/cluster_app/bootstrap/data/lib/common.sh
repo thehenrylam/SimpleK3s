@@ -532,3 +532,80 @@ function claim_staging_ownership() {
     log_info "Staging ownership: lost the claim race to ${_OWNER}; this node will not stage"
     return 1
 }
+
+# ─── Workload helpers ────────────────────────────────────────────────────────
+
+# The pod selector of a Deployment/StatefulSet/DaemonSet, as a k=v,k=v string.
+# All three carry spec.selector.matchLabels, so one accessor covers every
+# workload we act on, and nothing has to hardcode a chart's label conventions.
+#   workload_pod_selector <namespace> <type/name>
+function workload_pod_selector() {
+    sudo kubectl -n "${1}" get "${2}" -o json 2>/dev/null | python3 -c '
+import json, sys
+labels = json.load(sys.stdin)["spec"]["selector"]["matchLabels"]
+print(",".join("%s=%s" % kv for kv in sorted(labels.items())))
+' 2>/dev/null
+}
+
+# ─── ArgoCD OIDC route registration ──────────────────────────────────────────
+
+# Whether argocd-server's OIDC HTTP routes are registered. Prints one of:
+#   current  - the running server started AFTER the OIDC secret existed
+#   stale    - the server predates the secret, so /auth/login was never mounted
+#   unknown  - the question could not be answered
+#
+# WHY A TIMESTAMP COMPARISON AND NOT AN HTTP PROBE (see #95, #145).
+# argocd-server mounts /auth/login and /auth/callback ONCE at startup, and only
+# if SSO resolves as configured at that instant. The defect is therefore purely
+# causal: the server booted before External-Secrets populated argocd-oidc.
+# Comparing the pod's start time against the secret's creation time tests that
+# cause directly.
+#
+# Probing the route over HTTP was considered and rejected: it tests a symptom
+# whose negative response is unverified. If an unregistered /auth/login returns
+# the UI's SPA fallback (200) rather than a 404, the probe reports "registered"
+# for a server with dead SSO — reintroducing #95 with no visible symptom. A
+# probe that can be wrong in the direction of "looks fine" is worse than none.
+#
+# Both timestamps are RFC3339 UTC, so they compare correctly as strings and no
+# date parsing is needed.
+function argocd_oidc_state() {
+    local _NS="argocd" _SECRET="argocd-oidc" _DEPLOY="deploy/argocd-server"
+    local _SECRET_TS _SELECTOR _POD_TS _OLDEST
+
+    _SECRET_TS="$(sudo kubectl -n "${_NS}" get secret "${_SECRET}" \
+        -o jsonpath='{.metadata.creationTimestamp}' 2>/dev/null)" || {
+        printf 'unknown' ; return 0
+    }
+    # No secret means SSO cannot work yet at all. That is not "current", and
+    # callers must not read it as permission to skip the restart.
+    [[ -n "${_SECRET_TS}" ]] || { printf 'unknown' ; return 0 ; }
+
+    _SELECTOR="$(workload_pod_selector "${_NS}" "${_DEPLOY}")" || {
+        printf 'unknown' ; return 0
+    }
+    [[ -n "${_SELECTOR}" ]] || { printf 'unknown' ; return 0 ; }
+
+    _POD_TS="$(sudo kubectl -n "${_NS}" get pods -l "${_SELECTOR}" \
+        --field-selector=status.phase=Running \
+        -o jsonpath='{.items[*].status.startTime}' 2>/dev/null)" || {
+        printf 'unknown' ; return 0
+    }
+    [[ -n "${_POD_TS}" ]] || { printf 'unknown' ; return 0 ; }
+
+    # The OLDEST running pod decides. If any live replica predates the secret it
+    # is serving 404s on the SSO routes, and a newer sibling does not fix the
+    # requests that land on it.
+    _OLDEST="$(printf '%s' "${_POD_TS}" | tr ' ' '\n' | sort | head -1)"
+    [[ -n "${_OLDEST}" ]] || { printf 'unknown' ; return 0 ; }
+
+    # Strictly-after is the only "current". Timestamps carry second granularity,
+    # so an exact tie leaves room for the pod to have started just before the
+    # secret landed — and at that boundary the cheap error is a needless restart,
+    # not a silently unregistered OIDC route.
+    if [[ "${_OLDEST}" > "${_SECRET_TS}" ]]; then
+        printf 'current'
+    else
+        printf 'stale'
+    fi
+}
