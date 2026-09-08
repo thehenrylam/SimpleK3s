@@ -190,8 +190,11 @@ function converge_action_argocd() {
     OIDC_STATE="$(argocd_oidc_state)"
     if [[ "$OIDC_STATE" == "current" ]]; then
         log_okay "argocd-server already started after the OIDC secret; no restart needed"
+        # checked=true separates "we looked and nothing was needed" from the
+        # "not deployed" reports above. Only the former is worth showing in the
+        # default summary — it is the evidence the restart was conditional.
         pull_report_kv step action name argocd_oidc_restart performed false \
-            detail "OIDC routes already registered"
+            checked true detail "OIDC routes already registered"
         return 0
     fi
     if [[ "$OIDC_STATE" != "stale" ]]; then
@@ -258,7 +261,8 @@ function converge_action_tailscale() {
     # ProxyClass going Ready. Only a stuck operator should ever be restarted.
     if wait_for_cmd_1min bash -c "$HAS_PROXY"; then
         log_okay "Tailscale proxy for '$INGRESS_NAME' exists; no restart needed"
-        pull_report_kv step action name tailscale_reconcile performed false detail "proxy present"
+        pull_report_kv step action name tailscale_reconcile performed false \
+            checked true detail "proxy present"
         return 0
     fi
 

@@ -44,10 +44,16 @@ EXIT_USAGE=2
 # answer, so the run refuses instead.
 BLOCKING_SECTIONS="k3s_api nodes"
 
-# Reported, never acted on. pod_stability is a symptom spanning namespaces
-# rather than a component, and — decisively — refresh CAUSES it: pods restarted
-# by this very run are recent restarts. Feeding it back in would make every
-# successful refresh look like a new failure.
+# Reported, never acted on. pod_stability names no component: it reports that
+# some container somewhere crashed inside the stability window, spanning
+# namespaces, so there is nothing for a component-keyed registry to map it onto.
+# Restarting a guess would be worse than reporting it and letting the operator
+# name the component with --only.
+#
+# (It does NOT feed back into itself, which an earlier draft of this comment
+# claimed. node_verify-all.sh reads container lastState.terminated — in-place
+# crash restarts — and a rolling replacement produces new pods with no
+# lastState, so a refresh never registers as instability. Verified live.)
 EXCLUDED_SECTIONS="pod_stability"
 
 function usage() {

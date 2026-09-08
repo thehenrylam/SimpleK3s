@@ -471,8 +471,12 @@ if mode in ("apply", "pull") and stage_id:
     if not actions:
         print("%-11s: not attempted" % L_ACTION)
     else:
-        performed = [a for a in actions if a.get("performed")]
-        shown = actions if (verbose or dry) else performed
+        # An action that ran, and one that was explicitly checked and found
+        # unnecessary, are both results. Only "not deployed" is noise worth
+        # hiding — dropping the checked ones would make a conditional action
+        # look like it was never considered (#145).
+        notable = [a for a in actions if a.get("performed") or a.get("checked")]
+        shown = actions if (verbose or dry) else notable
         if not shown:
             print("%-11s: none needed" % L_ACTION)
         else:
@@ -481,7 +485,12 @@ if mode in ("apply", "pull") and stage_id:
                 if dry:
                     text = "%s — %s" % (a.get("name", "?").replace("_", " "), a.get("detail", ""))
                 else:
-                    what = "performed" if a.get("performed") else "skipped"
+                    if a.get("performed"):
+                        what = "performed"
+                    elif a.get("checked"):
+                        what = "not needed"
+                    else:
+                        what = "skipped"
                     text = "%-22s %-9s (%s)" % (a.get("name", "?"), what, a.get("detail", ""))
                 print(("%-11s: %s" % (L_ACTION, text)) if first else ("             " + text))
                 first = False

@@ -524,9 +524,10 @@ membership (`repair`).
 **Two sections it will not act on.** `k3s_api` and `nodes` are not workloads —
 if either is failing, `refresh` refuses the whole run and points at `repair`,
 because nothing else can be trusted while the API or node readiness is broken.
-`pod_stability` is reported but never acted on: it spans namespaces rather than
-naming a component, and a refresh's own restarts would come back as new
-instability on the next check.
+`pod_stability` is reported but never acted on: it says some container crashed
+inside the stability window, spanning namespaces rather than naming a component,
+so there is nothing for a component-keyed registry to map it onto. Name the
+component yourself with `--only` once you know which one it is.
 
 Running `node_refresh-services.sh --list` on a node prints the component
 registry — which workloads each component maps to, and why the non-actionable
