@@ -57,14 +57,16 @@ VERBS=(
     "nodes|ssm_list_instances.sh||List the cluster's EC2 instances"
     "connect|ssm_connect.sh||Open an interactive shell on a node"
     "exec|ssm_execute.sh||Run a command on a node"
+    "refresh|ssm_refresh_services.sh||Restart platform workloads that are wedged"
     "repair|ssm_repair_cluster.sh||Repair a control-plane node that cannot rejoin"
 )
 
 # verb|phase|summary — named so an unbuilt verb reports its plan instead of
 # "unknown", which would read as a typo rather than a roadmap.
-PLANNED=(
-    "refresh|5|Restart failing services (--auto, --hard)"
-)
+# Empty is the expected steady state — every verb #118 planned now exists. The
+# remaining phases add flags and move callers, not verbs, so the section below
+# disappears from help rather than listing nothing.
+PLANNED=()
 
 function field() {
     # field <entry> <n>   — nth |-separated field, 1-indexed
@@ -111,12 +113,14 @@ function usage() {
         for _ENTRY in "${VERBS[@]}"; do
             printf '  %-9s %s\n' "$(field "${_ENTRY}" 1)" "$(field "${_ENTRY}" 4)"
         done
-        echo ""
-        echo "Planned:"
-        for _ENTRY in "${PLANNED[@]}"; do
-            printf '  %-9s %s (phase %s)\n' \
-                "$(field "${_ENTRY}" 1)" "$(field "${_ENTRY}" 3)" "$(field "${_ENTRY}" 2)"
-        done
+        if (( ${#PLANNED[@]} > 0 )); then
+            echo ""
+            echo "Planned:"
+            for _ENTRY in "${PLANNED[@]}"; do
+                printf '  %-9s %s (phase %s)\n' \
+                    "$(field "${_ENTRY}" 1)" "$(field "${_ENTRY}" 3)" "$(field "${_ENTRY}" 2)"
+            done
+        fi
         echo ""
         echo "Every verb takes <profile> [<nickname> <region>] first. Omit the"
         echo "profile and aws_profile_for_scripts from group_vars/all.yml is used;"
@@ -164,7 +168,7 @@ function args_for() {
 
 function planned_phase_for() {
     local _VERB="${1}" _ENTRY
-    for _ENTRY in "${PLANNED[@]}"; do
+    for _ENTRY in ${PLANNED[@]+"${PLANNED[@]}"}; do
         if [[ "$(field "${_ENTRY}" 1)" == "${_VERB}" ]]; then
             field "${_ENTRY}" 2
             return 0
