@@ -51,7 +51,7 @@ ansible-playbook ./playbooks/cluster_verify.yml
 - `./playbooks/cluster_destroy.yml`
     - Executes `tofu destroy` for `cluster` IaC modules
 - `./playbooks/cluster_update.yml`
-    - Executes `tofu apply` + `./scripts/ssm_update_services.sh` to ask the cluster to pull from S3, pull new files, and redoing the node setup to update services
+    - Executes `tofu apply` + `./scripts/ssm_update_services.sh` (i.e. `sk3s pull`) to sync new files from S3 to every control-plane node, then stage manifests on the node that owns staging
     - **Fails the play** when the service update does not succeed
 - `./playbooks/cluster_verify.yml`
     - Executes `./scripts/ssm_verify_cluster.sh` to get the health status of the cluster
@@ -327,11 +327,12 @@ bootstrap directory also holds node-generated logs, so every node would differ
 from every other. `null` means unknown and never compares equal, so an
 unreadable bucket cannot make a stale node look current.
 
-Staleness is **reported, not voted on**. `sk3s pull` still refreshes a single
-control-plane node, so a stale peer is the tooling's own doing rather than a
-fault; failing on it would break the deploy gate for a condition SimpleK3s
-causes. It becomes a hard failure once `pull` fans out to every node (#118
-phase 4).
+Staleness is **reported, not voted on**. It stays a report rather than a hard
+failure because a stale peer is not always the cluster's fault — a node that was
+unreachable during a sync is behind through no fault of its own, and failing the
+deploy gate on it would block shipping precisely when a node is already sick.
+`sk3s sync` now reaches every control-plane node (`--all-nodes` for the rest), so
+staleness is at least no longer something the tooling causes by design.
 
 Two rules keep this workable in practice. The mode switch happens **before** the
 checks run, not by appending a block after the prose — SSM truncates stdout at
@@ -463,18 +464,46 @@ in captured output: pattern-matching for sensitive data fails quietly and gives
 false confidence. `SK3S_NO_LOG=1` is the honest control — it says what is missing
 and why.
 
-| Verb | Dispatches to |
-|---|---|
-| `status` | `ssm_verify_cluster.sh` |
-| `pull` | `ssm_update_services.sh` |
-| `nodes` | `ssm_list_instances.sh` |
-| `connect` | `ssm_connect.sh` |
-| `exec` | `ssm_execute.sh` |
-| `repair` | `ssm_repair_cluster.sh` |
+| Verb | Dispatches to | Scope |
+|---|---|---|
+| `status` | `ssm_verify_cluster.sh` | every control-plane node |
+| `sync` | `ssm_update_services.sh --mode sync` | every control-plane node |
+| `apply` | `ssm_update_services.sh --mode apply` | the staging owner |
+| `pull` | `ssm_update_services.sh --mode pull` | sync everywhere, then stage on the owner |
+| `nodes` | `ssm_list_instances.sh` | — |
+| `connect` | `ssm_connect.sh` | one node |
+| `exec` | `ssm_execute.sh` | one node |
+| `repair` | `ssm_repair_cluster.sh` | one node |
 
-`apply` and `refresh` are listed by `sk3s help` but not built yet. Running one
-reports which phase of [#118](https://github.com/thehenrylam/SimpleK3s/issues/118)
-it arrives in, rather than "unknown verb".
+`refresh` is listed by `sk3s help` but not built yet. Running it reports which
+phase of [#118](https://github.com/thehenrylam/SimpleK3s/issues/118) it arrives
+in, rather than "unknown verb".
+
+#### Why sync, apply and pull are separate
+
+They were one operation, and the two halves have **opposite natural scopes**:
+
+- **Files** (`/opt/simplek3s`) are per-node disk state. Every node needs them, or
+  a repair run on a stale node executes old scripts.
+- **Staging** (`/var/lib/rancher/k3s/server/manifests`) has a cluster-wide effect
+  through the K3s deploy controller. One node suffices, and a second node staging
+  the same files means two controllers reconciling the same Addons plus a stale
+  copy nothing cleans up ([#144](https://github.com/thehenrylam/SimpleK3s/issues/144)).
+
+Which node stages is **read from the cluster**, never inferred from a node's
+index. Whichever node stages at boot claims a `simplek3s-staging-owner` ConfigMap
+in `kube-system` (`kubectl create` is atomic, so the first writer wins), and the
+tooling asks the cluster who holds it. Nothing in the host scripts knows that
+"node 0" exists, so when ownership moves the tooling follows without a code
+change.
+
+If no owner is on record, `apply` and `pull` **refuse** rather than picking a
+node. An unrecorded owner is not the same as "any node will do" — staging
+somewhere arbitrary is the defect, not the fallback. Use `--instance-id` to
+choose explicitly, or `--claim-ownership` to establish one; the latter takes the
+first node by instance-id sort, which is arbitrary with respect to a node's role
+(so it privileges nobody) yet stable across runs (so `--dry-run` can name the
+node before anything changes).
 
 - `./scripts/ssm_connect.sh <aws_profile>`
     - Connects to an EC2 environment in the cluster (Pick the instance to connect to via a GUI)
@@ -485,8 +514,14 @@ it arrives in, rather than "unknown verb".
     - Executes any command on a given `instance-id` in the cluster
 - `./scripts/ssm_list_instances.sh <aws_profile>`
     - Outputs a list of EC2 instances in the cluster
-- `./scripts/ssm_update_services.sh <aws_profile>`
-    - In an EC2 node, execute a script to pull files from `S3 bootstrap` and redoing the node setup to update services
+- `./scripts/ssm_update_services.sh <aws_profile> [--mode sync|apply|pull] [options]`
+    - `--mode sync` syncs `/opt/simplek3s` from the S3 bootstrap bucket to every control-plane node (`--all-nodes` adds agent and Karpenter nodes)
+    - `--mode apply` stages manifests on the node that owns staging, without re-syncing
+    - `--mode pull` (default) does both, sequentially — every node syncs before anything stages
+    - `--instance-id <id>` restricts **both** halves to one node, an escape hatch for repair; it warns when the node is not the recorded staging owner
+    - `--strict-sync` fails the run if any node's sync fails. By default only the staging node's own failure blocks staging, so an unrelated unreachable node cannot stop a deploy
+    - `--claim-ownership` makes the target the sole staging owner, clearing manifests other nodes are holding. Safe: removing a manifest file does not delete the resources it created ([#151](https://github.com/thehenrylam/SimpleK3s/issues/151))
+    - `--dry-run` reports what would change and writes nothing
 - `./scripts/ssm_verify_cluster.sh <aws_profile> [--no-color] [--per-node]`
     - On **every** controlplane node, execute a script to verify the health of the cluster, then merge the results into one report (a check every node agrees on is printed once; divergent lines are attributed to the nodes that produced them)
     - Passes only if every node passes — a node that cannot be reached is not a pass
