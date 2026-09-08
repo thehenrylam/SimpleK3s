@@ -520,6 +520,26 @@ function check_argocd() {
     else
         verify_fail "argocd/argocd-oidc secret is missing or empty (ESO may still be syncing)"
     fi
+
+    # A populated secret is NOT enough. argocd-server registers its OIDC HTTP
+    # routes once at startup, so a server that booted before the secret existed
+    # serves 404 on /auth/login with everything else looking healthy (#95). That
+    # was previously invisible here, which is why the fix had to be applied
+    # unconditionally on every convergence pass (#145). Reporting it turns the
+    # blind restart into a condition — and lets `sk3s refresh` act on it.
+    local OIDC_STATE
+    OIDC_STATE="$(argocd_oidc_state)"
+    case "$OIDC_STATE" in
+        current)
+            verify_pass "argocd/argocd-server has OIDC routes registered (started after the secret)"
+            ;;
+        stale)
+            verify_fail "argocd/argocd-server predates the argocd-oidc secret; SSO routes are not registered (needs a restart — see #95)"
+            ;;
+        *)
+            verify_skip "argocd OIDC route registration could not be determined"
+            ;;
+    esac
 }
 
 # ─── Monitoring ──────────────────────────────────────────────────────────────

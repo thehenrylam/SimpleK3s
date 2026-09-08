@@ -177,6 +177,30 @@ function converge_action_argocd() {
     # unconfigured and those routes are never registered (they 404 — the SSO button
     # dead-ends on a blank page). Token validation reloads from settings live, but the
     # HTTP mux does not, so only a restart re-registers the routes.
+    #
+    # That condition is specific — "the server predates the secret" — not "every pass
+    # forever". This used to restart unconditionally, rolling a live deployment and
+    # spending ~20s on every pull that changed nothing (#145).
+    #
+    # UNKNOWN RESTARTS. Only a confident "current" skips the restart. An
+    # indeterminate answer keeps the old behaviour, because the cost of an
+    # unnecessary restart is 20 seconds and the cost of a missed one is silently
+    # broken SSO that no check reports.
+    local OIDC_STATE
+    OIDC_STATE="$(argocd_oidc_state)"
+    if [[ "$OIDC_STATE" == "current" ]]; then
+        log_okay "argocd-server already started after the OIDC secret; no restart needed"
+        # checked=true separates "we looked and nothing was needed" from the
+        # "not deployed" reports above. Only the former is worth showing in the
+        # default summary — it is the evidence the restart was conditional.
+        pull_report_kv step action name argocd_oidc_restart performed false \
+            checked true detail "OIDC routes already registered"
+        return 0
+    fi
+    if [[ "$OIDC_STATE" != "stale" ]]; then
+        log_warn "Could not determine OIDC route registration; restarting to be safe"
+    fi
+
     log_info "Restarting argocd-server so it registers OIDC routes against the synced secret"
     sudo kubectl -n "$NS" rollout restart deployment "$DEPLOY_NAME" || return 1
 
@@ -187,7 +211,8 @@ function converge_action_argocd() {
         return 1
     }
 
-    pull_report_kv step action name argocd_oidc_restart performed true detail "OIDC route registration"
+    pull_report_kv step action name argocd_oidc_restart performed true \
+        detail "OIDC routes were not registered (server predated the secret)"
     log_okay "argocd-server restarted with OIDC routes registered"
 }
 
@@ -236,7 +261,8 @@ function converge_action_tailscale() {
     # ProxyClass going Ready. Only a stuck operator should ever be restarted.
     if wait_for_cmd_1min bash -c "$HAS_PROXY"; then
         log_okay "Tailscale proxy for '$INGRESS_NAME' exists; no restart needed"
-        pull_report_kv step action name tailscale_reconcile performed false detail "proxy present"
+        pull_report_kv step action name tailscale_reconcile performed false \
+            checked true detail "proxy present"
         return 0
     fi
 

@@ -141,6 +141,12 @@ module "aws_s3obj" {
       template = null
     },
     {
+      desc     = "Node Script (Refresh Services — restart wedged workloads)",
+      key      = "${var.s3_config.keyroot}/node_refresh-services.sh",
+      src      = "${path.module}/data/node_refresh-services.sh",
+      template = null
+    },
+    {
       desc     = "Helper Script (Python - fetch_UTILITIES.py)"
       key      = "${var.s3_config.keyroot}/py/fetch_UTILITIES.py",
       src      = "${path.module}/data/py/fetch_UTILITIES.py",

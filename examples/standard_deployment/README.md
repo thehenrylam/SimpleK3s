@@ -473,11 +473,65 @@ and why.
 | `nodes` | `ssm_list_instances.sh` | — |
 | `connect` | `ssm_connect.sh` | one node |
 | `exec` | `ssm_execute.sh` | one node |
+| `refresh` | `ssm_refresh_services.sh` | one node |
 | `repair` | `ssm_repair_cluster.sh` | one node |
 
-`refresh` is listed by `sk3s help` but not built yet. Running it reports which
-phase of [#118](https://github.com/thehenrylam/SimpleK3s/issues/118) it arrives
-in, rather than "unknown verb".
+#### What `refresh` is for
+
+The three recovery verbs fix three different things, and reaching for the wrong
+one wastes a cluster outage:
+
+| Symptom | Verb |
+|---|---|
+| The cluster is running old manifests | `pull` / `apply` |
+| A node cannot rejoin; a stale etcd member lingers | `repair` |
+| Manifests are current, nodes are fine, a workload is wedged | `refresh` |
+
+`refresh` is the actuator for what `status` observes. It shares one vocabulary
+with it — the component names are exactly the section names in the health
+report — so a failing check maps onto a refresh target with no translation in
+between.
+
+```bash
+./sk3s refresh                       # preview: what is failing, what would be restarted
+./sk3s refresh --auto                # restart whatever status reports as failing
+./sk3s refresh --only argocd,traefik # restart named components, healthy or not
+./sk3s refresh --hard                # delete pods instead of rolling the workload
+```
+
+**It previews by default.** Restarting live workloads is disruptive, so an
+invocation that names no target set reports the plan and changes nothing,
+following `cluster_repair.yml`. Acting requires `--auto` or `--only`.
+
+**One node, because the effect is cluster-wide.** Every action goes through the
+Kubernetes API, so restarting a workload from three nodes is three rollouts of
+one deployment. Unlike staging there is no on-disk state, so no ownership lock
+is involved — any healthy, reachable control-plane node will do.
+
+**The escalation ladder.** The default is `kubectl rollout restart`, which
+respects the update strategy and any PodDisruptionBudget. `--hard` deletes the
+pods instead, and exists for the case the default cannot fix: a CrashLooping pod
+blocks its own replacement from becoming ready, so the new revision never
+progresses and a rollout restart is a no-op.
+
+**What `refresh` is not.** It does not touch systemd. Restarting k3s itself
+drops an etcd member, and that hazard already has one owner in
+`ssm_repair_cluster.sh`, which knows about quorum; a second path to it behind a
+flag on a different verb is how the two get out of step. For the systemd layer,
+use `sk3s exec`. It also does not re-stage manifests (`apply`) or change node
+membership (`repair`).
+
+**Two sections it will not act on.** `k3s_api` and `nodes` are not workloads —
+if either is failing, `refresh` refuses the whole run and points at `repair`,
+because nothing else can be trusted while the API or node readiness is broken.
+`pod_stability` is reported but never acted on: it says some container crashed
+inside the stability window, spanning namespaces rather than naming a component,
+so there is nothing for a component-keyed registry to map it onto. Name the
+component yourself with `--only` once you know which one it is.
+
+Running `node_refresh-services.sh --list` on a node prints the component
+registry — which workloads each component maps to, and why the non-actionable
+sections have none.
 
 #### Why sync, apply and pull are separate
 
