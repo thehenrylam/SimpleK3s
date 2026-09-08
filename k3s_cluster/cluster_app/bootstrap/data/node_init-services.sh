@@ -7,8 +7,12 @@ set -euo pipefail
 # -o pipefail   : Make pipeline fail if any command in them fails
 
 # Stages all manifests and runs post-convergence actions (bts_05 + converge_actions).
-# Run this on node-0 to apply a manifest update after node_refresh-bootstrap-files.sh
-# has pulled the latest files from S3.
+# Run this on the staging owner to apply a manifest update after
+# node_refresh-bootstrap-files.sh has pulled the latest files from S3.
+#
+# Ownership is recorded in the simplek3s-staging-owner ConfigMap (kube-system),
+# claimed at boot. This script does NOT re-check it: the caller decides which
+# node to act on, and sk3s exposes an explicit override for repair.
 #
 # This is the Step 3 update trigger:
 #   node_refresh-bootstrap-files.sh && node_init-services.sh
