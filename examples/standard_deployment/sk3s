@@ -43,20 +43,26 @@ HISTORY_KEEP="${SK3S_HISTORY_KEEP:-10000}"
 # breaking the session, so they run unlogged rather than half-working.
 LOG_EXCLUDE=("connect")
 
-# verb|script|summary
+# verb|script|fixed-args|summary
+#
+# sync, apply and pull are one script behind three verbs. They are the same
+# machinery with different scope — files go to every node, staging goes to one —
+# so splitting them into three scripts would duplicate the merged report, which
+# is the only genuinely hard part.
 VERBS=(
-    "status|ssm_verify_cluster.sh|Health of the cluster, merged across control-plane nodes"
-    "pull|ssm_update_services.sh|Sync bootstrap files from S3 and re-stage manifests"
-    "nodes|ssm_list_instances.sh|List the cluster's EC2 instances"
-    "connect|ssm_connect.sh|Open an interactive shell on a node"
-    "exec|ssm_execute.sh|Run a command on a node"
-    "repair|ssm_repair_cluster.sh|Repair a control-plane node that cannot rejoin"
+    "status|ssm_verify_cluster.sh||Health of the cluster, merged across control-plane nodes"
+    "sync|ssm_update_services.sh|--mode sync|Sync bootstrap files from S3 to every node"
+    "apply|ssm_update_services.sh|--mode apply|Stage manifests on the node that owns staging"
+    "pull|ssm_update_services.sh|--mode pull|Sync bootstrap files, then stage manifests"
+    "nodes|ssm_list_instances.sh||List the cluster's EC2 instances"
+    "connect|ssm_connect.sh||Open an interactive shell on a node"
+    "exec|ssm_execute.sh||Run a command on a node"
+    "repair|ssm_repair_cluster.sh||Repair a control-plane node that cannot rejoin"
 )
 
 # verb|phase|summary — named so an unbuilt verb reports its plan instead of
 # "unknown", which would read as a typo rather than a roadmap.
 PLANNED=(
-    "apply|4|Stage manifests without re-syncing from S3"
     "refresh|5|Restart failing services (--auto, --hard)"
 )
 
@@ -103,7 +109,7 @@ function usage() {
         echo ""
         echo "Verbs:"
         for _ENTRY in "${VERBS[@]}"; do
-            printf '  %-9s %s\n' "$(field "${_ENTRY}" 1)" "$(field "${_ENTRY}" 3)"
+            printf '  %-9s %s\n' "$(field "${_ENTRY}" 1)" "$(field "${_ENTRY}" 4)"
         done
         echo ""
         echo "Planned:"
@@ -124,8 +130,10 @@ function usage() {
         echo "command, timings and exit code. SK3S_LOG_DIR relocates the"
         echo "directory; SK3S_LOG_KEEP sets how many are kept (default ${LOG_KEEP})."
         echo ""
-        echo "Note: pull currently targets a single control-plane node. Multi-node"
-        echo "      sync arrives in phase 4."
+        echo "Scope: sync reaches every control-plane node (--all-nodes adds agent"
+        echo "       and Karpenter nodes). Staging acts on the one node that owns"
+        echo "       it, read from the cluster rather than inferred from a node's"
+        echo "       index. --instance-id restricts a verb to a single node."
     } >&"${_FD}"
     exit "${_CODE}"
 }
@@ -135,6 +143,19 @@ function script_for() {
     for _ENTRY in "${VERBS[@]}"; do
         if [[ "$(field "${_ENTRY}" 1)" == "${_VERB}" ]]; then
             field "${_ENTRY}" 2
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Arguments the verb always passes to its script, before the caller's own.
+# Empty for verbs that map one-to-one onto a script.
+function args_for() {
+    local _VERB="${1}" _ENTRY
+    for _ENTRY in "${VERBS[@]}"; do
+        if [[ "$(field "${_ENTRY}" 1)" == "${_VERB}" ]]; then
+            field "${_ENTRY}" 3
             return 0
         fi
     done
@@ -176,6 +197,21 @@ if ! TARGET="$(script_for "${VERB}")"; then
     echo "" >&2
     usage "${EXIT_USAGE}"
 fi
+
+# Arguments the verb contributes itself, placed BEFORE the caller's so an
+# operator can still override them explicitly if they ever need to.
+#
+# Split into an array rather than expanded unquoted at each call site: word
+# splitting scattered across four dispatch points is four chances to get the
+# quoting subtly different.
+FIXED_ARGS="$(args_for "${VERB}")"
+FIXED_ARR=()
+if [[ -n "${FIXED_ARGS}" ]]; then
+    # shellcheck disable=SC2206  # deliberate splitting of a known-safe literal
+    FIXED_ARR=(${FIXED_ARGS})
+fi
+# bash 3.2 (macOS) trips `set -u` on "${arr[@]}" when the array is empty.
+FIXED=("${FIXED_ARR[@]+"${FIXED_ARR[@]}"}")
 
 # A help request is not a cluster operation, so it must never be given a
 # profile: injecting one pushes --help into $2, where a target that only
@@ -292,7 +328,7 @@ function prune_logs() {
 # A help request touches no cluster and is not part of the audit trail, so it is
 # the one path that still replaces this process outright.
 if [[ "${WANTS_HELP}" == "true" ]]; then
-    exec "${SCRIPTS_DIR}/${TARGET}" "$@"
+    exec "${SCRIPTS_DIR}/${TARGET}" "${FIXED[@]+"${FIXED[@]}"}" "$@"
 fi
 
 STARTED_EPOCH="$(date -u +%s)"
@@ -332,7 +368,7 @@ if ! logging_wanted; then
     # A child, not exec: this shell has to survive to close the session out. The
     # terminal still passes through, so the session itself is unaffected.
     set +e
-    "${SCRIPTS_DIR}/${TARGET}" "$@"
+    "${SCRIPTS_DIR}/${TARGET}" "${FIXED[@]+"${FIXED[@]}"}" "$@"
     TARGET_STATUS=$?
     set -e
 
@@ -350,7 +386,7 @@ HISTORY_DETAIL="$(basename "${LOG_FILE}")"
 {
     printf '# %s\n' "$(quote_cmd "${HISTORY_CMD[@]}")"
     printf '# started : %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    printf '# target  : %s\n' "${SCRIPTS_DIR}/${TARGET}"
+    printf '# target  : %s %s\n' "${SCRIPTS_DIR}/${TARGET}" "${FIXED_ARGS}"
     printf '#\n'
 } >> "${LOG_FILE}"
 
@@ -366,7 +402,7 @@ if log_output_wanted; then
     exec 4> >(tee -a "${LOG_FILE}" >&2)
 
     set +e
-    "${SCRIPTS_DIR}/${TARGET}" "$@" >&3 2>&4
+    "${SCRIPTS_DIR}/${TARGET}" "${FIXED[@]+"${FIXED[@]}"}" "$@" >&3 2>&4
     TARGET_STATUS=$?
     set -e
 
@@ -377,7 +413,7 @@ else
     # simply produced no output.
     printf '# (output withheld — SK3S_NO_LOG=1)\n' >> "${LOG_FILE}"
     set +e
-    "${SCRIPTS_DIR}/${TARGET}" "$@"
+    "${SCRIPTS_DIR}/${TARGET}" "${FIXED[@]+"${FIXED[@]}"}" "$@"
     TARGET_STATUS=$?
     set -e
 fi

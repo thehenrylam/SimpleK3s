@@ -300,6 +300,80 @@ function stage_remaining_manifests() {
 }
 
 
+# What the CLUSTER has applied, versus what S3 delivered.
+#
+# The staged-file comparison in stage_manifest answers "did this node need to
+# write the file" — a per-node disk question. On a node that has never staged,
+# every manifest reads as changed even when the cluster is happily running all
+# of them, which is how a pull could report "15 of 15 changed" about a cluster
+# where nothing was wrong (#144).
+#
+# The deploy controller records a sha256 of every manifest it ingested on the
+# Addon object, in etcd. Comparing against that gives the same answer from any
+# node. Matching is by spec.source (the staged path) rather than by Addon name,
+# so no assumption is made about how k3s derives names from filenames.
+#
+# Measured BEFORE staging, so it describes the cluster as it stands rather than
+# what it is about to become.
+#
+# This says the controller INGESTED the content, not that the resources are
+# healthy — an Addon can carry the current checksum while its HelmChart fails.
+# Health is what `sk3s status` answers.
+#
+# Orphans (Addons with no pending manifest) are deliberately NOT reported here.
+# K3s ships its own bundled manifests — ccm, coredns, local-storage,
+# rolebindings, runtimes and the metrics-server set — which have no pending file
+# either, so a naive orphan count would flag coredns as abandoned. Doing it
+# properly needs a way to tell our manifests from k3s's, which belongs to #151.
+function report_cluster_state() {
+    local _ADDONS _SOURCE _SUM _PENDING _FILENAME _STAGED_PATH _LOCAL
+    local _CURRENT=0 _DIFFERS=0 _MISSING=0 _DIFF_FILES=""
+    # Node-side bash is 5.x (Debian), so associative arrays are available here.
+    # The host-side scripts cannot use them — macOS ships bash 3.2.
+    local -A _CLUSTER_SUM
+
+    _ADDONS="$(sudo kubectl get addons -A \
+        -o jsonpath='{range .items[*]}{.spec.source}{"\t"}{.spec.checksum}{"\n"}{end}' 2>/dev/null)" || {
+        log_warn "Could not read Addon checksums; cluster comparison unavailable"
+        pull_report_kv step cluster result unknown detail "could not read Addon checksums"
+        return 0
+    }
+
+    if [[ -z "${_ADDONS}" ]]; then
+        # No Addons at all is not "everything matches" — it means we learned
+        # nothing. Reporting 0 differences here would read as a healthy cluster.
+        log_warn "No Addons returned; cluster comparison unavailable"
+        pull_report_kv step cluster result unknown detail "no Addons returned"
+        return 0
+    fi
+
+    while IFS=$'\t' read -r _SOURCE _SUM; do
+        [[ -n "${_SOURCE}" ]] || continue
+        _CLUSTER_SUM["${_SOURCE}"]="${_SUM}"
+    done <<< "${_ADDONS}"
+
+    for _PENDING in "$PENDING_MANIFEST_DIR"/*.yaml; do
+        [ -e "$_PENDING" ] || continue
+        _FILENAME="$(basename "$_PENDING")"
+        _STAGED_PATH="$K3S_MANIFEST_DIR/$_FILENAME"
+        _LOCAL="$(sha256sum "$_PENDING" | cut -d' ' -f1)"
+
+        if [[ -z "${_CLUSTER_SUM[$_STAGED_PATH]:-}" ]]; then
+            _MISSING=$((_MISSING + 1))
+            _DIFF_FILES="${_DIFF_FILES}${_FILENAME} (not applied)"$'\n'
+        elif [[ "${_CLUSTER_SUM[$_STAGED_PATH]}" == "${_LOCAL}" ]]; then
+            _CURRENT=$((_CURRENT + 1))
+        else
+            _DIFFERS=$((_DIFFERS + 1))
+            _DIFF_FILES="${_DIFF_FILES}${_FILENAME}"$'\n'
+        fi
+    done
+
+    log_info "Cluster: ${_CURRENT} current, ${_DIFFERS} differ, ${_MISSING} not applied"
+    pull_report_kv step cluster result ok current "${_CURRENT}" differs "${_DIFFERS}" \
+        missing "${_MISSING}" files "$(printf '%s' "${_DIFF_FILES}" | json_array)"
+}
+
 # Count what staging WOULD change, then stop. Deliberately placed before the
 # readiness gates: those exist to sequence real staging, and prep_longhorn_disk_
 # annotations mutates node annotations, so a preview must not reach any of it.
@@ -323,6 +397,7 @@ function dry_run_scan() {
 log_info "$0: LAUNCHED"
 
 if is_dry_run; then
+    report_cluster_state
     dry_run_scan
     log_okay "$0: COMPLETED (dry run — nothing changed)"
     exit 0
@@ -337,6 +412,10 @@ wait_for_kubesystem || {
     log_fail "Unable to confirm that Kubesystem is ready"
     exit 1
 }
+
+# Cluster comparison before anything is written, so it reports the state being
+# changed FROM rather than the state left behind.
+report_cluster_state
 
 # Make sure the manifests directory exists
 log_info "Make sure that '$K3S_MANIFEST_DIR/' is initialized"

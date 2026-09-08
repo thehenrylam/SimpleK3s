@@ -6,8 +6,8 @@ set -euo pipefail
 # -e            : Exits on ANY command failure
 # -o pipefail   : Make pipeline fail if any command in them fails
 
-# Full node initialisation: package install, swap, K3s, disks, and (on node-0)
-# manifest staging + post-convergence actions.
+# Full node initialisation: package install, swap, K3s, disks, and — on the node
+# that claims staging ownership — manifest staging + post-convergence actions.
 #
 # Usage: node_init-all.sh <COUNT_INDEX> <CLUSTER_TYPE> [--no-refresh]
 #   COUNT_INDEX    0-based index of this node within its plane
@@ -53,17 +53,44 @@ function usage() {
 }
 
 # Setup control plane: node-local setup (via node_init-essential.sh), then on
-# node-0 only, manifest staging + converge (via node_init-services.sh).
+# the node that claims staging ownership, manifest staging + converge (via
+# node_init-services.sh).
 function setup_control_plane() {
     local COUNT_INDEX="$1"
 
     "$SCRIPT_DIR/node_init-essential.sh" "$COUNT_INDEX" "controlplane" || exit 1
 
-    if [[ "$COUNT_INDEX" -eq 0 ]]; then
-        "$SCRIPT_DIR/node_init-services.sh" || exit 1
-    else
-        log_info "COUNT_INDEX is NOT 0; Skipping manifest staging"
-    fi
+    # The claim talks to the API, so it cannot run before k3s answers. bts_05
+    # waits too, but that wait is downstream of the decision made here.
+    wait_for_k3s_api || {
+        log_fail "K3s API never became reachable; cannot determine staging ownership"
+        exit 1
+    }
+
+    # Ownership is claimed from the cluster, not assigned by index. The old gate
+    # was COUNT_INDEX -eq 0, which made node 0 structurally special for work any
+    # control-plane node can do.
+    local INSTANCE_ID
+    INSTANCE_ID="$(get_ec2_instance_id)" || INSTANCE_ID=""
+
+    local CLAIM_STATUS=0
+    claim_staging_ownership "$INSTANCE_ID" || CLAIM_STATUS=$?
+
+    case "$CLAIM_STATUS" in
+        0)
+            "$SCRIPT_DIR/node_init-services.sh" || exit 1
+            ;;
+        1)
+            log_info "Another node owns manifest staging; skipping"
+            ;;
+        *)
+            # Not knowing who owns staging is a failure, not a reason to skip.
+            # Skipping here on a first boot would leave a cluster with no staged
+            # manifests at all, reported exactly like a healthy non-owner.
+            log_fail "Could not determine staging ownership"
+            exit 1
+            ;;
+    esac
 }
 
 # Setup agent: node-local setup only (via node_init-essential.sh).

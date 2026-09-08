@@ -508,3 +508,232 @@ function ssm_report_result() {
     # OUTPUT VALUES
     [[ "${_STATUS}" == "Success" ]]
 }
+
+# ─── Node selection ──────────────────────────────────────────────────────────
+
+# Every running instance for a cluster, one "<id>\t<name>\t<role>" per line,
+# sorted by instance id. Scope is "controlplane" (default) or "all".
+#
+# SORTED, because selection has to be REPRODUCIBLE. The EC2 API returns
+# instances in no guaranteed order, and taking "the first" from an unsorted list
+# is how the same command came to act on different nodes on different days
+# (#144). Instance ids are effectively random with respect to a node's position
+# in the fleet, so ordering by id is impartial — it privileges no node, and in
+# particular does not re-enshrine node 0 — while still giving the same answer on
+# every run. Impartiality and determinism are not in tension here.
+#
+# Role comes from the Name tag, by the same rule ssm_pick_instance.py applies,
+# so the two tools can never disagree about what a node is. Karpenter nodes also
+# carry simplek3s.io/lifecycle=karpenter, which would be a sturdier signal, but
+# the static planes have no equivalent tag — the name is the only rule that
+# classifies every node type uniformly.
+function get_cluster_instances() {
+    # VARIABLES
+    local _REGION _PROFILE _NICKNAME _SCOPE
+    local _RAW _OUTPUT
+    # INPUTS
+    _REGION="${1}"
+    _PROFILE="${2}"
+    _NICKNAME="${3}"
+    _SCOPE="${4:-controlplane}"
+    # PROCESS
+    _RAW="$(aws ec2 describe-instances \
+        --region "${_REGION}" \
+        --profile "${_PROFILE}" \
+        --filters \
+            "Name=tag:Nickname,Values=${_NICKNAME}" \
+            "Name=instance-state-name,Values=running" \
+        --query "Reservations[].Instances[].[InstanceId,Tags[?Key=='Name']|[0].Value]" \
+        --output text)" || return 1
+
+    _OUTPUT="$(printf '%s\n' "${_RAW}" | awk -v scope="${_SCOPE}" '
+        NF < 2 { next }
+        {
+            lname = tolower($2)
+            if (index(lname, "controlplane") || index(lname, "control-plane")) role = "control-plane"
+            else if (index(lname, "agentplane") || index(lname, "agent-plane")) role = "agent"
+            else if (index(lname, "karpenter")) role = "karpenter"
+            else role = "node"
+            if (scope == "controlplane" && role != "control-plane") next
+            printf "%s\t%s\t%s\n", $1, $2, role
+        }' | sort)"
+
+    # VERIFY
+    if [[ -z "${_OUTPUT}" ]]; then
+        echo "Error: no running ${_SCOPE} instance found for nickname '${_NICKNAME}' in ${_REGION}." >&2
+        return 1
+    fi
+    # OUTPUT VALUES
+    printf '%s\n' "${_OUTPUT}"
+}
+
+# ─── Reachability preflight ──────────────────────────────────────────────────
+
+# PingStatus for every instance SSM currently knows about, "<id>\t<status>".
+function ssm_ping_status() {
+    # VARIABLES
+    local _REGION _PROFILE
+    # INPUTS
+    _REGION="${1}"
+    _PROFILE="${2}"
+    # OUTPUT VALUES
+    aws ssm describe-instance-information \
+        --region "${_REGION}" \
+        --profile "${_PROFILE}" \
+        --query "InstanceInformationList[].[InstanceId,PingStatus]" \
+        --output text
+}
+
+# Which of the given instances SSM cannot dispatch to right now, one
+# "<id>\t<status>" per line. Empty output means all are reachable.
+#
+# Checked BEFORE dispatch so an unreachable node is named up front, rather than
+# discovered as a timeout after the run has already half-completed on the
+# others. An instance SSM has never heard of reports "unknown" and counts as
+# unreachable: absence of a ping record is not evidence of health.
+function ssm_unreachable_instances() {
+    # VARIABLES
+    local _REGION _PROFILE
+    local _STATUS _ID _ROW_ID _ROW_STATUS _FOUND
+    # INPUTS
+    _REGION="${1}"
+    _PROFILE="${2}"
+    shift 2
+    # PROCESS
+    _STATUS="$(ssm_ping_status "${_REGION}" "${_PROFILE}")" || return 1
+    for _ID in "$@"; do
+        _FOUND=""
+        while IFS=$'\t' read -r _ROW_ID _ROW_STATUS; do
+            if [[ "${_ROW_ID}" == "${_ID}" ]]; then
+                _FOUND="${_ROW_STATUS}"
+                break
+            fi
+        done <<< "${_STATUS}"
+        if [[ "${_FOUND}" != "Online" ]]; then
+            printf '%s\t%s\n' "${_ID}" "${_FOUND:-unknown}"
+        fi
+    done
+}
+
+# ─── Staging ownership ───────────────────────────────────────────────────────
+
+# The node that owns manifest staging, as "<node-name>\t<instance-id>".
+#
+# Read from the CLUSTER (a ConfigMap in kube-system), never inferred from a
+# node's index or position. That keeps the tooling free of any notion that one
+# node is special: when ownership moves, this follows it with no code change.
+# Any reachable control-plane node can answer, because the record lives in etcd
+# rather than on a particular disk.
+#
+# Non-zero when the record is absent or unreadable. The caller must NOT read
+# that as "nobody owns staging" — an unreachable node and a genuinely unclaimed
+# cluster are different situations calling for different responses.
+function get_staging_owner() {
+    # VARIABLES
+    local _REGION _PROFILE _VIA_INSTANCE
+    local _CMD _CID _RESULT _STATUS _OUT
+    # INPUTS
+    _REGION="${1}"
+    _PROFILE="${2}"
+    _VIA_INSTANCE="${3}"
+    # PROCESS
+    _CMD="sudo kubectl -n kube-system get configmap simplek3s-staging-owner"
+    _CMD+=" -o jsonpath='{.data.node}{\"\t\"}{.data.instance_id}' 2>/dev/null"
+    _CID="$(ssm_send_command "${_REGION}" "${_PROFILE}" "${_VIA_INSTANCE}" "${_CMD}")" || return 1
+    # stderr suppressed: await prints poll progress, which is noise for a lookup.
+    _RESULT="$(ssm_await_completion "${_REGION}" "${_PROFILE}" "${_VIA_INSTANCE}" \
+        "${_CID}" 30 2 2> /dev/null)" || return 1
+    _STATUS="$(parse_command_invocation_result "${_RESULT}" "Status")"
+    if [[ "${_STATUS}" != "Success" ]]; then
+        return 1
+    fi
+    _OUT="$(parse_command_invocation_result "${_RESULT}" "StandardOutputContent")"
+    if [[ -z "${_OUT}" ]]; then
+        return 1
+    fi
+    # OUTPUT VALUES
+    printf '%s' "${_OUT}"
+}
+
+# ─── Fan-out ─────────────────────────────────────────────────────────────────
+
+# Dispatch one command to several instances at once; returns the CommandId.
+function ssm_send_command_multi() {
+    # VARIABLES
+    local _REGION _PROFILE _COMMAND
+    local _PARAMETERS
+    # INPUTS
+    _REGION="${1}"
+    _PROFILE="${2}"
+    _COMMAND="${3}"
+    shift 3
+    # PROCESS
+    _PARAMETERS="$(build_command_parameters "${_COMMAND}")"
+    # OUTPUT VALUES
+    aws ssm send-command \
+        --region "${_REGION}" \
+        --profile "${_PROFILE}" \
+        --instance-ids "$@" \
+        --document-name "AWS-RunShellScript" \
+        --parameters "${_PARAMETERS}" \
+        --query "Command.CommandId" \
+        --output text
+}
+
+# Poll every invocation until all are terminal or the attempts run out, writing
+# each node's result to <outdir>/<id>.json and its terminal status to
+# <outdir>/<id>.status.
+#
+#   ssm_await_all <region> <profile> <command-id> <max> <interval> <outdir> <id>...
+#
+# Results go to FILES rather than into arrays the caller declares. The original
+# in ssm_verify_cluster.sh mutates three script-level globals by name, which is
+# tolerable inside one script and a trap in a shared library — this file's
+# contract is that a function reads nothing from the ambient environment. Bash
+# namerefs would be the tidy fix, but macOS ships bash 3.2, which has neither
+# namerefs nor associative arrays.
+#
+# A node still non-terminal when the attempts run out gets NO status file, so
+# the caller can distinguish "never finished" from "finished badly". Neither is
+# silently dropped, which would quietly shrink the denominator.
+function ssm_await_all() {
+    # VARIABLES
+    local _REGION _PROFILE _COMMAND_ID _POLL_MAX _POLL_INTERVAL _OUTDIR
+    local _I _ID _PENDING _RESULT _STATUS
+    # INPUTS
+    _REGION="${1}"
+    _PROFILE="${2}"
+    _COMMAND_ID="${3}"
+    _POLL_MAX="${4}"
+    _POLL_INTERVAL="${5}"
+    _OUTDIR="${6}"
+    shift 6
+    # PROCESS
+    mkdir -p "${_OUTDIR}" || return 1
+    echo "Command ID: ${_COMMAND_ID}" >&2
+    echo "Polling $# node(s) (up to $((_POLL_MAX * _POLL_INTERVAL / 60)) min)..." >&2
+    for ((_I = 1; _I <= _POLL_MAX; _I++)); do
+        _PENDING=0
+        for _ID in "$@"; do
+            # Already terminal — leave it alone.
+            if [[ -f "${_OUTDIR}/${_ID}.status" ]]; then
+                continue
+            fi
+            _RESULT="$(ssm_get_command_invocation "${_REGION}" "${_PROFILE}" \
+                "${_ID}" "${_COMMAND_ID}")"
+            _STATUS="$(parse_command_invocation_result "${_RESULT}" "Status")"
+            if [[ -n "${_STATUS}" && "${_STATUS}" != "InProgress" && "${_STATUS}" != "Pending" ]]; then
+                printf '%s' "${_RESULT}" > "${_OUTDIR}/${_ID}.json"
+                printf '%s' "${_STATUS}" > "${_OUTDIR}/${_ID}.status"
+            else
+                _PENDING=$((_PENDING + 1))
+            fi
+        done
+        if (( _PENDING == 0 )); then
+            return 0
+        fi
+        echo "  (${_I}/${_POLL_MAX}) waiting on ${_PENDING} node(s)..." >&2
+        sleep "${_POLL_INTERVAL}"
+    done
+    return 0
+}

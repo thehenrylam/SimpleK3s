@@ -430,3 +430,105 @@ function wait_for_kubesystem() {
 }
 
 
+# ─── Staging ownership ───────────────────────────────────────────────────────
+#
+# Exactly one node stages manifests into the K3s manifest directory. That
+# directory is per-node disk state, but the deploy controller applies what lands
+# in it cluster-wide, so a second node staging the same files means two
+# controllers reconciling the same Addons and a stale copy nothing cleans up
+# (#144).
+#
+# Ownership is CLAIMED and recorded in the cluster, never derived from a node's
+# index. An index makes one node structurally special for work any control-plane
+# node can do, and it does not even hold fleet-wide: Karpenter nodes are all
+# launched with count_index=0.
+#
+# `kubectl create` is atomic, so the first node to create the ConfigMap owns
+# staging and every other node reads the result.
+
+STAGING_OWNER_NS="kube-system"
+STAGING_OWNER_CM="simplek3s-staging-owner"
+
+# Node name currently recorded as the staging owner. Non-zero when unclaimed or
+# unreadable — the caller must not treat those as the same thing.
+function staging_owner_node() {
+    local _VALUE
+    _VALUE="$(sudo kubectl -n "${STAGING_OWNER_NS}" get configmap "${STAGING_OWNER_CM}" \
+        -o jsonpath='{.data.node}' 2>/dev/null)" || return 1
+    [[ -n "${_VALUE}" ]] || return 1
+    printf '%s' "${_VALUE}"
+}
+
+# Whether the recorded owner is a node this cluster still knows about AND Ready.
+#
+# NotReady counts as gone, deliberately. Waiting for a sick owner to recover
+# blocks staging for the length of the outage — exactly when an operator most
+# needs to ship a fix. The cost is that a briefly NotReady owner can be
+# superseded and leave its inbox behind, which is a detectable and repairable
+# condition rather than a hazard: removing a manifest file provably does not
+# delete the resources it created (measured 2026-09-07, see #151).
+function staging_owner_is_live() {
+    local _NODE="${1}"
+    local _STATUS
+    [[ -n "${_NODE}" ]] || return 1
+    _STATUS="$(sudo kubectl get node "${_NODE}" \
+        -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)" || return 1
+    [[ "${_STATUS}" == "True" ]]
+}
+
+# Claim staging ownership for this node.
+#   claim_staging_ownership [<instance-id>]
+#
+#   0 -> this node owns staging and must stage
+#   1 -> another live node owns it; this node must NOT stage
+#   2 -> ownership could not be determined
+#
+# 1 and 2 are separated on purpose. Collapsing them would make an API failure
+# indistinguishable from "somebody else has it", and a first boot where the
+# cluster never became reachable would silently stage nothing while reporting
+# the same as a healthy non-owner. Absence is never success.
+#
+# The instance id is passed in rather than looked up: it is provider-specific,
+# and this file stays free of provider calls. It is recorded only so host-side
+# tooling can target the owner over SSM without mapping node names to instances.
+function claim_staging_ownership() {
+    local _INSTANCE_ID="${1:-}"
+    local _ME _OWNER
+    _ME="$(hostname)"
+
+    if _OWNER="$(staging_owner_node)"; then
+        if [[ "${_OWNER}" == "${_ME}" ]]; then
+            log_info "Staging ownership: already held by this node (${_ME})"
+            return 0
+        fi
+        if staging_owner_is_live "${_OWNER}"; then
+            log_info "Staging ownership: held by ${_OWNER}; this node will not stage"
+            return 1
+        fi
+        log_warn "Staging owner ${_OWNER} is gone or NotReady; taking over"
+        sudo kubectl -n "${STAGING_OWNER_NS}" delete configmap "${STAGING_OWNER_CM}" \
+            --ignore-not-found > /dev/null 2>&1 || true
+    fi
+
+    if sudo kubectl -n "${STAGING_OWNER_NS}" create configmap "${STAGING_OWNER_CM}" \
+        --from-literal=node="${_ME}" \
+        --from-literal=instance_id="${_INSTANCE_ID}" \
+        --from-literal=claimed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" > /dev/null 2>&1; then
+        log_okay "Staging ownership: claimed by this node (${_ME})"
+        return 0
+    fi
+
+    # The create failed. That is usually a lost race, so re-read rather than
+    # assuming the worst — but a create failure with nothing readable behind it
+    # means we do not know who owns staging, which is code 2, not code 1.
+    if ! _OWNER="$(staging_owner_node)"; then
+        log_fail "Could not claim staging ownership, and no owner is readable"
+        return 2
+    fi
+    if [[ "${_OWNER}" == "${_ME}" ]]; then
+        log_okay "Staging ownership: held by this node (${_ME})"
+        return 0
+    fi
+    log_info "Staging ownership: lost the claim race to ${_OWNER}; this node will not stage"
+    return 1
+}
