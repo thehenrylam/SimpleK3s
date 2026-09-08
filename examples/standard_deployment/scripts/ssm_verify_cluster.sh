@@ -116,29 +116,14 @@ function print_usage() {
 }
 
 
-# One send-command for all nodes: a single CommandId dispatched at one instant,
-# rather than N sends that drift apart. Returns the CommandId.
-function ssm_send_command_multi() {
-    # VARIABLES
-    local _REGION _PROFILE _COMMAND
-    local _PARAMETERS
-    # INPUTS
-    _REGION="${1}"
-    _PROFILE="${2}"
-    _COMMAND="${3}"
-    shift 3
-    # PROCESS
-    _PARAMETERS="$(build_command_parameters "${_COMMAND}")"
-    # OUTPUT VALUES
-    aws ssm send-command \
-        --region "${_REGION}" \
-        --profile "${_PROFILE}" \
-        --instance-ids "$@" \
-        --document-name "AWS-RunShellScript" \
-        --parameters "${_PARAMETERS}" \
-        --query "Command.CommandId" \
-        --output text
-}
+# ssm_send_command_multi lives in common.sh (sourced above): one CommandId
+# dispatched at a single instant, rather than N sends that drift apart.
+#
+# await_all_invocations below is NOT shared. common.sh has ssm_await_all, which
+# returns results in files instead of mutating three script-level globals by
+# name. Converting this script to it means reworking every consumer of
+# NODE_STATUS/NODE_RESULT, and this path is being rewritten wholesale for #111
+# anyway — churning a working `status` twice is worse than one duplicate.
 
 # Poll every node's invocation until all are terminal or attempts run out.
 # Nodes still non-terminal at the end keep an empty status and are reported
