@@ -1,0 +1,305 @@
+{
+  "checks": {
+    "argocd": "passed",
+    "controlplane": "passed",
+    "descheduler": "passed",
+    "external_secrets": "passed",
+    "k3s_api": "passed",
+    "karpenter": "passed",
+    "kube_system": "passed",
+    "kyverno": "passed",
+    "longhorn": "passed",
+    "monitoring": "passed",
+    "nodes": "passed",
+    "pod_health": "passed",
+    "pod_stability": "passed",
+    "storage": "passed",
+    "tailscale": "passed",
+    "traefik": "passed",
+    "workloads": "passed"
+  },
+  "cluster": "sk3s-example",
+  "disagreements": 0,
+  "facts": {
+    "argocd.applications": {
+      "names": [],
+      "total": 0
+    },
+    "argocd.login_route": {
+      "error": null,
+      "redirect": "redirect issued",
+      "root_path": "/argocd",
+      "status": 303,
+      "url": "http://10.43.3.38:80/argocd/auth/login"
+    },
+    "external_secrets.cluster_secret_stores": {
+      "names": [],
+      "total": 0
+    },
+    "external_secrets.external_secrets": {
+      "names": [
+        "argocd/argocd-oidc"
+      ],
+      "total": 3
+    },
+    "external_secrets.secret_stores": {
+      "names": [
+        "argocd/aws-parameterstore"
+      ],
+      "total": 3
+    },
+    "karpenter.ec2nodeclasses": {
+      "names": [
+        "default"
+      ],
+      "total": 1
+    },
+    "karpenter.nodeclaims": {
+      "names": [],
+      "total": 0
+    },
+    "karpenter.nodepools": {
+      "names": [
+        "default"
+      ],
+      "total": 1
+    },
+    "kyverno.cluster_policies": {
+      "names": [
+        "require-requests-limits"
+      ],
+      "total": 2
+    },
+    "kyverno.policies": {
+      "names": [],
+      "total": 0
+    },
+    "longhorn.nodes": {
+      "names": [
+        "longhorn-system/ip-10-0-1-100"
+      ],
+      "total": 4
+    },
+    "longhorn.volumes": {
+      "names": [
+        "longhorn-system/pvc-683c827a"
+      ],
+      "total": 3
+    },
+    "monitoring.alerts": {
+      "names": [
+        "monitoring/prometheus-kube-prometheus-alertmanager.rules"
+      ],
+      "total": 30
+    },
+    "monitoring.grafana": {
+      "database": "ok",
+      "error": null,
+      "status": 200,
+      "url": "http://10.43.223.101:80/api/health",
+      "version": "12.3.0"
+    },
+    "monitoring.prometheus": {
+      "healthy": {
+        "error": null,
+        "status": 200,
+        "url": "http://10.43.143.198:9090/prometheus/-/healthy"
+      },
+      "ready": {
+        "error": null,
+        "status": 200,
+        "url": "http://10.43.143.198:9090/prometheus/-/ready"
+      },
+      "route_prefix": "/prometheus",
+      "service": "prometheus-kube-prometheus-prometheus"
+    },
+    "monitoring.thanos": {
+      "healthy": {
+        "error": null,
+        "status": 200,
+        "url": "http://10.43.254.186:9090/-/healthy"
+      },
+      "ready": {
+        "error": null,
+        "status": 200,
+        "url": "http://10.43.254.186:9090/-/ready"
+      },
+      "stores": {
+        "by_component": {
+          "sidecar": 1,
+          "store": 1
+        },
+        "error": null,
+        "sidecar_connected": true,
+        "status": 200,
+        "total": 2,
+        "url": "http://10.43.254.186:9090/api/v1/stores"
+      }
+    },
+    "nodes.inventory": [
+      {
+        "arch": "arm64",
+        "cpu": "2",
+        "kubelet": "v1.35.1+k3s1",
+        "labels": {
+          "node-role.kubernetes.io/control-plane": "true"
+        },
+        "memory": "3940268Ki",
+        "name": "ip-10-0-1-100",
+        "os": "Debian GNU/Linux 13 (trixie)"
+      }
+    ],
+    "storage.claims": {
+      "names": [
+        "monitoring/grafana"
+      ],
+      "total": 3
+    },
+    "storage.classes": {
+      "names": [
+        "longhorn"
+      ],
+      "total": 4
+    },
+    "tailscale.backend": {
+      "error": null,
+      "service": "traefik",
+      "status": 404,
+      "url": "http://10.43.85.45:8090/"
+    },
+    "tailscale.entrypoint": {
+      "class": "tailscale",
+      "hostnames": [
+        "sk3s-birch.example-tailnet.ts.net"
+      ],
+      "namespace": "kube-system"
+    },
+    "traefik.ingressroutes": {
+      "names": [
+        "kube-system/traefik-dashboard"
+      ],
+      "total": 1
+    },
+    "traefik.middlewares": {
+      "names": [
+        "argocd/forwarded-proto"
+      ],
+      "total": 3
+    }
+  },
+  "nodes": {
+    "i-0exampleaaa": {
+      "generation_stale": false,
+      "hardware": {
+        "cpu": {
+          "load": {
+            "1 min": 32.35,
+            "15 min": 25.0,
+            "5 min": 28.1
+          },
+          "usage": {
+            "0": 21.2,
+            "1": 18.9
+          }
+        },
+        "disk": {
+          "free (MB)": 12871.0,
+          "total (MB)": 31241.0,
+          "usage": 56.6,
+          "used (MB)": 16783.0
+        },
+        "memory": {
+          "ram": {
+            "free (MB)": 1263.4,
+            "total (MB)": 3848.6,
+            "usage": 67.2,
+            "used (MB)": 2585.2
+          },
+          "swap": {
+            "free (MB)": 2048.0,
+            "total (MB)": 2048.0,
+            "usage": 0.0,
+            "used (MB)": 0.0
+          }
+        }
+      },
+      "result": "passed"
+    },
+    "i-0examplebbb": {
+      "generation_stale": false,
+      "hardware": {
+        "cpu": {
+          "load": {
+            "1 min": 32.35,
+            "15 min": 25.0,
+            "5 min": 28.1
+          },
+          "usage": {
+            "0": 21.2,
+            "1": 18.9
+          }
+        },
+        "disk": {
+          "free (MB)": 12871.0,
+          "total (MB)": 31241.0,
+          "usage": 56.6,
+          "used (MB)": 16783.0
+        },
+        "memory": {
+          "ram": {
+            "free (MB)": 1263.4,
+            "total (MB)": 3848.6,
+            "usage": 67.2,
+            "used (MB)": 2585.2
+          },
+          "swap": {
+            "free (MB)": 2048.0,
+            "total (MB)": 2048.0,
+            "usage": 0.0,
+            "used (MB)": 0.0
+          }
+        }
+      },
+      "result": "passed"
+    },
+    "i-0exampleccc": {
+      "generation_stale": false,
+      "hardware": {
+        "cpu": {
+          "load": {
+            "1 min": 32.35,
+            "15 min": 25.0,
+            "5 min": 28.1
+          },
+          "usage": {
+            "0": 21.2,
+            "1": 18.9
+          }
+        },
+        "disk": {
+          "free (MB)": 12871.0,
+          "total (MB)": 31241.0,
+          "usage": 56.6,
+          "used (MB)": 16783.0
+        },
+        "memory": {
+          "ram": {
+            "free (MB)": 1263.4,
+            "total (MB)": 3848.6,
+            "usage": 67.2,
+            "used (MB)": 2585.2
+          },
+          "swap": {
+            "free (MB)": 2048.0,
+            "total (MB)": 2048.0,
+            "usage": 0.0,
+            "used (MB)": 0.0
+          }
+        }
+      },
+      "result": "passed"
+    }
+  },
+  "schema": 1,
+  "verdict": "passed"
+}

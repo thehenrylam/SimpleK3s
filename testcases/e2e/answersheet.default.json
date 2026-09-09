@@ -1,226 +1,368 @@
 {
-  "nodes": {
-    "$each": {
-      "role": { "$regex": "controlplane|agentplane" },
-      "name": { "$ignore": true },
-      "hardware": {
-        "cpu": {
-          "load": { "$ignore": true },
-          "usage": { "$ignore": true }
-        },
-        "memory": {
-          "ram": {
-            "usage": { "$ignore": true },
-            "free (MB)": { "$ignore": true },
-            "used (MB)": { "$ignore": true },
-            "total (MB)": { "$gte": 1 }
-          },
-          "swap": { "$ignore": true }
-        },
-        "disk": {
-          "usage": { "$warn": { "$lte": 85 } },
-          "free (MB)": { "$ignore": true },
-          "used (MB)": { "$ignore": true },
-          "total (MB)": { "$gte": 1 }
+  "checks": {
+    "argocd": {
+      "$in": [
+        "passed",
+        "skipped"
+      ]
+    },
+    "controlplane": "passed",
+    "descheduler": {
+      "$in": [
+        "passed",
+        "skipped"
+      ]
+    },
+    "external_secrets": {
+      "$in": [
+        "passed",
+        "skipped"
+      ]
+    },
+    "k3s_api": "passed",
+    "karpenter": {
+      "$in": [
+        "passed",
+        "skipped"
+      ]
+    },
+    "kube_system": "passed",
+    "kyverno": {
+      "$in": [
+        "passed",
+        "skipped"
+      ]
+    },
+    "longhorn": {
+      "$in": [
+        "passed",
+        "skipped"
+      ]
+    },
+    "monitoring": {
+      "$in": [
+        "passed",
+        "skipped"
+      ]
+    },
+    "nodes": "passed",
+    "pod_health": "passed",
+    "pod_stability": "passed",
+    "storage": {
+      "$in": [
+        "passed",
+        "skipped"
+      ]
+    },
+    "tailscale": {
+      "$in": [
+        "passed",
+        "skipped"
+      ]
+    },
+    "traefik": {
+      "$in": [
+        "passed",
+        "skipped"
+      ]
+    },
+    "workloads": "passed"
+  },
+  "disagreements": 0,
+  "facts": {
+    "argocd.applications": {
+      "names": {
+        "$ignore": true
+      },
+      "total": {
+        "$ignore": true
+      }
+    },
+    "argocd.login_route": {
+      "error": null,
+      "redirect": "redirect issued",
+      "root_path": {
+        "$ignore": true
+      },
+      "status": {
+        "$in": [
+          301,
+          302,
+          303,
+          307,
+          308
+        ]
+      },
+      "url": {
+        "$ignore": true
+      }
+    },
+    "external_secrets.cluster_secret_stores": {
+      "names": {
+        "$ignore": true
+      },
+      "total": {
+        "$ignore": true
+      }
+    },
+    "external_secrets.external_secrets": {
+      "names": {
+        "$ignore": true
+      },
+      "total": {
+        "$ignore": true
+      }
+    },
+    "external_secrets.secret_stores": {
+      "names": {
+        "$ignore": true
+      },
+      "total": {
+        "$ignore": true
+      }
+    },
+    "karpenter.ec2nodeclasses": {
+      "names": {
+        "$ignore": true
+      },
+      "total": {
+        "$ignore": true
+      }
+    },
+    "karpenter.nodeclaims": {
+      "names": {
+        "$ignore": true
+      },
+      "total": {
+        "$ignore": true
+      }
+    },
+    "karpenter.nodepools": {
+      "names": {
+        "$ignore": true
+      },
+      "total": {
+        "$ignore": true
+      }
+    },
+    "kyverno.cluster_policies": {
+      "names": {
+        "$ignore": true
+      },
+      "total": {
+        "$ignore": true
+      }
+    },
+    "kyverno.policies": {
+      "names": {
+        "$ignore": true
+      },
+      "total": {
+        "$ignore": true
+      }
+    },
+    "longhorn.nodes": {
+      "names": {
+        "$ignore": true
+      },
+      "total": {
+        "$ignore": true
+      }
+    },
+    "longhorn.volumes": {
+      "names": {
+        "$ignore": true
+      },
+      "total": {
+        "$ignore": true
+      }
+    },
+    "monitoring.alerts": {
+      "names": {
+        "$ignore": true
+      },
+      "total": {
+        "$ignore": true
+      }
+    },
+    "monitoring.grafana": {
+      "database": "ok",
+      "error": null,
+      "status": 200,
+      "url": {
+        "$ignore": true
+      },
+      "version": {
+        "$ignore": true
+      }
+    },
+    "monitoring.prometheus": {
+      "healthy": {
+        "error": null,
+        "status": 200,
+        "url": {
+          "$ignore": true
         }
+      },
+      "ready": {
+        "error": null,
+        "status": 200,
+        "url": {
+          "$ignore": true
+        }
+      },
+      "route_prefix": {
+        "$ignore": true
+      },
+      "service": {
+        "$ignore": true
+      }
+    },
+    "monitoring.thanos": {
+      "healthy": {
+        "error": null,
+        "status": 200,
+        "url": {
+          "$ignore": true
+        }
+      },
+      "ready": {
+        "error": null,
+        "status": 200,
+        "url": {
+          "$ignore": true
+        }
+      },
+      "stores": {
+        "by_component": {
+          "$ignore": true
+        },
+        "error": null,
+        "sidecar_connected": true,
+        "status": 200,
+        "total": {
+          "$gte": 1
+        },
+        "url": {
+          "$ignore": true
+        }
+      }
+    },
+    "nodes.inventory": {
+      "$ignore": true
+    },
+    "storage.claims": {
+      "names": {
+        "$ignore": true
+      },
+      "total": {
+        "$ignore": true
+      }
+    },
+    "storage.classes": {
+      "names": {
+        "$ignore": true
+      },
+      "total": {
+        "$ignore": true
+      }
+    },
+    "tailscale.backend": {
+      "error": null,
+      "service": {
+        "$ignore": true
+      },
+      "status": {
+        "$ignore": true
+      },
+      "url": {
+        "$ignore": true
+      }
+    },
+    "tailscale.entrypoint": {
+      "class": "tailscale",
+      "hostnames": {
+        "$ignore": true
+      },
+      "namespace": {
+        "$ignore": true
+      }
+    },
+    "traefik.ingressroutes": {
+      "names": {
+        "$ignore": true
+      },
+      "total": {
+        "$ignore": true
+      }
+    },
+    "traefik.middlewares": {
+      "names": {
+        "$ignore": true
+      },
+      "total": {
+        "$ignore": true
       }
     }
   },
-  "cluster": {
-    "k3s_platform": {
-      "stable": {
-        "healthz": { "ok": true, "response": { "$ignore": true } },
-        "livez": { "ok": true, "response": { "$ignore": true }, "checks": { "$ignore": true } }
+  "nodes": {
+    "$each": {
+      "generation_stale": {
+        "$in": [
+          false,
+          null
+        ]
       },
-      "ready": {
-        "readyz": { "ok": true, "response": { "$ignore": true }, "checks": { "$ignore": true } },
-        "scheduler": { "ok": true },
-        "controller_manager": { "ok": true }
-      },
-      "platform": {
-        "nodes": { "total": { "$gte": 1 }, "ready": { "$gte": 1 }, "not_ready": 0 },
-        "system_pods": { "total": { "$gte": 1 }, "running": { "$gte": 1 }, "completed": { "$ignore": true }, "not_running": { "$warn": 0 } },
-        "namespaces": { "$ignore": true }
-      }
-    },
-    "k3s_apps": {
-      "ready": true,
-      "summary": {
-        "workloads_total": { "$gte": 1 },
-        "workloads_ready": { "$gte": 1 },
-        "workloads_not_ready": 0,
-        "cronjobs_not_ready": 0,
-        "unhealthy_pods": 0
-      },
-      "workloads": { "$ignore": true },
-      "cronjobs": { "$ignore": true },
-      "unhealthy_pods": { "$ignore": true },
-      "errors": { "$ignore": true },
-      "waited_seconds": { "$ignore": true }
-    },
-    "apps": {
-      "traefik": {
-        "ready": true,
-        "summary": { "$ignore": true },
-        "ingressroutes": { "$ignore": true },
-        "middlewares": { "$ignore": true },
-        "errors": { "$ignore": true },
-        "note": { "$ignore": true }
-      },
-      "karpenter": {
-        "ready": true,
-        "summary": { "config_not_ready": 0 },
-        "ec2nodeclasses": { "$ignore": true },
-        "nodepools": { "$ignore": true },
-        "nodeclaims": { "$ignore": true },
-        "errors": { "$ignore": true }
-      },
-      "kyverno": {
-        "ready": true,
-        "summary": { "not_ready": 0 },
-        "cluster_policies": { "$ignore": true },
-        "policies": { "$ignore": true },
-        "errors": { "$ignore": true }
-      },
-      "external_secrets": {
-        "ready": true,
-        "summary": { "not_ready": 0 },
-        "external_secrets": { "$ignore": true },
-        "secret_stores": { "$ignore": true },
-        "errors": { "$ignore": true }
-      },
-      "longhorn": {
-        "ready": true,
-        "status": { "$ignore": true },
-        "summary": {
-          "manager_ok": true,
-          "csi_plugin_ok": true,
-          "csi_deployments_ready": { "$gte": 4 },
-          "csi_deployments_total": { "$ignore": true },
-          "csinodes_registered": { "$gte": 1 },
-          "csinodes_expected": { "$ignore": true },
-          "all_csi_registered": true,
-          "storage_classes": { "$gte": 1 },
-          "longhorn_nodes_schedulable": { "$gte": 1 },
-          "longhorn_nodes_total": { "$ignore": true }
+      "hardware": {
+        "cpu": {
+          "load": {
+            "$ignore": true
+          },
+          "usage": {
+            "$ignore": true
+          }
         },
-        "details": { "$ignore": true },
-        "errors": { "$ignore": true },
-        "note": { "$ignore": true }
-      },
-      "argocd": {
-        "ready": true,
-        "status": { "$ignore": true },
-        "summary": {
-          "sso_configured": true,
-          "issuer_resolved": true,
-          "login_route_ok": true,
-          "login_route_status": { "$ignore": true }
+        "disk": {
+          "free (MB)": {
+            "$ignore": true
+          },
+          "total (MB)": {
+            "$gte": 1
+          },
+          "usage": {
+            "$warn": {
+              "$lte": 85
+            }
+          },
+          "used (MB)": {
+            "$ignore": true
+          }
         },
-        "details": { "$ignore": true },
-        "errors": { "$ignore": true },
-        "note": { "$ignore": true }
+        "memory": {
+          "ram": {
+            "free (MB)": {
+              "$ignore": true
+            },
+            "total (MB)": {
+              "$gte": 1
+            },
+            "usage": {
+              "$warn": {
+                "$lte": 90
+              }
+            },
+            "used (MB)": {
+              "$ignore": true
+            }
+          },
+          "swap": {
+            "$ignore": true
+          }
+        }
       },
-      "grafana": {
-        "ready": true,
-        "status": { "$ignore": true },
-        "summary": {
-          "health_ok": true,
-          "sso_configured": true,
-          "sso_keys_ok": true
-        },
-        "details": { "$ignore": true },
-        "errors": { "$ignore": true },
-        "note": { "$ignore": true }
-      },
-      "grafana_pvc": {
-        "ready": true,
-        "status": { "$ignore": true },
-        "summary": {
-          "pvcs_total": { "$gte": 1 },
-          "pvcs_bound": { "$gte": 1 },
-          "pvcs_unbound": 0
-        },
-        "details": { "$ignore": true },
-        "errors": { "$ignore": true },
-        "note": { "$ignore": true }
-      },
-      "prometheus": {
-        "ready": true,
-        "status": { "$ignore": true },
-        "summary": {
-          "prometheus_crs_ready": { "$ignore": true },
-          "prometheus_crs_total": { "$ignore": true },
-          "healthy_ok": true,
-          "ready_ok": true
-        },
-        "details": { "$ignore": true },
-        "errors": { "$ignore": true },
-        "note": { "$ignore": true }
-      },
-      "prometheus_pvc": {
-        "ready": true,
-        "status": { "$ignore": true },
-        "summary": {
-          "pvcs_total": { "$gte": 1 },
-          "pvcs_bound": { "$gte": 1 },
-          "pvcs_unbound": 0,
-          "components_with_pvc": { "$ignore": true }
-        },
-        "details": { "$ignore": true },
-        "errors": { "$ignore": true },
-        "note": { "$ignore": true }
-      },
-      "thanos": {
-        "ready": true,
-        "status": { "$ignore": true },
-        "summary": {
-          "query_ready": true,
-          "store_ready": true,
-          "compactor_ready": true,
-          "query_healthy_ok": true,
-          "query_ready_ok": true,
-          "sidecar_connected": true,
-          "stores_total": { "$ignore": true }
-        },
-        "details": { "$ignore": true },
-        "errors": { "$ignore": true },
-        "note": { "$ignore": true }
-      },
-      "descheduler": {
-        "ready": true,
-        "status": { "$ignore": true },
-        "summary": {
-          "suspended": false,
-          "jobs_total": { "$ignore": true },
-          "jobs_failed": { "$ignore": true },
-          "latest_job_ok": true
-        },
-        "details": { "$ignore": true },
-        "errors": { "$ignore": true },
-        "note": { "$ignore": true }
-      },
-      "tailscale": {
-        "ready": true,
-        "status": { "$ignore": true },
-        "summary": {
-          "deployed": true,
-          "operator_ready": true,
-          "oauth_secret_ok": true,
-          "oauth_synced": true,
-          "secret_store_ready": true,
-          "ingressclass_ok": true,
-          "proxyclass_ready": true,
-          "entrypoint_ingress_ok": true,
-          "entrypoint_hostname_ok": true,
-          "proxy_ready": true,
-          "backend_http_ok": true,
-          "tls_cert_issued": { "$warn": true }
-        },
-        "details": { "$ignore": true },
-        "errors": { "$ignore": true },
-        "note": { "$ignore": true }
-      }
+      "result": "passed"
     }
-  }
+  },
+  "schema": 1,
+  "verdict": "passed"
 }

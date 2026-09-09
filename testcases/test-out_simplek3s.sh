@@ -1,11 +1,12 @@
 #!/bin/bash
 # End-to-end health check of an already-deployed SimpleK3s cluster.
 #
-# Discovers every running EC2 node tagged Nickname=<nickname>, runs the on-node
-# fetch_*.py probes over SSM (parallel + rate-limited), reconciles results
-# across nodes, and grades the stitched snapshot against an answer sheet —
-# printing a 🟢/🟡/🟥 report card. The heavy lifting lives in e2e/simplek3s_e2e.py
-# (stdlib-only, run via uv); this wrapper handles args + the repo logging pattern.
+# Grades a cluster against an answer sheet and prints a 🟢/🟡/🟥 report card.
+#
+# The collection is not done here: e2e/simplek3s_e2e.py shells out to
+# `sk3s status --depth full --json`, which already discovers the nodes, ships
+# the verifier inline over SSM, decodes the replies and reconciles them across
+# nodes. This wrapper handles args + the repo logging pattern.
 
 set -euo pipefail
 
