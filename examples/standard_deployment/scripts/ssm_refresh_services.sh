@@ -51,7 +51,7 @@ BLOCKING_SECTIONS="k3s_api nodes"
 # name the component with --only.
 #
 # (It does NOT feed back into itself, which an earlier draft of this comment
-# claimed. node_verify-all.sh reads container lastState.terminated — in-place
+# claimed. The pod_stability check reads container lastState.terminated — in-place
 # crash restarts — and a rolling replacement produces new pods with no
 # lastState, so a refresh never registers as instability. Verified live.)
 EXCLUDED_SECTIONS="pod_stability"

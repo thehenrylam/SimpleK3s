@@ -8,7 +8,7 @@ set -euo pipefail
 
 # Restarts platform workloads that are deployed but not working.
 #
-# This is the actuator for what node_verify-all.sh observes. It deliberately
+# This is the actuator for what the sk3s_verify checks observe. It deliberately
 # holds NO policy about which components deserve a restart — the host decides
 # that from a verify report and names them here. Keeping the decision out of
 # this script is what makes it testable: "restart these" has one meaning.
@@ -35,9 +35,15 @@ source "$SCRIPT_DIR/lib/common.sh"
 
 # component|namespace|workloads|note
 #
-# Component names mirror node_verify-all.sh's verify_section names exactly, so
-# a failing check maps to a refresh target without a translation table in
-# between. Two tables that must agree are two tables that will disagree.
+# Every component name here is a check SECTION name from
+# py/sk3s_verify/checks/__init__.py (build_registry), so a failing check maps to
+# a refresh target without a translation table in between. Two tables that must
+# agree are two tables that will disagree — keep this list and that registry in
+# step.
+#
+# The reverse does not hold, deliberately: sections like k3s_api, storage and
+# hardware have no entry because there is nothing to restart. A section being
+# absent here means "not restartable", never "not checked".
 #
 # The workload list is explicit rather than "every workload in the namespace".
 # A named list means the operator can see the precise blast radius in the
@@ -94,9 +100,8 @@ function known_components() {
 
 # ─── Reporting ───────────────────────────────────────────────────────────────
 
-# One record per workload, US/RS separated for the same reason node_verify-all.sh
-# does it: control characters cannot appear in a kubectl message, so no message
-# can forge a field boundary.
+# One record per workload, US/RS separated because control characters cannot
+# appear in a kubectl message, so no message can forge a field boundary.
 #   component US namespace US workload US result US detail RS
 REFRESH_RECORDS=""
 
@@ -389,9 +394,9 @@ fi
 [[ -n "${COMPONENTS}" ]] || { echo "Error: --components is required." >&2 ; usage 2 ; }
 
 # In --json mode stdout is reserved for the document, so prose is parked on
-# stderr and the real stdout held on fd 3 until emit_json. Same reasoning as
-# node_verify-all.sh: SSM truncates stdout mid-stream at 24000 characters, which
-# would silently eat the tail of a document appended after the prose.
+# stderr and the real stdout held on fd 3 until emit_json: SSM truncates stdout
+# mid-stream at 24000 characters, which would silently eat the tail of a
+# document appended after the prose.
 if [[ "${JSON_MODE}" == "true" ]]; then
     exec 3>&1 1>&2
 fi
@@ -416,8 +421,8 @@ if [[ "${JSON_MODE}" == "true" ]]; then
     emit_json >&3
 fi
 
-# Grep-able prose, mirroring node_verify-all.sh, so a host that cannot parse the
-# document still has an unambiguous verdict line.
+# Grep-able prose, so a host that cannot parse the document still has an
+# unambiguous verdict line.
 if printf '%s' "${REFRESH_RECORDS}" | grep -qE $'\x1f'"(failed|timeout|absent|not_restartable|unknown)"$'\x1f'; then
     log_fail "$0: FAILED (one or more components could not be refreshed)"
     exit 1

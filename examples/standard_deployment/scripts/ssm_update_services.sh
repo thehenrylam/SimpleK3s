@@ -215,7 +215,7 @@ function resolve_scope() {
 # One `bash -c` rather than chained commands, because the report has to outlive
 # a failure: `&&` would skip the read entirely if the step failed, losing the
 # record that says WHY. Prose goes to stderr so stdout carries only the report —
-# the same split node_verify-all.sh --json uses, and for the same reason (SSM
+# the same split every --json producer here uses, and for the same reason (SSM
 # truncates stdout mid-stream at 24000 chars).
 function remote_step_command() {
     local _SCRIPTS="${1}" _DRY="${2}"
