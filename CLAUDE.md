@@ -109,6 +109,7 @@ The `.claude/commands/` directory contains slash commands for use inside Claude 
 
 **2. Bootstrap Layer** (`k3s_cluster/cluster_app/bootstrap/`)
 - Shell scripts run on EC2 startup via cloud-init. They download further scripts from S3, install packages, configure swap, install K3s, then sequence subsystem and application setup.
+- `data/py/sk3s_verify/`: the cluster health verifier (stdlib-only Python). `sk3s status` zips it and ships it **inline over SSM** on every run, so the node cannot be running a different version than the host expects. A copy is also shipped to S3 so an operator can run it on the box and so `converge_actions.sh` can import the ArgoCD OIDC rule instead of reimplementing it. Unit-tested off-cluster in `testcases/unit/`.
 
 **3. Subsystems Layer** (`k3s_cluster/cluster_app/{traefik,kyverno,external-secrets,descheduler,karpenter,tailscale}/`)
 - Kubernetes-level infrastructure components installed after K3s is ready.

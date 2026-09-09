@@ -54,7 +54,7 @@ ansible-playbook ./playbooks/cluster_verify.yml
     - Executes `tofu apply` + `./scripts/ssm_update_services.sh` (i.e. `sk3s pull`) to sync new files from S3 to every control-plane node, then stage manifests on the node that owns staging
     - **Fails the play** when the service update does not succeed
 - `./playbooks/cluster_verify.yml`
-    - Executes `./scripts/ssm_verify_cluster.sh` to get the health status of the cluster
+    - Executes `./scripts/sk3s_status.py` to get the health status of the cluster
     - **Fails the play** when the cluster does not pass. A node that cannot be reached counts as a failure, not a pass.
 - `./playbooks/cluster_repair.yml`
     - Rejoins a control-plane node that cannot rejoin on its own — the node-0 replacement case
@@ -291,13 +291,26 @@ Scripts shipped to nodes (`k3s_cluster/cluster_app/bootstrap/data/`) are
 sync/repair path must never depend on an interpreter environment stored inside
 the directory it repairs.
 
-Node scripts report **structured state rather than prose**, so the host reads
-fields instead of grepping log lines. `node_verify-all.sh` is the reference:
+Node code reports **structured state rather than prose**, so the host reads
+fields instead of grepping log lines. The verifier package is the reference:
 
 ```bash
-node_verify-all.sh           # prose — the default, for a human on the node
-node_verify-all.sh --json    # JSON on stdout, all prose to stderr
+# On a node, against the S3-shipped copy:
+cd /opt/simplek3s/bootstrap/default/py
+python3 -m sk3s_verify --depth standard             # JSON on stdout
+python3 -m sk3s_verify --depth standard --compress  # gzip+base64, what the host asks for
 ```
+
+**The host does not run that copy.** `sk3s status` zips the package and ships it
+inline with every invocation, so the node always runs exactly the version the
+caller expects — no version skew during a rollout, and no dual-schema handling
+when the document format changes. The S3 copy exists so an operator can run it
+by hand, and so `converge_actions.sh` can import the ArgoCD OIDC rule rather
+than reimplementing it.
+
+Compression is required rather than an optimisation: SSM caps returned stdout at
+24,000 characters and cuts mid-stream, and the full probe set measures 22,552
+characters raw — 94% of the ceiling — against 6,200 compressed.
 
 - **An explicit result per check** — `passed` / `failed` / `skipped`, never
   absence. A subsystem that is not deployed reports `skipped`; it has not been
@@ -351,7 +364,7 @@ own beyond supplying the profile.
 ```bash
 ./sk3s help             # every verb, with a one-line summary
 ./sk3s <verb> --help    # usage for that verb
-./sk3s status dev       # same as ./scripts/ssm_verify_cluster.sh dev
+./sk3s status dev       # same as ./scripts/sk3s_status.py dev
 ./sk3s status           # profile taken from group_vars/all.yml
 ```
 
@@ -466,7 +479,7 @@ and why.
 
 | Verb | Dispatches to | Scope |
 |---|---|---|
-| `status` | `ssm_verify_cluster.sh` | every control-plane node |
+| `status` | `sk3s_status.py` | every control-plane node (`--depth quick\|standard`) |
 | `sync` | `ssm_update_services.sh --mode sync` | every control-plane node |
 | `apply` | `ssm_update_services.sh --mode apply` | the staging owner |
 | `pull` | `ssm_update_services.sh --mode pull` | sync everywhere, then stage on the owner |
@@ -576,7 +589,7 @@ node before anything changes).
     - `--strict-sync` fails the run if any node's sync fails. By default only the staging node's own failure blocks staging, so an unrelated unreachable node cannot stop a deploy
     - `--claim-ownership` makes the target the sole staging owner, clearing manifests other nodes are holding. Safe: removing a manifest file does not delete the resources it created ([#151](https://github.com/thehenrylam/SimpleK3s/issues/151))
     - `--dry-run` reports what would change and writes nothing
-- `./scripts/ssm_verify_cluster.sh <aws_profile> [--no-color] [--per-node]`
+- `./scripts/sk3s_status.py <aws_profile> [<nickname> <region>] [--depth quick|standard] [--verbose] [--json] [--no-color]`
     - On **every** controlplane node, execute a script to verify the health of the cluster, then merge the results into one report (a check every node agrees on is printed once; divergent lines are attributed to the nodes that produced them)
     - Passes only if every node passes — a node that cannot be reached is not a pass
     - `--no-color` never emits colour (already off when piped); `--per-node` prints each node's own results instead of the merged report

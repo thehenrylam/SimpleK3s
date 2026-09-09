@@ -54,7 +54,16 @@ def remote_command(encoded, depth, env=None):
     other's payload, and the exit status is preserved across the cleanup so the
     node's verdict still reaches SSM.
     """
-    assignments = "".join(f"{k}={v} " for k, v in sorted((env or {}).items()))
+    # Values are interpolated into a shell command, so anything that is not a
+    # bare token is refused rather than quoted-and-hoped. These are numeric
+    # tunables; nothing legitimate needs a shell metacharacter.
+    safe = {}
+    for key, value in sorted((env or {}).items()):
+        text = str(value)
+        if not text.isalnum():
+            raise ValueError(f"refusing to forward {key}={text!r}: not an alphanumeric token")
+        safe[key] = text
+    assignments = "".join(f"{k}={v} " for k, v in safe.items())
     return (
         "P=$(mktemp /tmp/sk3s_verify.XXXXXX.pyz) && "
         f"printf '%s' '{encoded}' | base64 -d > \"$P\" && "

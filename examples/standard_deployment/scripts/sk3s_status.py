@@ -25,6 +25,20 @@ EXIT_OK, EXIT_FAIL, EXIT_USAGE = 0, 1, 2
 
 RESULT_ORDER = {"failed": 0, "skipped": 1, "passed": 2}
 
+# Tunables the node's checks read. Forwarded from this process's environment so
+# cluster_verify.yml can still narrow the restart window right after an apply.
+# A knob that silently stopped reaching the node would be worse than no knob.
+FORWARDED_ENV = ("STABILITY_WINDOW_SECONDS", "KARPENTER_NODECLAIM_STUCK_MINUTES")
+
+
+def forwarded_env():
+    out = {}
+    for name in FORWARDED_ENV:
+        value = os.environ.get(name, "").strip()
+        if value:
+            out[name] = value
+    return out
+
 
 # ─── Context ─────────────────────────────────────────────────────────────────
 
@@ -255,7 +269,11 @@ def main(argv=None):
         return EXIT_FAIL
 
     encoded = payload.build(REPO_ROOT)
-    command = payload.remote_command(encoded, args.depth)
+    node_env = forwarded_env()
+    if node_env and not args.json:
+        print("Tunables : " + "  ".join(f"{k}={v}" for k, v in sorted(node_env.items())))
+        print("")
+    command = payload.remote_command(encoded, args.depth, env=node_env)
 
     def tick(n, total, pending):
         if not args.json and pending:

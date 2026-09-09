@@ -26,7 +26,7 @@
 
   tasks:
   - name: Verify Cluster
-    shell: "./scripts/ssm_verify_cluster.sh {{ aws_profile }} 2>&1"
+    shell: "./scripts/sk3s_status.py {{ aws_profile }} --no-color 2>&1"
     args:
       chdir: "{{ target_dir }}"
     # Left unset unless supplied, so the remote script keeps its own default (300s).
