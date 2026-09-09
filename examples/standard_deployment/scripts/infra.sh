@@ -87,6 +87,14 @@ Examples:
       One root. Hosts are named idp, pvc and tailscale (see inventory.yml), and
       --limit takes any Ansible host pattern.
 
+  sk3s infra cluster apply -e verify_after_apply=false
+      Skip the post-apply health check. `cluster apply` verifies afterwards
+      with 15 attempts 30s apart, so a cluster that comes up unhealthy holds
+      the terminal for ~7 minutes before failing. When you already know it will
+      fail — mid-repair, or iterating on a broken deploy — this returns as soon
+      as the infrastructure is in place. Run `sk3s status` when you want the
+      verdict.
+
 Ordering: apply support before cluster; destroy cluster before support. The
 cluster tier reads Parameter Store values the support tier owns, so tearing
 support down first strands the cluster mid-destroy.

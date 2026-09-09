@@ -96,17 +96,37 @@ def select(registry, depth):
     return [c for c in registry if DEPTHS.index(c.depth) <= limit]
 
 
+# The liveness floor. If this section fails, the node could not reach the
+# cluster at all, and every check after it is asking questions of something it
+# cannot see.
+GATE_SECTION = "k3s_api"
+
+GATE_MESSAGE = "the cluster API is unreachable from this node"
+
+
 def run_all(registry, depth):
-    """Run the selected checks.
+    """Run the selected checks, stopping if the liveness floor gives way.
 
     A check has three ways to finish and two of them are failures: an
     Unavailable means the question could not be answered, and any other
     exception means the check itself is broken. Neither is a skip, and neither
     is silence — a check that records nothing and throws still produces a
     recorded failure.
+
+    THE GATE. When GATE_SECTION fails, the run stops and records ONE skip for
+    everything after it. Observed live: a replacement node-0 that never
+    installed k3s reported all 48 checks failed, and the host then reported
+    "nodes disagree" on all 15 sections. Every line was true and none was
+    useful — the one fact worth reading, that the node cannot see the cluster,
+    was buried under 60-odd lines restating it.
+
+    The remainder is SKIPPED rather than dropped, because those checks genuinely
+    were not verified, and rather than one-per-check because 47 identical lines
+    reproduce the noise this exists to remove.
     """
     results = Results()
-    for check in select(registry, depth):
+    selected = select(registry, depth)
+    for index, check in enumerate(selected):
         rec = SectionRecorder(results, check.section)
         try:
             check.run(rec)
@@ -114,4 +134,34 @@ def run_all(registry, depth):
             rec.failed("could not determine state", str(exc))
         except Exception as exc:  # noqa: BLE001 - a crashing check must not pass
             rec.failed(f"check raised {type(exc).__name__}", str(exc))
+
+        if check.section == GATE_SECTION and _section_failed(results, GATE_SECTION):
+            remaining = len(selected) - index - 1
+            if remaining:
+                results.checks.append(
+                    {
+                        "section": GATE_SECTION,
+                        "result": SKIPPED,
+                        "message": f"{remaining} further check(s) not attempted — {GATE_MESSAGE}",
+                    }
+                )
+            break
     return results
+
+
+def _section_failed(results, section):
+    return any(
+        entry["section"] == section and entry["result"] == FAILED for entry in results.checks
+    )
+
+
+def observed_cluster(document):
+    """Whether a node actually reached the cluster.
+
+    A node that did not has no opinion to weigh against its peers: it is not a
+    dissenting vote, it is an absent one.
+    """
+    return not any(
+        check["section"] == GATE_SECTION and check["result"] == FAILED
+        for check in document.get("checks", [])
+    )
