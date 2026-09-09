@@ -1,0 +1,314 @@
+#!/usr/bin/env python3
+"""Cluster health, merged across control-plane nodes.
+
+Replaces ssm_verify_cluster.sh. The verifier is shipped inline with every run
+(see sk3slib.payload), so the node cannot be running a different version than
+the host expects.
+
+Exit codes: 0 healthy, 1 unhealthy or unreadable, 2 bad usage.
+"""
+
+import argparse
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from sk3slib import payload, ssm  # noqa: E402
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DEPLOYMENT_DIR = os.path.dirname(SCRIPT_DIR)
+REPO_ROOT = os.path.abspath(os.path.join(DEPLOYMENT_DIR, "..", ".."))
+
+EXIT_OK, EXIT_FAIL, EXIT_USAGE = 0, 1, 2
+
+RESULT_ORDER = {"failed": 0, "skipped": 1, "passed": 2}
+
+
+# ─── Context ─────────────────────────────────────────────────────────────────
+
+
+def infer_tfvar(path, name):
+    """Read a scalar out of terraform.tfvars, matching common.sh's rule."""
+    try:
+        with open(path) as handle:
+            for line in handle:
+                stripped = line.strip()
+                if stripped.startswith(name) and "=" in stripped:
+                    parts = stripped.split('"')
+                    if len(parts) >= 2:
+                        return parts[1]
+    except OSError:
+        return None
+    return None
+
+
+def resolve_context(args):
+    tfvars = os.path.join(DEPLOYMENT_DIR, "terraform", "standard_cluster", "terraform.tfvars")
+    nickname = args.nickname or infer_tfvar(tfvars, "nickname")
+    region = args.region or infer_tfvar(tfvars, "aws_region")
+    if not nickname or not region:
+        raise SystemExit(
+            f"Error: could not infer nickname/region from {tfvars}.\n"
+            "       Pass them explicitly: <profile> <nickname> <region>"
+        )
+    return nickname, region
+
+
+# ─── Colour ──────────────────────────────────────────────────────────────────
+
+
+class Palette:
+    def __init__(self, enabled):
+        self.red = "\033[31m" if enabled else ""
+        self.green = "\033[32m" if enabled else ""
+        self.yellow = "\033[33m" if enabled else ""
+        self.reset = "\033[0m" if enabled else ""
+
+    def for_result(self, result):
+        return {"passed": self.green, "failed": self.red, "skipped": self.yellow}.get(result, "")
+
+
+# ─── Merge ───────────────────────────────────────────────────────────────────
+
+
+def collect(results):
+    """Turn raw SSM results into per-node documents.
+
+    A node whose output cannot be decoded becomes an ERROR entry rather than
+    being dropped. A node we could not read has not passed.
+    """
+    nodes = {}
+    for instance_id, raw in sorted(results.items()):
+        if raw["truncated"]:
+            nodes[instance_id] = {
+                "error": (f"output hit the SSM cap of {ssm.STDOUT_LIMIT} characters and was cut")
+            }
+            continue
+        try:
+            document = payload.decode(raw["stdout"])
+        except ValueError as exc:
+            stderr = (raw["stderr"] or "").strip().splitlines()
+            hint = stderr[-1] if stderr else raw["status"]
+            nodes[instance_id] = {"error": f"{exc} (SSM status: {hint})"}
+            continue
+        if document.get("schema") != 2:
+            nodes[instance_id] = {"error": f"unrecognised report schema {document.get('schema')!r}"}
+            continue
+        nodes[instance_id] = {"document": document}
+    return nodes
+
+
+def disagreements(nodes):
+    """Sections where nodes reported different verdicts.
+
+    These checks are cluster-scoped, so every control-plane node should see the
+    same thing. When they do not, that is itself a finding — one node cannot be
+    picked as right without saying why.
+    """
+    by_section = {}
+    for instance_id, entry in nodes.items():
+        document = entry.get("document")
+        if not document:
+            continue
+        for check in document["checks"]:
+            key = (check["section"], check["message"])
+            by_section.setdefault(key, {})[instance_id] = check["result"]
+
+    out = []
+    node_count = sum(1 for e in nodes.values() if e.get("document"))
+    for (section, message), verdicts in sorted(by_section.items()):
+        distinct = set(verdicts.values())
+        if len(distinct) > 1 or len(verdicts) != node_count:
+            out.append({"section": section, "message": message, "verdicts": verdicts})
+    return out
+
+
+# ─── Render ──────────────────────────────────────────────────────────────────
+
+
+def render(nodes, instances, disagree, pal, depth, verbose):
+    names = {i["id"]: i["name"] for i in instances}
+    lines = []
+
+    readable = [e for e in nodes.values() if e.get("document")]
+    for instance_id, entry in sorted(nodes.items()):
+        label = f"{instance_id}  {names.get(instance_id, '')}"
+        if entry.get("error"):
+            lines.append(f"  {pal.red}[ERROR]{pal.reset} {label}")
+            lines.append(f"          {entry['error']}")
+            continue
+        document = entry["document"]
+        summary = document["summary"]
+        tint = pal.green if document["result"] == "passed" else pal.red
+        lines.append(
+            f"  {tint}[{document['result'].upper()}]{pal.reset} {label}  "
+            f"({summary['passed']} passed, {summary['failed']} failed, "
+            f"{summary['skipped']} skipped)"
+        )
+
+    if readable:
+        # Checks are cluster-scoped, so one node's view is the cluster's view.
+        # The first readable document is the reference; disagreements are
+        # reported separately rather than silently averaged away.
+        reference = readable[0]["document"]
+        shown = [c for c in reference["checks"] if verbose or c["result"] != "passed"]
+        if shown:
+            lines.append("")
+            for check in sorted(shown, key=lambda c: RESULT_ORDER.get(c["result"], 3)):
+                tint = pal.for_result(check["result"])
+                lines.append(
+                    f"  {tint}[{check['result'].upper():^7}]{pal.reset} "
+                    f"{check['section']:<18} {check['message']}"
+                )
+                if check.get("detail"):
+                    for detail_line in check["detail"].strip().splitlines():
+                        lines.append(f"           | {detail_line}")
+
+    if disagree:
+        lines.append("")
+        lines.append(f"  {pal.yellow}Nodes disagree on {len(disagree)} check(s):{pal.reset}")
+        for item in disagree:
+            verdicts = ", ".join(f"{k}={v}" for k, v in sorted(item["verdicts"].items()))
+            lines.append(f"    {item['section']:<18} {item['message']}")
+            lines.append(f"           | {verdicts}")
+
+    return "\n".join(lines)
+
+
+# ─── Main ────────────────────────────────────────────────────────────────────
+
+
+def parse_args(argv):
+    parser = argparse.ArgumentParser(
+        prog="sk3s_status.py",
+        description="Cluster health, merged across control-plane nodes.",
+    )
+    parser.add_argument("profile", nargs="?", help="AWS CLI profile (required)")
+    parser.add_argument("nickname", nargs="?", help="default: inferred from terraform.tfvars")
+    parser.add_argument("region", nargs="?", help="default: inferred from terraform.tfvars")
+    # "full" is deliberately absent until it carries facts. The node package
+    # supports the depth and is tested for it, but wiring the fetch_* signals in
+    # is PR B — and a flag that silently returns standard results would be the
+    # same quiet lie this rewrite exists to remove.
+    parser.add_argument("--depth", choices=("quick", "standard"), default="standard")
+    parser.add_argument("--instance-id", help="check a single node instead of all")
+    parser.add_argument("--verbose", action="store_true", help="show passing checks too")
+    parser.add_argument("--json", action="store_true", help="emit the merged report as JSON")
+    parser.add_argument("--no-color", action="store_true")
+    parser.add_argument("--poll-max", type=int, default=180)
+    parser.add_argument("--poll-interval", type=int, default=5)
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(argv)
+    # sk3s pipes this through tee for logging, which makes stdout block-buffered
+    # while stderr stays unbuffered — so progress ticks would otherwise appear
+    # before the header they follow.
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+    except AttributeError:  # pragma: no cover - very old interpreters
+        pass
+    if not args.profile:
+        print("Error: <profile> is required.", file=sys.stderr)
+        return EXIT_USAGE
+
+    nickname, region = resolve_context(args)
+    pal = Palette(not args.no_color and sys.stdout.isatty())
+
+    instances = ssm.cluster_instances(args.profile, region, nickname, "controlplane")
+    if args.instance_id:
+        instances = [i for i in instances if i["id"] == args.instance_id]
+        if not instances:
+            print(
+                f"Error: {args.instance_id} is not a running control-plane node of '{nickname}'.",
+                file=sys.stderr,
+            )
+            return EXIT_FAIL
+    if not instances:
+        print(
+            f"Error: no running control-plane node for '{nickname}' in {region}.", file=sys.stderr
+        )
+        return EXIT_FAIL
+
+    ids = [i["id"] for i in instances]
+    offline = ssm.unreachable(args.profile, region, ids)
+
+    if not args.json:
+        print(f"Cluster  : nickname={nickname}  region={region}  profile={args.profile}")
+        print(f"Depth    : {args.depth}")
+        print(f"Nodes    : {len(ids)} control-plane")
+        for inst in instances:
+            mark = (
+                f"  {pal.red}(unreachable: {offline[inst['id']]}){pal.reset}"
+                if inst["id"] in offline
+                else ""
+            )
+            print(f"             {inst['id']}  {inst['name']}{mark}")
+        print("")
+
+    reachable = [i for i in ids if i not in offline]
+    if not reachable:
+        print("No control-plane node is reachable over SSM.", file=sys.stderr)
+        return EXIT_FAIL
+
+    encoded = payload.build(REPO_ROOT)
+    command = payload.remote_command(encoded, args.depth)
+
+    def tick(n, total, pending):
+        if not args.json and pending:
+            print(f"  ({n}/{total}) waiting on {len(pending)} node(s)...", file=sys.stderr)
+
+    command_id = ssm.send_command(args.profile, region, reachable, command, "sk3s status")
+    raw = ssm.await_all(
+        args.profile,
+        region,
+        command_id,
+        reachable,
+        max_polls=args.poll_max,
+        interval=args.poll_interval,
+        on_tick=tick,
+    )
+
+    nodes = collect(raw)
+    # An unreachable node is a node we did not check. It is reported, and it
+    # counts against the verdict — absence is never success.
+    for instance_id, status in offline.items():
+        nodes[instance_id] = {"error": f"unreachable over SSM (ping status: {status})"}
+
+    disagree = disagreements(nodes)
+    healthy = (
+        all(e.get("document") and e["document"]["result"] == "passed" for e in nodes.values())
+        and not disagree
+    )
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "cluster": nickname,
+                    "region": region,
+                    "depth": args.depth,
+                    "result": "passed" if healthy else "failed",
+                    "nodes": nodes,
+                    "disagreements": disagree,
+                },
+                indent=2,
+            )
+        )
+        return EXIT_OK if healthy else EXIT_FAIL
+
+    print(render(nodes, instances, disagree, pal, args.depth, args.verbose))
+    print("")
+    ok_nodes = sum(
+        1 for e in nodes.values() if e.get("document") and e["document"]["result"] == "passed"
+    )
+    verdict = f"{pal.green}PASS{pal.reset}" if healthy else f"{pal.red}FAIL{pal.reset}"
+    print(f"Result: {verdict}  ({ok_nodes}/{len(nodes)} nodes passed)")
+    return EXIT_OK if healthy else EXIT_FAIL
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -20,10 +20,26 @@ def _fake_kubectl(tmp_path, body):
 
 @pytest.fixture
 def with_kubectl(tmp_path, monkeypatch):
+    # Pretend to be root so kubectl is invoked directly. The sudo branch is
+    # covered explicitly below rather than by every test needing a password.
+    monkeypatch.setattr(kube.os, "geteuid", lambda: 0)
+
     def install(body):
         monkeypatch.setenv("PATH", _fake_kubectl(tmp_path, body) + os.pathsep + os.environ["PATH"])
 
     return install
+
+
+def test_root_invokes_kubectl_directly(monkeypatch):
+    monkeypatch.setattr(kube.os, "geteuid", lambda: 0)
+    assert kube._argv(["get", "nodes"]) == ["kubectl", "get", "nodes"]
+
+
+def test_non_root_elevates(monkeypatch):
+    """An operator running the S3-shipped copy by hand is not root, and k3s's
+    kubeconfig is root-readable only."""
+    monkeypatch.setattr(kube.os, "geteuid", lambda: 1000)
+    assert kube._argv(["get", "nodes"]) == ["sudo", "kubectl", "get", "nodes"]
 
 
 def test_run_returns_stdout(with_kubectl):
@@ -64,6 +80,7 @@ def test_exists_raises_when_kubectl_cannot_run(with_kubectl):
 
 
 def test_missing_kubectl_raises(monkeypatch, tmp_path):
+    monkeypatch.setattr(kube.os, "geteuid", lambda: 0)
     monkeypatch.setenv("PATH", str(tmp_path))
     with pytest.raises(kube.Unavailable):
         kube.run(["get", "nodes"])

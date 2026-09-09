@@ -185,18 +185,24 @@ FAILING="" ; BLOCKED="" ; EXCLUDED_HITS=""
 
 # Sections with at least one failed check, split into three buckets by policy.
 function read_status() {
-    local _NODE_DIR _JSON _PARSED
-    _NODE_DIR="$(get_node_script_dir)"
+    local _JSON _PARSED
 
     echo "Reading cluster health from ${TARGET_ID} ..." >&2
-    remote_script "${TARGET_ID}" "${_NODE_DIR}/node_verify-all.sh --json" || {
+    # Health now comes from sk3s_status.py, which ships the verifier inline —
+    # so refresh and status can never disagree about what "failing" means, and
+    # there is no on-node script version for them to drift apart on.
+    #
+    # A non-zero exit is EXPECTED here: an unhealthy cluster is precisely the
+    # case refresh exists for. Only an unreadable document is fatal.
+    _JSON="$("${SCRIPT_DIR}/sk3s_status.py" "${PROFILE}" "${NICKNAME}" "${REGION}" \
+        --instance-id "${TARGET_ID}" --json --no-color 2>/dev/null)" || true
+    if [[ -z "${_JSON}" ]]; then
         echo "${C_RED}Could not read the cluster health report from ${TARGET_ID}.${C_RST}" >&2
         echo "Refusing to continue: an unreadable report has no failing sections, and" >&2
         echo "acting on that empty set would report 'nothing to refresh' for a cluster" >&2
         echo "whose state is unknown." >&2
         return 1
-    }
-    _JSON="${REMOTE_STDOUT}"
+    fi
 
     _PARSED="$(printf '%s' "${_JSON}" | python3 -c '
 import json, sys
@@ -205,12 +211,21 @@ blocking = set(sys.argv[1].split())
 excluded = set(sys.argv[2].split())
 
 try:
-    document = json.load(sys.stdin)
+    merged = json.load(sys.stdin)
 except json.JSONDecodeError:
     sys.exit(3)
 
+# The merged report holds one entry per node; refresh targets exactly one, so
+# take the only document present. A node that reported an error rather than a
+# document is refused, not treated as a node with nothing to say.
+nodes = (merged or {}).get("nodes") or {}
+documents = [e["document"] for e in nodes.values() if isinstance(e, dict) and e.get("document")]
+if len(documents) != 1:
+    sys.exit(3)
+document = documents[0]
+
 # Refuse a document we cannot read rather than half-reading a future shape.
-if not isinstance(document, dict) or document.get("schema") != 1:
+if document.get("schema") != 2:
     sys.exit(3)
 
 # A report carrying no checks is not a healthy cluster, it is a broken report.

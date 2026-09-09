@@ -17,6 +17,7 @@ as healthy, because it does not return at all.
 """
 
 import json
+import os
 import subprocess
 
 
@@ -24,11 +25,23 @@ class Unavailable(Exception):
     """A question could not be asked. Never a synonym for a healthy answer."""
 
 
+def _argv(args):
+    """kubectl, elevated only when we are not already root.
+
+    Under SSM the command already runs as root, so sudo is unnecessary there.
+    An operator running the S3-shipped copy by hand is not root, and k3s's
+    kubeconfig at /etc/rancher/k3s/k3s.yaml is root-readable only — so both
+    paths have to work.
+    """
+    prefix = [] if os.geteuid() == 0 else ["sudo"]
+    return [*prefix, "kubectl", *args]
+
+
 def run(args, timeout=30):
     """Run kubectl and return stdout. Raises Unavailable if the query failed."""
     try:
         proc = subprocess.run(
-            ["kubectl", *args],
+            _argv(args),
             capture_output=True,
             timeout=timeout,
         )
