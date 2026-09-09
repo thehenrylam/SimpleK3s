@@ -5,6 +5,7 @@ import datetime
 import os
 
 from .. import kube, workloads
+from ..registry import FAILED, PASSED, SKIPPED
 
 DEFAULT_NODECLAIM_STUCK_MINUTES = 20
 
@@ -51,7 +52,107 @@ def kyverno(rec):
 # ─── Longhorn ────────────────────────────────────────────────────────────────
 
 
-def longhorn(rec):
+CSI_DRIVER = "driver.longhorn.io"
+
+# How long a newly joined node may go without registering the CSI driver.
+#
+# Longhorn ships its CSI plugin as a DaemonSet, so a node that joined seconds
+# ago legitimately has no driver yet — the pod still has to be scheduled,
+# pulled, started and registered. Karpenter makes that window routine rather
+# than rare: it provisions a node, the node joins, and it is consolidated away
+# again minutes later. Asserting registration with zero tolerance failed
+# `sk3s status` for a minute or two on every scale-up, on a healthy cluster.
+#
+# A gate that cries wolf gets ignored, which is #110 read from the other side.
+DEFAULT_CSI_GRACE_SECONDS = 300
+
+
+def csi_grace_seconds():
+    """Grace window for CSI registration, in seconds."""
+    raw = os.environ.get("LONGHORN_CSI_GRACE_SECONDS", "")
+    if not raw:
+        return DEFAULT_CSI_GRACE_SECONDS
+    if not raw.isdigit() or int(raw) < 1:
+        raise ValueError(f"LONGHORN_CSI_GRACE_SECONDS must be a positive integer (got {raw!r})")
+    return int(raw)
+
+
+def node_age(node, now=None):
+    """Seconds since the node object was created, or None if it cannot be read.
+
+    Absent and unreadable are collapsed here deliberately: they mean different
+    things in general, but for grace they mean the same one — the node cannot
+    be shown to be young, so it is not excused.
+
+    NOTE: this module and checks/core.py each define their own _parsed, and they
+    disagree on the unreadable case (None here, False there). Nothing currently
+    depends on the difference, but two copies of one helper is the shape that
+    let the generation digests diverge for a release (#160). Worth unifying;
+    it needs care, because stuck_nodeclaims compares the result to a datetime
+    and would raise on False.
+    """
+    created = _parsed(node.get("metadata", {}).get("creationTimestamp"))
+    if created is None or created is False:
+        return created
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    return (now - created).total_seconds()
+
+
+def departing(node):
+    """Whether the node is on its way out of the cluster.
+
+    Karpenter's consolidation cordons the node and sets a deletionTimestamp
+    before draining it. Demanding CSI registration from a node that is leaving
+    is asserting on a node nobody is going to fix.
+    """
+    if node.get("metadata", {}).get("deletionTimestamp"):
+        return True
+    return bool(node.get("spec", {}).get("unschedulable"))
+
+
+def csi_verdict(node, drivers, grace, now=None):
+    """(result, message) for one node's Longhorn CSI registration.
+
+    SKIPPED is used only for a node that has not had a fair chance yet. It is
+    never a synonym for healthy — a node that has been up for longer than the
+    grace window and still has no driver cannot mount a Longhorn volume, and
+    that is a real failure worth blocking on.
+    """
+    name = node.get("metadata", {}).get("name", "<unknown>")
+    if CSI_DRIVER in drivers:
+        return PASSED, f"Node {name}: {CSI_DRIVER} CSI registered"
+    if departing(node):
+        return SKIPPED, f"Node {name} is draining or cordoned; CSI not verified"
+    age = node_age(node, now)
+    # Only a READABLE age earns grace. A node whose creation time is missing or
+    # unparseable cannot be shown to be young, and excusing it would hand a
+    # permanent pass to the one node whose metadata is broken.
+    if isinstance(age, float) and age < grace:
+        return (
+            SKIPPED,
+            f"Node {name} joined {int(age)}s ago; CSI not registered yet ({grace}s grace)",
+        )
+    return FAILED, f"Node {name}: {CSI_DRIVER} CSI not registered"
+
+
+def node_drivers(name):
+    """CSI drivers registered on a node, or [] if the object does not exist yet.
+
+    The CSINode object is created alongside the node, so a genuinely new node
+    can 404 here. That used to raise and fail the WHOLE section with "could not
+    determine state" — the same race, with a larger blast radius. Any other
+    failure still propagates: a query we could not run is not an empty answer.
+    """
+    try:
+        csinode = kube.run_json(["get", "csinode", name])
+    except kube.Unavailable as exc:
+        if "not found" in str(exc).lower():
+            return []
+        raise
+    return [d.get("name") for d in (csinode.get("spec", {}).get("drivers") or [])]
+
+
+def longhorn(rec, now=None):
     if not kube.exists(["get", "ns", "longhorn-system"]):
         rec.skipped("namespace 'longhorn-system' not present (subsystem not enabled)")
         return
@@ -65,13 +166,17 @@ def longhorn(rec):
         rec.failed("No nodes returned; CSI registration not verified")
         return
 
+    grace = csi_grace_seconds()
+    now = now or datetime.datetime.now(datetime.timezone.utc)
     for node in nodes:
         name = node.get("metadata", {}).get("name", "<unknown>")
-        csinode = kube.run_json(["get", "csinode", name])
-        drivers = [d.get("name") for d in (csinode.get("spec", {}).get("drivers") or [])]
-        registered = "driver.longhorn.io" in drivers
-        state = "registered" if registered else "not registered"
-        rec.verdict(registered, f"Node {name}: driver.longhorn.io CSI {state}")
+        result, message = csi_verdict(node, node_drivers(name), grace, now)
+        if result == PASSED:
+            rec.passed(message)
+        elif result == SKIPPED:
+            rec.skipped(message)
+        else:
+            rec.failed(message)
 
 
 # ─── External Secrets ────────────────────────────────────────────────────────
