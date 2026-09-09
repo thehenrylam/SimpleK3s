@@ -1,29 +1,28 @@
 """Health definitions — one per subsystem, in one place.
 
-Vertical slice: core + two subsystems. The rest follow the same shape and are
-ported in the same commit series.
+Each check receives a recorder already bound to its section, so it states what
+it observed and never names the section itself.
+
+Vertical slice: core plus two subsystems. The rest follow the same shape.
 """
 
 from . import kube, workloads
-from .registry import FULL, QUICK, STANDARD, check
+from .registry import FULL, QUICK, STANDARD, Check
 
 # ─── Core ────────────────────────────────────────────────────────────────────
 
 
-@check("k3s_api", depth=QUICK)
 def k3s_api(rec):
     kube.run(["get", "--raw=/readyz"])
-    rec.passed("k3s_api", "K3s API is reachable")
+    rec.passed("K3s API is reachable")
 
 
-@check("nodes", depth=QUICK)
 def nodes_ready(rec):
-    obj = kube.run_json(["get", "nodes"])
-    items = obj.get("items") or []
+    items = kube.run_json(["get", "nodes"]).get("items") or []
     if not items:
         # Reaching here means the query SUCCEEDED and still returned nothing.
         # That is its own anomaly, not a healthy cluster (#156).
-        rec.failed("nodes", "The cluster reported no nodes at all")
+        rec.failed("The cluster reported no nodes at all")
         return
 
     not_ready = []
@@ -35,39 +34,29 @@ def nodes_ready(rec):
             not_ready.append(f"{name} (Ready={ready})")
 
     if not_ready:
-        rec.failed(
-            "nodes",
-            f"{len(not_ready)} of {len(items)} nodes are not Ready",
-            "\n".join(not_ready),
-        )
+        rec.failed(f"{len(not_ready)} of {len(items)} nodes are not Ready", "\n".join(not_ready))
     else:
-        rec.passed("nodes", f"All {len(items)} nodes are Ready")
+        rec.passed(f"All {len(items)} nodes are Ready")
 
 
-@check("kube_system", depth=QUICK)
 def kube_system(rec):
     for name in ("coredns", "local-path-provisioner"):
-        ok, message = workloads.state("deployment", "kube-system", name)
-        (rec.passed if ok else rec.failed)("kube_system", message)
+        rec.verdict(*workloads.state("deployment", "kube-system", name))
 
 
 # ─── Traefik ─────────────────────────────────────────────────────────────────
 
 
-@check("traefik", depth=STANDARD)
 def traefik(rec):
     if not workloads.present("deployment", "kube-system", "traefik"):
-        rec.skipped("traefik", "kube-system/traefik not present (subsystem not enabled)")
+        rec.skipped("kube-system/traefik not present (subsystem not enabled)")
         return
-    ok, message = workloads.state("deployment", "kube-system", "traefik")
-    (rec.passed if ok else rec.failed)("traefik", message)
+    rec.verdict(*workloads.state("deployment", "kube-system", "traefik"))
 
     for ref in ("middleware/https-redirect", "ingressroute/web-http-catchall-redirect"):
         kind, name = ref.split("/")
-        if kube.exists(["-n", "kube-system", "get", kind, name]):
-            rec.passed("traefik", f"kube-system/{ref} exists")
-        else:
-            rec.failed("traefik", f"kube-system/{ref} is missing")
+        exists = kube.exists(["-n", "kube-system", "get", kind, name])
+        rec.verdict(exists, f"kube-system/{ref} {'exists' if exists else 'is missing'}")
 
 
 # ─── Monitoring ──────────────────────────────────────────────────────────────
@@ -80,25 +69,22 @@ _MONITORING = [
 ]
 
 
-@check("monitoring", depth=STANDARD)
 def monitoring(rec):
     if not kube.exists(["get", "ns", "monitoring"]):
-        rec.skipped("monitoring", "namespace 'monitoring' not present (application not enabled)")
+        rec.skipped("namespace 'monitoring' not present (application not enabled)")
         return
     for kind, name in _MONITORING:
-        ok, message = workloads.state(kind, "monitoring", name)
-        (rec.passed if ok else rec.failed)("monitoring", message)
+        rec.verdict(*workloads.state(kind, "monitoring", name))
 
 
-@check("monitoring", depth=FULL)
 def monitoring_facts(rec):
     """Full depth reports observed state; it does not grade it. The answer sheet
-    lives outside this tool and consumes what we report here."""
+    lives outside this tool and consumes what is reported here."""
     if not kube.exists(["get", "ns", "monitoring"]):
         return
-    obj = kube.run_json(["-n", "monitoring", "get", "pods"])
+    pods = kube.run_json(["-n", "monitoring", "get", "pods"]).get("items") or []
     rec.fact(
-        "monitoring.pods",
+        "pods",
         [
             {
                 "name": p.get("metadata", {}).get("name"),
@@ -108,6 +94,22 @@ def monitoring_facts(rec):
                     for c in (p.get("status", {}).get("containerStatuses") or [])
                 ),
             }
-            for p in (obj.get("items") or [])
+            for p in pods
         ],
     )
+
+
+def build_registry():
+    """The complete set of checks, in report order.
+
+    Explicit by design: what runs, in what order, and at what depth is readable
+    here rather than inferred from decorator execution during import.
+    """
+    return [
+        Check("k3s_api", QUICK, k3s_api),
+        Check("nodes", QUICK, nodes_ready),
+        Check("kube_system", QUICK, kube_system),
+        Check("traefik", STANDARD, traefik),
+        Check("monitoring", STANDARD, monitoring),
+        Check("monitoring", FULL, monitoring_facts),
+    ]

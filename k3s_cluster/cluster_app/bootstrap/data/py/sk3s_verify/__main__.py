@@ -12,11 +12,12 @@ import json
 import socket
 import sys
 
-from . import SCHEMA, checks, registry  # noqa: F401 - importing checks registers them
+from . import SCHEMA, checks, registry
 
 
-def build_document(depth):
-    rec = registry.run_all(depth)
+def build_document(depth, reg=None):
+    reg = checks.build_registry() if reg is None else reg
+    rec = registry.run_all(reg, depth)
     counts = rec.counts
     document = {
         "schema": SCHEMA,
