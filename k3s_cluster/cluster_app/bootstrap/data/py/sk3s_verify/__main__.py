@@ -12,7 +12,7 @@ import json
 import socket
 import sys
 
-from . import SCHEMA, checks, registry
+from . import SCHEMA, checks, generation, registry
 
 
 def build_document(depth, reg=None):
@@ -23,6 +23,7 @@ def build_document(depth, reg=None):
         "schema": SCHEMA,
         "node": socket.gethostname(),
         "depth": depth,
+        "generation": generation.state(),
         "result": registry.FAILED if counts[registry.FAILED] else registry.PASSED,
         "summary": {
             "passed": counts[registry.PASSED],

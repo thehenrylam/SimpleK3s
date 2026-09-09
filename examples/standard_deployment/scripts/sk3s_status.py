@@ -161,6 +161,23 @@ def render(nodes, instances, disagree, pal, depth, verbose):
             f"({summary['passed']} passed, {summary['failed']} failed, "
             f"{summary['skipped']} skipped)"
         )
+        # Staleness is reported, never fatal: `tofu apply` rewrites S3 without
+        # touching a node, and the deploy gate verifies straight afterwards, so
+        # every node is legitimately behind in that window.
+        gen = document.get("generation") or {}
+        if gen.get("stale") is True:
+            lines.append(
+                f"          {pal.yellow}STALE{pal.reset}: synced {gen['synced']}, "
+                f"S3 has {gen['current']} — run 'sk3s sync'"
+            )
+        elif gen.get("stale") is None:
+            known = gen.get("synced") or gen.get("current")
+            reason = "node has no stamp" if not gen.get("synced") else "S3 unreadable"
+            lines.append(
+                f"          {pal.yellow}generation unknown{pal.reset} ({reason}"
+                + (f", have {known}" if known else "")
+                + ")"
+            )
 
     if readable:
         # Checks are cluster-scoped, so one node's view is the cluster's view.
