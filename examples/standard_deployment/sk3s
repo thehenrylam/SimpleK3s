@@ -77,6 +77,20 @@ function field() {
     printf '%s' "${_ENTRY%%|*}"
 }
 
+function rest() {
+    # rest <entry> <n>   — everything from the nth |-separated field onward.
+    #
+    # The LAST field must not be cut at a delimiter. A summary legitimately
+    # contains "|" — the --depth values do — and field() truncated the help to
+    # "(--depth quick", which read as a broken CLI on the first line a new
+    # operator sees.
+    local _ENTRY="${1}" _N="${2}" _I
+    for ((_I = 1; _I < _N; _I++)); do
+        _ENTRY="${_ENTRY#*|}"
+    done
+    printf '%s' "${_ENTRY}"
+}
+
 # Read a top-level scalar out of group_vars/all.yml. Returns non-zero when the
 # file is absent (it is gitignored, so a fresh clone has none), when the key is
 # missing, or when the value is still the __CONFIGURE_THIS__ placeholder.
@@ -111,14 +125,14 @@ function usage() {
         echo ""
         echo "Verbs:"
         for _ENTRY in "${VERBS[@]}"; do
-            printf '  %-9s %s\n' "$(field "${_ENTRY}" 1)" "$(field "${_ENTRY}" 4)"
+            printf '  %-9s %s\n' "$(field "${_ENTRY}" 1)" "$(rest "${_ENTRY}" 4)"
         done
         if (( ${#PLANNED[@]} > 0 )); then
             echo ""
             echo "Planned:"
             for _ENTRY in "${PLANNED[@]}"; do
                 printf '  %-9s %s (phase %s)\n' \
-                    "$(field "${_ENTRY}" 1)" "$(field "${_ENTRY}" 3)" "$(field "${_ENTRY}" 2)"
+                    "$(field "${_ENTRY}" 1)" "$(rest "${_ENTRY}" 3)" "$(field "${_ENTRY}" 2)"
             done
         fi
         echo ""
