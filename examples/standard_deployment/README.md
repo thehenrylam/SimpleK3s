@@ -39,6 +39,20 @@ ansible-playbook ./playbooks/cluster_verify.yml
 
 ### Playbooks
 
+The playbooks are the orchestration — they carry the tfvars gate, the wave
+ordering and the Terraform plumbing. `sk3s infra` is the front door onto them,
+so infra runs land in the same log and history trail as every other verb:
+
+``` sh
+./sk3s infra                              # tiers, verbs and examples
+./sk3s infra cluster apply
+./sk3s infra support destroy --limit '!idp'   # everything but the IdP
+```
+
+`cluster_update.yml` was retired: it was `tofu apply` followed by
+`ssm_update_services.sh`, which is now `./sk3s infra cluster apply` followed by
+`./sk3s pull`.
+
 #### Cluster Actions
 
 - `./playbooks/cluster_template.yml`
@@ -50,9 +64,6 @@ ansible-playbook ./playbooks/cluster_verify.yml
     - Skip the post-apply check with `-e verify_after_apply=false` (see below)
 - `./playbooks/cluster_destroy.yml`
     - Executes `tofu destroy` for `cluster` IaC modules
-- `./playbooks/cluster_update.yml`
-    - Executes `tofu apply` + `./scripts/ssm_update_services.sh` (i.e. `sk3s pull`) to sync new files from S3 to every control-plane node, then stage manifests on the node that owns staging
-    - **Fails the play** when the service update does not succeed
 - `./playbooks/cluster_verify.yml`
     - Executes `./scripts/sk3s_status.py` to get the health status of the cluster
     - **Fails the play** when the cluster does not pass. A node that cannot be reached counts as a failure, not a pass.
