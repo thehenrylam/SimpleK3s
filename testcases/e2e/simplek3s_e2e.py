@@ -114,6 +114,17 @@ def collect(tool, profile, nickname, region, timeout=900):
 # --- snapshot --------------------------------------------------------------
 
 
+GATE_SECTION = "k3s_api"
+
+
+def observed_cluster(document):
+    """Whether this node reached the cluster at all."""
+    return not any(
+        check["section"] == GATE_SECTION and check["result"] == "failed"
+        for check in document.get("checks", [])
+    )
+
+
 def section_verdicts(checks):
     """One verdict per section, worst wins.
 
@@ -139,6 +150,7 @@ def build_snapshot(report):
     """
     nodes = {}
     reference = None
+    fallback = None
     for instance_id, entry in sorted(report.get("nodes", {}).items()):
         document = entry.get("document")
         if document is None:
@@ -147,7 +159,12 @@ def build_snapshot(report):
             # absent readings as satisfied.
             nodes[instance_id] = {"__error__": entry.get("error") or "no document returned"}
             continue
-        if reference is None:
+        # Prefer a node that actually reached the cluster. One that did not
+        # stops at the liveness gate and carries two entries, which as a
+        # reference would read as a cluster with nothing to report.
+        if fallback is None:
+            fallback = document
+        if reference is None and observed_cluster(document):
             reference = document
         facts = document.get("facts") or {}
         nodes[instance_id] = {
@@ -167,6 +184,7 @@ def build_snapshot(report):
         "disagreements": len(report.get("disagreements") or []),
         "nodes": nodes,
     }
+    reference = reference or fallback
     if reference is None:
         snapshot["checks"] = {"__error__": "no node returned a readable document"}
         snapshot["facts"] = {"__error__": "no node returned a readable document"}

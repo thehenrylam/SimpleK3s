@@ -423,5 +423,5 @@ fi
 echo "--- post-repair state ---"
 remote "${SURVIVOR_ID}" "kubectl get nodes" || true
 echo ""
-echo "${C_GRN}Repair complete.${C_RST} Run cluster_verify.yml to confirm — allow for the"
+echo "${C_GRN}Repair complete.${C_RST} Run './sk3s status' to confirm — allow for the"
 echo "pod-restart stability window before expecting a pass (see RUNBOOKS.md)."

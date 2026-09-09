@@ -118,6 +118,25 @@ def collect(results):
 # failed no matter how many checks in it passed.
 VERDICT_RANK = {"passed": 0, "skipped": 1, "failed": 2}
 
+# Kept in step with sk3s_verify.registry.GATE_SECTION. Duplicated rather than
+# imported because the host does not have the node package on its path — but
+# it is one string, asserted by a test that imports both.
+GATE_SECTION = "k3s_api"
+
+
+def observed_cluster(document):
+    """Whether this node reached the cluster at all.
+
+    A node that did not has no opinion to weigh against its peers. It is not a
+    dissenting vote, it is an absent one, and counting it as dissent reported
+    "nodes disagree" on every section when one node simply had no k3s.
+    """
+    return not any(
+        check["section"] == GATE_SECTION and check["result"] == "failed"
+        for check in document.get("checks", [])
+    )
+
+
 ABSENT = "absent"
 
 
@@ -148,7 +167,7 @@ def disagreements(nodes):
     per_node = {
         instance_id: section_verdicts(entry["document"])
         for instance_id, entry in nodes.items()
-        if entry.get("document")
+        if entry.get("document") and observed_cluster(entry["document"])
     }
 
     out = []
@@ -247,9 +266,12 @@ def render(nodes, instances, disagree, pal, depth, verbose):
 
     if readable:
         # Checks are cluster-scoped, so one node's view is the cluster's view.
-        # The first readable document is the reference; disagreements are
-        # reported separately rather than silently averaged away.
-        reference = readable[0]["document"]
+        # Prefer a node that actually reached the cluster: a node with no k3s
+        # has two entries and would render as though the cluster had nothing to
+        # report. Disagreements are reported separately rather than silently
+        # averaged away.
+        observing = [e for e in readable if observed_cluster(e["document"])]
+        reference = (observing or readable)[0]["document"]
         shown = [c for c in reference["checks"] if verbose or c["result"] != "passed"]
         if shown:
             lines.append("")
