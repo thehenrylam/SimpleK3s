@@ -6,8 +6,17 @@ caller expects. That removes version skew during a rollout — and with it the
 dual-schema handling a staged deploy would otherwise need, since host and node
 can never disagree about the document format.
 
-Measured on a live cluster: the package is ~17.6 KB of base64 against an input
-ceiling proven to accept at least 96 KB, so there is roughly 5x headroom.
+Measured on a live cluster (3 control-plane nodes, every subsystem deployed):
+
+    package, base64   40,336 chars   input ceiling proven >= 96 KB  (~2.4x headroom)
+    quick    -> wire     492 chars     2.1% of SSM's 24,000 stdout cap
+    standard -> wire   1,484 chars     6.2%
+    full     -> wire   3,324 chars    13.9%   (11,305 raw, so ~3.4x compression)
+
+Full depth is the one that had to be checked: the fetch_*.py probe set it
+replaces measured 22,552 chars — 94% of the cap — with no compression to fall
+back on. Compression is therefore not an optimisation here, it is what makes the
+depth possible, which is why --compress is unconditional rather than a flag.
 """
 
 import base64

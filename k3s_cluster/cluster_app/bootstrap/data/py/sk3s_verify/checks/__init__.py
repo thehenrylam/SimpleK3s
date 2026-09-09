@@ -4,8 +4,8 @@ build_registry is the index: what runs, in what order, and at what depth is
 readable here rather than inferred from decorator execution during import.
 """
 
-from ..registry import QUICK, STANDARD, Check
-from . import apps, core, subsystems, sweep
+from ..registry import FULL, QUICK, STANDARD, Check
+from . import apps, core, facts, subsystems, sweep
 
 
 def build_registry():
@@ -33,4 +33,19 @@ def build_registry():
         Check("pod_health", STANDARD, sweep.pod_health),
         Check("storage", STANDARD, sweep.storage),
         Check("pod_stability", STANDARD, core.pod_stability),
+        # FULL depth: observed state, recorded and never graded. These run last
+        # so a fact can never delay a verdict, and they are separate functions
+        # from the checks above so that reading the registry still answers "what
+        # can fail this run" without having to read the bodies.
+        Check("hardware", FULL, facts.host),
+        Check("nodes", FULL, facts.nodes),
+        Check("monitoring", FULL, facts.monitoring),
+        Check("argocd", FULL, facts.argocd),
+        Check("tailscale", FULL, facts.tailscale),
+        Check("traefik", FULL, facts.traefik),
+        Check("kyverno", FULL, facts.kyverno),
+        Check("karpenter", FULL, facts.karpenter),
+        Check("external_secrets", FULL, facts.external_secrets),
+        Check("longhorn", FULL, facts.longhorn),
+        Check("storage", FULL, facts.storage),
     ]

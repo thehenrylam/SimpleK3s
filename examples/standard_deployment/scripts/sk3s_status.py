@@ -171,6 +171,39 @@ def disagreements(nodes):
 # ─── Render ──────────────────────────────────────────────────────────────────
 
 
+def hardware_line(facts):
+    """One-line host summary. The only facts that legitimately differ per node."""
+    cpu = facts.get("hardware.cpu") or {}
+    memory = facts.get("hardware.memory") or {}
+    disk = facts.get("hardware.disk") or {}
+    load = (cpu.get("load") or {}).get("1 min")
+    ram = (memory.get("ram") or {}).get("usage")
+    used = disk.get("usage")
+    if load is None and ram is None and used is None:
+        return None
+    return f"host: load {load}%  ram {ram}%  disk {used}%"
+
+
+def fact_errors(facts):
+    """Facts that report they could not be collected.
+
+    Surfaced prominently because a collector recording {"error": ...} is the
+    normal path for an unreachable endpoint — it is not a failed check, and it
+    would otherwise be visible only by reading the JSON.
+    """
+    found = []
+    for key, value in sorted(facts.items()):
+        if not isinstance(value, dict):
+            continue
+        if value.get("error"):
+            found.append((key, value["error"]))
+            continue
+        for name, inner in sorted(value.items()):
+            if isinstance(inner, dict) and inner.get("error"):
+                found.append((f"{key}.{name}", inner["error"]))
+    return found
+
+
 def render(nodes, instances, disagree, pal, depth, verbose):
     names = {i["id"]: i["name"] for i in instances}
     lines = []
@@ -208,6 +241,10 @@ def render(nodes, instances, disagree, pal, depth, verbose):
                 + ")"
             )
 
+        summary_line = hardware_line(document.get("facts") or {})
+        if summary_line:
+            lines.append(f"          {summary_line}")
+
     if readable:
         # Checks are cluster-scoped, so one node's view is the cluster's view.
         # The first readable document is the reference; disagreements are
@@ -225,6 +262,14 @@ def render(nodes, instances, disagree, pal, depth, verbose):
                 if check.get("detail"):
                     for detail_line in check["detail"].strip().splitlines():
                         lines.append(f"           | {detail_line}")
+
+        collected = reference.get("facts") or {}
+        if collected:
+            problems = fact_errors(collected)
+            lines.append("")
+            lines.append(f"  {len(collected)} fact(s) recorded — full structure in --json")
+            for key, reason in problems:
+                lines.append(f"    {pal.yellow}[unavailable]{pal.reset} {key:<28} {reason}")
 
     if disagree:
         lines.append("")
@@ -248,11 +293,9 @@ def parse_args(argv):
     parser.add_argument("profile", nargs="?", help="AWS CLI profile (required)")
     parser.add_argument("nickname", nargs="?", help="default: inferred from terraform.tfvars")
     parser.add_argument("region", nargs="?", help="default: inferred from terraform.tfvars")
-    # "full" is deliberately absent until it carries facts. The node package
-    # supports the depth and is tested for it, but wiring the fetch_* signals in
-    # is PR B — and a flag that silently returns standard results would be the
-    # same quiet lie this rewrite exists to remove.
-    parser.add_argument("--depth", choices=("quick", "standard"), default="standard")
+    # "full" adds facts — observed state, recorded and never graded. It is a
+    # superset of standard, so the verdict is unchanged by asking for it.
+    parser.add_argument("--depth", choices=("quick", "standard", "full"), default="standard")
     parser.add_argument("--instance-id", help="check a single node instead of all")
     parser.add_argument("--verbose", action="store_true", help="show passing checks too")
     parser.add_argument("--json", action="store_true", help="emit the merged report as JSON")
