@@ -105,3 +105,37 @@ def test_a_section_failing_on_every_node_is_agreement_not_disagreement():
         "i-2": node(("argocd", "failed", "down")),
     }
     assert sk3s_status.disagreements(nodes) == []
+
+
+# ─── Fact rendering ──────────────────────────────────────────────────────────
+
+
+def test_hardware_line_summarises_the_three_readings():
+    line = sk3s_status.hardware_line(
+        {
+            "hardware.cpu": {"load": {"1 min": 12.5}},
+            "hardware.memory": {"ram": {"usage": 40.0}},
+            "hardware.disk": {"usage": 31.2},
+        }
+    )
+    assert line == "host: load 12.5%  ram 40.0%  disk 31.2%"
+
+
+def test_hardware_line_is_absent_when_no_hardware_was_collected():
+    assert sk3s_status.hardware_line({}) is None
+
+
+def test_fact_errors_surfaces_a_collector_that_could_not_read():
+    found = sk3s_status.fact_errors({"nodepools": {"error": "CRD not found"}})
+    assert found == [("nodepools", "CRD not found")]
+
+
+def test_fact_errors_looks_one_level_into_grouped_facts():
+    found = sk3s_status.fact_errors(
+        {"thanos": {"ready": {"status": 200, "error": None}, "stores": {"error": "refused"}}}
+    )
+    assert found == [("thanos.stores", "refused")]
+
+
+def test_fact_errors_ignores_healthy_readings():
+    assert sk3s_status.fact_errors({"grafana": {"status": 200, "error": None}}) == []
