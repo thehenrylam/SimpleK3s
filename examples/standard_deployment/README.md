@@ -67,9 +67,6 @@ so infra runs land in the same log and history trail as every other verb:
 - `./playbooks/cluster_verify.yml`
     - Executes `./scripts/sk3s_status.py` to get the health status of the cluster
     - **Fails the play** when the cluster does not pass. A node that cannot be reached counts as a failure, not a pass.
-- `./playbooks/cluster_repair.yml`
-    - Rejoins a control-plane node that cannot rejoin on its own — the node-0 replacement case
-    - **Previews by default**; applies only with `-e repair_apply=true` (see below)
 
 Verification runs once by default, which is what you want for a cluster that is already up. Straight after a `cluster_apply.yml`, a single check will report failure on a perfectly good deploy — the apply only creates the infrastructure, while ArgoCD, Grafana and Prometheus are still starting and are not yet serving. Retry instead of guessing at a fixed wait:
 
@@ -120,15 +117,15 @@ ansible-playbook ./playbooks/cluster_verify.yml \
 ### Repairing a control-plane node
 
 A replaced node-0 cannot rejoin unaided: its join target (`CONTROLLER_HOST`) is its own
-address, and the terminated node's etcd member still holds its hostname. `cluster_repair.yml`
+address, and the terminated node's etcd member still holds its hostname. `./sk3s repair`
 automates the recovery that `RUNBOOKS.md` documents by hand.
 
 ``` sh
-# Preview — discovers the real state and changes nothing
-ansible-playbook ./playbooks/cluster_repair.yml
+# Preview — discovers the real state and changes nothing. This is the default.
+./sk3s repair
 
 # Apply
-ansible-playbook ./playbooks/cluster_repair.yml -e repair_apply=true
+./sk3s repair --apply
 ```
 
 Two safety properties worth knowing, because they decide when it will refuse:
@@ -286,9 +283,8 @@ it with a bare `|| true`.
 #### Safety
 
 - **Mutating operations preview by default** and act only on an explicit flag.
-  `ssm_repair_cluster.sh` is the reference: `--dry-run` does the discovery for
-  real and changes nothing, and `cluster_repair.yml` requires
-  `-e repair_apply=true` before anything is touched.
+  `ssm_repair_cluster.sh` is the reference: it does the discovery for real,
+  reports the plan, and changes nothing until given `--apply`.
 - Read-only operations never ask for confirmation. Confirming reads trains an
   operator to rubber-stamp, which is what makes the rare real prompt dangerous.
 - Destructive operations name what they will touch before touching it.
@@ -525,7 +521,7 @@ between.
 
 **It previews by default.** Restarting live workloads is disruptive, so an
 invocation that names no target set reports the plan and changes nothing,
-following `cluster_repair.yml`. Acting requires `--auto` or `--only`.
+following `ssm_repair_cluster.sh`. Acting requires `--auto` or `--only`.
 
 **One node, because the effect is cluster-wide.** Every action goes through the
 Kubernetes API, so restarting a workload from three nodes is three rollouts of

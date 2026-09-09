@@ -28,7 +28,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=examples/standard_deployment/scripts/common.sh
 source "${SCRIPT_DIR}/common.sh"
 
-DRY_RUN=0
+# Previews by default. This mutates a control plane — it removes etcd members
+# and joins nodes — and the safe direction for a destructive default is "show me
+# first". Acting requires --apply, so it is not something to trigger by
+# forgetting a flag.
+#
+# The default used to be the other way, with --dry-run opting into the preview.
+# cluster_repair.yml existed largely to invert it back, which meant the same
+# operation defaulted to APPLY through sk3s and to PREVIEW through Ansible. One
+# default, in the safe direction, removes the need for that playbook.
+DRY_RUN=1
 NO_COLOR=0
 POLL_MAX=60
 POLL_INTERVAL=5
@@ -49,12 +58,13 @@ function usage() {
 }
 
 function print_usage() {
-    echo "Usage: $(basename "$0") <profile> [<nickname> <region>] [--dry-run] [--no-color]"
+    echo "Usage: $(basename "$0") <profile> [<nickname> <region>] [--apply] [--no-color]"
     echo ""
     echo "  profile     AWS CLI profile (required)"
     echo "  nickname    Cluster nickname (default: inferred from terraform.tfvars)"
     echo "  region      AWS region      (default: inferred from terraform.tfvars)"
-    echo "  --dry-run   Report the plan and change nothing"
+    echo "  --apply     Carry out the plan. Without it, nothing is changed."
+    echo "  --dry-run   Accepted for compatibility; this is the default"
     echo "  --no-color  Never emit colour"
     echo ""
     echo "Exit: 0 repaired or nothing to do; 1 failed; 2 bad usage"
@@ -335,6 +345,9 @@ PROFILE="" ; NICKNAME="" ; REGION=""
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
     case "${1}" in
+        --apply)    DRY_RUN=0 ; shift ;;
+        # Already the default. Still accepted so an existing invocation keeps
+        # working and keeps meaning exactly what it says.
         --dry-run)  DRY_RUN=1 ; shift ;;
         --no-color) NO_COLOR=1 ; shift ;;
         -h|--help)  usage 0 ;;
@@ -381,7 +394,7 @@ if (( ${#STALE_NODES[@]} == 0 && ${#UNJOINED_IDS[@]} == 0 )); then
 fi
 
 if (( DRY_RUN == 1 )); then
-    echo "--- plan (dry run, nothing changed) ---"
+    echo "--- plan (preview, nothing changed) ---"
     for _N in ${STALE_NODES[@]+"${STALE_NODES[@]}"}; do
         echo "  would remove stale member : ${_N}"
     done
@@ -390,7 +403,7 @@ if (( DRY_RUN == 1 )); then
     done
     quorum_is_safe || exit 1
     echo ""
-    echo "Re-run without --dry-run to apply."
+    echo "Re-run with --apply to carry this out."
     exit 0
 fi
 
