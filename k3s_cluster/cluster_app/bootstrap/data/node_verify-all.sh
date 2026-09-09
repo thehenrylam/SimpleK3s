@@ -216,11 +216,25 @@ function check_k3s_api() {
 
 # ─── Nodes ───────────────────────────────────────────────────────────────────
 
+# Three outcomes, not two. "No node is NotReady" is only good news once we know
+# the query actually ran and returned nodes — otherwise an unreachable API
+# produces an empty result that reads as a clean bill of health (#156).
 function check_nodes_ready() {
     verify_section "nodes" "Nodes"
-    local NOT_READY
-    NOT_READY="$(sudo kubectl get nodes --no-headers 2>/dev/null \
-        | grep -v " Ready" || true)"
+    local NODE_LINES NOT_READY
+
+    if ! NODE_LINES="$(sudo kubectl get nodes --no-headers 2>/dev/null)"; then
+        verify_fail "Nodes: could not query the cluster (is the API reachable?)"
+        return 0
+    fi
+    # A cluster with zero nodes is not a healthy cluster. Reaching here means the
+    # query succeeded and still returned nothing, which is its own anomaly.
+    if [[ -z "${NODE_LINES//[[:space:]]/}" ]]; then
+        verify_fail "Nodes: the cluster reported no nodes at all"
+        return 0
+    fi
+
+    NOT_READY="$(printf '%s\n' "$NODE_LINES" | grep -v " Ready" || true)"
     if [[ -z "$NOT_READY" ]]; then
         verify_pass "All nodes are Ready"
     else
@@ -316,7 +330,18 @@ function check_longhorn() {
         fi
     done
     local NODES
-    NODES="$(sudo kubectl get nodes -o jsonpath='{.items[*].metadata.name}')"
+    # Unguarded, this had two failure modes: the bare assignment aborts the whole
+    # run under `set -e` (so no report is emitted at all), and an empty result
+    # iterates zero times — recording no assertions, which reads as a section
+    # that simply had less to say rather than one that never ran.
+    if ! NODES="$(sudo kubectl get nodes -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)"; then
+        verify_fail "Longhorn: could not list nodes; CSI registration not verified"
+        return 0
+    fi
+    if [[ -z "${NODES//[[:space:]]/}" ]]; then
+        verify_fail "Longhorn: no nodes returned; CSI registration not verified"
+        return 0
+    fi
     local NODE
     for NODE in $NODES; do
         if sudo kubectl get csinode "$NODE" \
@@ -399,9 +424,20 @@ function check_karpenter() {
 # minutes. Anything past that is genuinely stuck, not merely slow.
 function check_karpenter_nodeclaims_progressing() {
     local STUCK_MINUTES="${KARPENTER_NODECLAIM_STUCK_MINUTES:-20}"
+    local NODECLAIMS_JSON
     local STUCK
 
-    STUCK="$(sudo kubectl get nodeclaims -o json 2>/dev/null | python3 -c "
+    if ! NODECLAIMS_JSON="$(sudo kubectl get nodeclaims -o json 2>/dev/null)"; then
+        verify_fail "Karpenter: could not query NodeClaims"
+        return 0
+    fi
+
+    # Same defect class as #156, and worse here: #123 exists because a stuck
+    # NodeClaim bills indefinitely with no error and no symptom except the AWS
+    # invoice. A check that passes when it could not look is exactly the silence
+    # that issue was opened to end. The parse errors are no longer discarded
+    # either, so a broken probe fails loudly instead of reporting healthy.
+    STUCK="$(printf '%s' "$NODECLAIMS_JSON" | python3 -c "
 import json, sys, datetime
 
 limit = int('${STUCK_MINUTES}')
@@ -420,8 +456,12 @@ def parsed(ts):
 
 try:
     items = json.load(sys.stdin).get('items', [])
-except (json.JSONDecodeError, ValueError):
-    sys.exit(0)
+except (json.JSONDecodeError, ValueError) as exc:
+    # Exit NON-ZERO. This used to exit 0, which handed the caller an empty
+    # result that it could only read as 'no stuck NodeClaims' — turning an
+    # unparseable payload into a clean bill of health (#156).
+    print('could not parse NodeClaims JSON: %s' % exc, file=sys.stderr)
+    sys.exit(2)
 
 for nc in items:
     meta = nc.get('metadata', {})
@@ -446,7 +486,10 @@ for nc in items:
     if created is not None and created < cutoff:
         mins = int((now - created).total_seconds() // 60)
         print(f'{name}: not Ready after {mins}m — node never joined')
-" 2>/dev/null || true)"
+")" || {
+        verify_fail "Karpenter: NodeClaim analysis failed; stuck claims not ruled out"
+        return 0
+    }
 
     if [[ -z "$STUCK" ]]; then
         verify_pass "No NodeClaims stuck longer than ${STUCK_MINUTES}m"
