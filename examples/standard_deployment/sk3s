@@ -50,7 +50,7 @@ LOG_EXCLUDE=("connect")
 # so splitting them into three scripts would duplicate the merged report, which
 # is the only genuinely hard part.
 VERBS=(
-    "status|ssm_verify_cluster.sh||Health of the cluster, merged across control-plane nodes"
+    "status|sk3s_status.py||Health of the cluster, merged across control-plane nodes (--depth quick|standard|full)"
     "sync|ssm_update_services.sh|--mode sync|Sync bootstrap files from S3 to every node"
     "apply|ssm_update_services.sh|--mode apply|Stage manifests on the node that owns staging"
     "pull|ssm_update_services.sh|--mode pull|Sync bootstrap files, then stage manifests"

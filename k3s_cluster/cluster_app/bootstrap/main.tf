@@ -135,15 +135,63 @@ module "aws_s3obj" {
       template = null
     },
     {
-      desc     = "Node Script (Verify All — cluster health check)",
-      key      = "${var.s3_config.keyroot}/node_verify-all.sh",
-      src      = "${path.module}/data/node_verify-all.sh",
-      template = null
-    },
-    {
       desc     = "Node Script (Refresh Services — restart wedged workloads)",
       key      = "${var.s3_config.keyroot}/node_refresh-services.sh",
       src      = "${path.module}/data/node_refresh-services.sh",
+      template = null
+    },
+    {
+      desc     = "Verifier Package (sk3s_verify/__init__.py)"
+      key      = "${var.s3_config.keyroot}/py/sk3s_verify/__init__.py",
+      src      = "${path.module}/data/py/sk3s_verify/__init__.py",
+      template = null
+    },
+    {
+      desc     = "Verifier Package (sk3s_verify/__main__.py)"
+      key      = "${var.s3_config.keyroot}/py/sk3s_verify/__main__.py",
+      src      = "${path.module}/data/py/sk3s_verify/__main__.py",
+      template = null
+    },
+    {
+      desc     = "Verifier Package (sk3s_verify/kube.py)"
+      key      = "${var.s3_config.keyroot}/py/sk3s_verify/kube.py",
+      src      = "${path.module}/data/py/sk3s_verify/kube.py",
+      template = null
+    },
+    {
+      desc     = "Verifier Package (sk3s_verify/registry.py)"
+      key      = "${var.s3_config.keyroot}/py/sk3s_verify/registry.py",
+      src      = "${path.module}/data/py/sk3s_verify/registry.py",
+      template = null
+    },
+    {
+      desc     = "Verifier Package (sk3s_verify/workloads.py)"
+      key      = "${var.s3_config.keyroot}/py/sk3s_verify/workloads.py",
+      src      = "${path.module}/data/py/sk3s_verify/workloads.py",
+      template = null
+    },
+    {
+      desc     = "Verifier Package (sk3s_verify/checks/__init__.py)"
+      key      = "${var.s3_config.keyroot}/py/sk3s_verify/checks/__init__.py",
+      src      = "${path.module}/data/py/sk3s_verify/checks/__init__.py",
+      template = null
+    },
+    {
+      desc     = "Verifier Package (sk3s_verify/checks/apps.py)"
+      key      = "${var.s3_config.keyroot}/py/sk3s_verify/checks/apps.py",
+      src      = "${path.module}/data/py/sk3s_verify/checks/apps.py",
+      template = null
+    },
+    {
+      desc     = "Verifier Package (sk3s_verify/checks/core.py)"
+      key      = "${var.s3_config.keyroot}/py/sk3s_verify/checks/core.py",
+      src      = "${path.module}/data/py/sk3s_verify/checks/core.py",
+      template = null
+    },
+    {
+      desc     = "Verifier Package (sk3s_verify/checks/subsystems.py)"
+      key      = "${var.s3_config.keyroot}/py/sk3s_verify/checks/subsystems.py",
+      src      = "${path.module}/data/py/sk3s_verify/checks/subsystems.py",
       template = null
     },
     {

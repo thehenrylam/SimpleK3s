@@ -54,7 +54,9 @@ There is no bootstrap Python project to sync: everything under `k3s_cluster/clus
 ./toolchain/tc_standard_macos_uninstall.sh
 ```
 
-**Testing toolchain** (`tc_testing_macos_*.sh`) — the local CI/linting dependencies (shellcheck, tflint, checkov, ruff, and ansible-lint). `ansible-lint` is installed as an isolated, pinned `uv tool`, so it requires the standard toolchain's `uv` to be installed first:
+**Testing toolchain** (`tc_testing_macos_*.sh`) — the local CI/linting dependencies (shellcheck, tflint, checkov, ruff, ansible-lint, and pytest). `ansible-lint` and `pytest` are installed as isolated, pinned `uv tool`s, so they require the standard toolchain's `uv` to be installed first.
+
+`pytest` is a **local/CI tool only — it never ships to a cluster node**. The on-node code it exercises stays stdlib-only (see above), and the tests import that code here and drive it against fakes:
 
 ```bash
 # Install testing tools
@@ -77,6 +79,12 @@ bash testcases/test-out_shellscripts.sh
 
 # tofu fmt, tflint, checkov, and tofu validate across all modules
 bash testcases/test-out_terraform.sh
+
+# ruff check + ruff format --check on all *.py
+bash testcases/test-out_python.sh
+
+# pytest unit tests for the on-node verification logic (testcases/unit/)
+bash testcases/test-out_unittests.sh
 ```
 
 Each script prints `[OK]` / `[FAIL]` per check and exits non-zero if anything fails.
@@ -101,6 +109,7 @@ The `.claude/commands/` directory contains slash commands for use inside Claude 
 
 **2. Bootstrap Layer** (`k3s_cluster/cluster_app/bootstrap/`)
 - Shell scripts run on EC2 startup via cloud-init. They download further scripts from S3, install packages, configure swap, install K3s, then sequence subsystem and application setup.
+- `data/py/sk3s_verify/`: the cluster health verifier (stdlib-only Python). `sk3s status` zips it and ships it **inline over SSM** on every run, so the node cannot be running a different version than the host expects. A copy is also shipped to S3 so an operator can run it on the box and so `converge_actions.sh` can import the ArgoCD OIDC rule instead of reimplementing it. Unit-tested off-cluster in `testcases/unit/`.
 
 **3. Subsystems Layer** (`k3s_cluster/cluster_app/{traefik,kyverno,external-secrets,descheduler,karpenter,tailscale}/`)
 - Kubernetes-level infrastructure components installed after K3s is ready.
@@ -198,6 +207,7 @@ These versions are hardcoded defaults in the module. Check here first when inves
 | CI (Testing)    | checkov | `3.2.530` | `toolchain/tc_testing_macos_install.sh`, `.github/workflows/static-analysis.yml` |
 | CI (Testing)    | ruff | `0.15.17` | `toolchain/tc_testing_macos_install.sh`, `.github/workflows/static-analysis.yml` |
 | CI (Testing)    | ansible-lint | `26.6.0` | `toolchain/tc_testing_macos_install.sh`, `toolchain/tc_testing_macos_check.sh` |
+| CI (Testing)    | pytest | `9.1.1` | `toolchain/tc_testing_macos_install.sh`, `toolchain/tc_testing_macos_check.sh`, `.github/workflows/static-analysis.yml` |
 
 ## Conventions
 

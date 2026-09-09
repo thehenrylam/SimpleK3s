@@ -141,6 +141,19 @@ uninstall_ansible_lint() {
     fi
 }
 
+uninstall_pytest() {
+    echo "==> Uninstalling pytest"
+
+    # Removed via uv so the isolated tool venv and its BIN_DIR entry point go
+    # together.
+    if [[ -x "${BIN_DIR}/uv" ]]; then
+        UV_TOOL_BIN_DIR="${BIN_DIR}" "${BIN_DIR}/uv" tool uninstall pytest || \
+            echo "  pytest was not installed via uv — skipping."
+    else
+        echo "  uv not found — skipping pytest removal."
+    fi
+}
+
 # --- main ---
 
 uninstall_shellcheck
@@ -148,6 +161,7 @@ uninstall_tflint
 uninstall_checkov
 uninstall_ruff
 uninstall_ansible_lint
+uninstall_pytest
 
 echo ""
 echo "Done."

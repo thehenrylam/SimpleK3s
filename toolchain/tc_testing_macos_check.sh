@@ -9,6 +9,7 @@ readonly TFLINT_VERSION="0.62.1"
 readonly CHECKOV_VERSION="3.2.530"
 readonly RUFF_VERSION="0.15.17"
 readonly ANSIBLE_LINT_VERSION="26.6.0"   # check-versions: update in CLAUDE.md pinned versions table
+readonly PYTEST_VERSION="9.1.1"          # check-versions: update in CLAUDE.md pinned versions table
 readonly BIN_DIR="/opt/homebrew/bin"
 
 PASS=0
@@ -126,6 +127,18 @@ check_ansible_lint() {
     fi
 }
 
+check_pytest() {
+    local bin="${BIN_DIR}/pytest"
+
+    if [[ -x "$bin" ]]; then
+        echo "[OK]   pytest: $("$bin" --version 2>&1 | head -1) (want ${PYTEST_VERSION})"
+        ((PASS++)) || true
+    else
+        echo "[MISS] pytest: not found at ${bin}"
+        ((FAIL++)) || true
+    fi
+}
+
 # --- main ---
 
 check_shellcheck
@@ -133,6 +146,7 @@ check_tflint
 check_checkov
 check_ruff
 check_ansible_lint
+check_pytest
 
 echo ""
 if [[ "$FAIL" -eq 0 ]]; then
