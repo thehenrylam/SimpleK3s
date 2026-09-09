@@ -71,58 +71,38 @@ print(json.dumps([ln for ln in sys.stdin.read().split("\n") if ln.strip()]))
 
 # ─── Bootstrap generation ────────────────────────────────────────────────────
 
-# Where a node records the generation it last synced. Lives inside BOOTSTRAP_DIR
-# alongside the node-local init logs. NOTE: `aws s3 sync` is deliberately run
-# WITHOUT --delete; adding it later would wipe this file, so the two must stay
-# consistent.
-GENERATION_FILE="${BOOTSTRAP_DIR}/.simplek3s-generation"
+# All three helpers shim into sk3s_verify.generation, which is the ONE place the
+# digest and the stamp path are defined. They were defined here too, once, and
+# the two copies disagreed permanently in both respects — see that module's
+# docstring for the measurements. A shim cannot drift from what it calls.
+#
+# Each prints the generation and returns 0, or prints nothing and returns 1 when
+# it cannot be determined. Callers already treat non-zero as "unknown".
+function _generation_call() {
+    local _OUT
+    _OUT="$(cd "${SCRIPT_DIR}/py" 2>/dev/null && python3 -c \
+        "from sk3s_verify import generation; v = generation.$1(); print(v or '', end=''); raise SystemExit(0 if v else 1)" \
+        2>/dev/null)" || return 1
+    _OUT="$(printf '%s' "${_OUT}" | tr -d '[:space:]')"
+    [[ -n "${_OUT}" ]] || return 1
+    printf '%s' "${_OUT}"
+}
 
 # Digest of the bootstrap bucket's current contents.
-#
-# The sync path and the verify path both call THIS function, so "what I last
-# synced" and "what is in S3 now" are computed the same way from the same source
-# and are directly comparable. Deriving the node's side from local files instead
-# would not work: the bootstrap directory also holds node-generated logs, which
-# would make every node's digest differ from every other's.
-#
-# ETag is the content MD5 for these objects (single-part uploads of small text
-# files), so the digest changes if and only if some object's content changes.
-# sort_by makes the listing order explicit rather than relying on S3 returning
-# keys lexicographically.
 function s3_generation() {
-    local _LISTING
-    _LISTING="$(aws s3api list-objects-v2 \
-        --bucket "${S3_BUCKET_NAME}" \
-        --region "${AWS_REGION}" \
-        --query 'sort_by(Contents, &Key)[].[Key,ETag,Size]' \
-        --output text 2>/dev/null)" || return 1
-    # An empty listing is a failure, not a generation: a bucket that answers
-    # with nothing must never compare equal to a node that synced real content.
-    [[ -n "${_LISTING}" ]] || return 1
-    printf '%s' "${_LISTING}" | sha256sum | cut -c1-12
+    _generation_call current
 }
 
 # Record the generation currently in S3 as this node's. Call ONLY after the
 # node's files are known to match the bucket — after a successful sync, or at
 # boot, where cloud-init has just downloaded them.
-#
-# Returns non-zero without touching the stamp if the bucket is unreadable: a
-# stale stamp is better than a wrong one, and verify reports "unknown" either way.
 function record_generation() {
-    local _GEN
-    _GEN="$(s3_generation)" || return 1
-    printf '%s\n' "${_GEN}" > "${GENERATION_FILE}"
-    printf '%s' "${_GEN}"
+    _generation_call record
 }
 
-# Generation this node last synced, or empty if it has never recorded one
-# (a node that predates this feature).
+# Generation this node last synced, or non-zero if it has never recorded one.
 function recorded_generation() {
-    [[ -r "${GENERATION_FILE}" ]] || return 1
-    local _VALUE
-    _VALUE="$(head -n 1 "${GENERATION_FILE}" | tr -d '[:space:]')"
-    [[ -n "${_VALUE}" ]] || return 1
-    printf '%s' "${_VALUE}"
+    _generation_call recorded
 }
 
 # Get date
