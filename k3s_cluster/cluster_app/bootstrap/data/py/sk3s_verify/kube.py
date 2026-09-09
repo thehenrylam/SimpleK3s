@@ -85,3 +85,17 @@ def exists(args, timeout=30):
         if "not found" in str(exc).lower() or "NotFound" in str(exc):
             return False
         raise
+
+
+def dig(obj, path):
+    """Walk a dotted path through a decoded API object, or None if it is absent.
+
+    Lives here rather than in one caller because both the named workload checks
+    and the cluster-wide sweep read the same replica fields, and two copies of
+    this would be two chances to disagree about what "not present" means.
+    """
+    for part in path.split("."):
+        if not isinstance(obj, dict):
+            return None
+        obj = obj.get(part)
+    return obj

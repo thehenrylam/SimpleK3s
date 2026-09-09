@@ -13,6 +13,22 @@ locals {
   # the object below and to expose it as an output, so the two cannot drift.
   s3key_install_script = "${var.s3_config.keyroot}/node_init-all.sh"
 
+  # The verifier ships as a PACKAGE, so its file list is derived, never typed.
+  #
+  # It was typed once. generation.py was added to the package and never added
+  # here, so every node received an S3 copy that raises ImportError on import
+  # while the inline-shipped copy — which the host zips straight from the repo —
+  # kept working. The two delivery paths silently disagreed, and nothing failed
+  # until somebody ran the on-box copy by hand.
+  #
+  # The ** glob matches .py only, so __pycache__/*.pyc is never uploaded.
+  verifier_objects = [for f in fileset("${path.module}/data/py", "sk3s_verify/**/*.py") : {
+    desc     = "Verifier Package (${f})"
+    key      = "${var.s3_config.keyroot}/py/${f}"
+    src      = "${path.module}/data/py/${f}"
+    template = null
+  }]
+
   default_settings = {
     version         = "v1.35.1+k3s1"
     env_vars        = jsonencode({})
@@ -60,7 +76,7 @@ module "aws_s3obj" {
   module_name = local.module_name
   # S3 settings
   s3_bucket_id = var.s3_config.id
-  s3obj_data = [
+  s3obj_data = concat([
     { # Default Installation (Main installation script — referenced by key via
       # local.s3key_install_script, so its position in this list does not matter)
       desc     = "Default Init Script",
@@ -138,60 +154,6 @@ module "aws_s3obj" {
       desc     = "Node Script (Refresh Services — restart wedged workloads)",
       key      = "${var.s3_config.keyroot}/node_refresh-services.sh",
       src      = "${path.module}/data/node_refresh-services.sh",
-      template = null
-    },
-    {
-      desc     = "Verifier Package (sk3s_verify/__init__.py)"
-      key      = "${var.s3_config.keyroot}/py/sk3s_verify/__init__.py",
-      src      = "${path.module}/data/py/sk3s_verify/__init__.py",
-      template = null
-    },
-    {
-      desc     = "Verifier Package (sk3s_verify/__main__.py)"
-      key      = "${var.s3_config.keyroot}/py/sk3s_verify/__main__.py",
-      src      = "${path.module}/data/py/sk3s_verify/__main__.py",
-      template = null
-    },
-    {
-      desc     = "Verifier Package (sk3s_verify/kube.py)"
-      key      = "${var.s3_config.keyroot}/py/sk3s_verify/kube.py",
-      src      = "${path.module}/data/py/sk3s_verify/kube.py",
-      template = null
-    },
-    {
-      desc     = "Verifier Package (sk3s_verify/registry.py)"
-      key      = "${var.s3_config.keyroot}/py/sk3s_verify/registry.py",
-      src      = "${path.module}/data/py/sk3s_verify/registry.py",
-      template = null
-    },
-    {
-      desc     = "Verifier Package (sk3s_verify/workloads.py)"
-      key      = "${var.s3_config.keyroot}/py/sk3s_verify/workloads.py",
-      src      = "${path.module}/data/py/sk3s_verify/workloads.py",
-      template = null
-    },
-    {
-      desc     = "Verifier Package (sk3s_verify/checks/__init__.py)"
-      key      = "${var.s3_config.keyroot}/py/sk3s_verify/checks/__init__.py",
-      src      = "${path.module}/data/py/sk3s_verify/checks/__init__.py",
-      template = null
-    },
-    {
-      desc     = "Verifier Package (sk3s_verify/checks/apps.py)"
-      key      = "${var.s3_config.keyroot}/py/sk3s_verify/checks/apps.py",
-      src      = "${path.module}/data/py/sk3s_verify/checks/apps.py",
-      template = null
-    },
-    {
-      desc     = "Verifier Package (sk3s_verify/checks/core.py)"
-      key      = "${var.s3_config.keyroot}/py/sk3s_verify/checks/core.py",
-      src      = "${path.module}/data/py/sk3s_verify/checks/core.py",
-      template = null
-    },
-    {
-      desc     = "Verifier Package (sk3s_verify/checks/subsystems.py)"
-      key      = "${var.s3_config.keyroot}/py/sk3s_verify/checks/subsystems.py",
-      src      = "${path.module}/data/py/sk3s_verify/checks/subsystems.py",
       template = null
     },
     {
@@ -302,5 +264,5 @@ module "aws_s3obj" {
       src      = "${path.module}/data/bts_04_setup_longhorn_diskpools.sh",
       template = null
     }
-  ]
+  ], local.verifier_objects)
 }
