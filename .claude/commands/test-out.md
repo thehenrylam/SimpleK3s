@@ -10,6 +10,7 @@ The available test scripts are:
 - `testcases/test-out_shellscripts.sh` — shellcheck on all `.sh` files
 - `testcases/test-out_terraform.sh` — fmt, tflint, checkov, validate (defaults to `tofu`; pass `--use-terraform` to run under Terraform, `--help` for options)
 - `testcases/test-out_python.sh` — ruff check + `ruff format --check` on all `*.py`
+- `testcases/test-out_unittests.sh` — pytest unit tests for on-node verification logic (`testcases/unit/`)
 - `testcases/test-out_simplek3s.sh` — **live** end-to-end health check of an already-deployed cluster (see the special handling in step 3)
 
 Use the args and conversation context to decide which tests to run:

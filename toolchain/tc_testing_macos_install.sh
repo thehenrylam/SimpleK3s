@@ -10,6 +10,7 @@ readonly TFLINT_VERSION="0.62.1"
 readonly CHECKOV_VERSION="3.2.530"
 readonly RUFF_VERSION="0.15.17"
 readonly ANSIBLE_LINT_VERSION="26.6.0"   # check-versions: update in CLAUDE.md pinned versions table
+readonly PYTEST_VERSION="9.1.1"          # check-versions: update in CLAUDE.md pinned versions table
 readonly BIN_DIR="/opt/homebrew/bin"
 
 # --- shellcheck ---
@@ -227,6 +228,31 @@ install_ansible_lint() {
     echo "  Installed: $(NO_COLOR=1 "${BIN_DIR}/ansible-lint" --version 2>/dev/null | head -1)"
 }
 
+# --- pytest (via uv tool) ---
+
+install_pytest() {
+    echo "==> Installing pytest ${PYTEST_VERSION} (via uv tool)"
+
+    # pytest is a LOCAL/CI tool only — it never ships to a cluster node. The
+    # on-node code it exercises stays stdlib-only so the repair path never
+    # depends on an interpreter environment stored inside the directory it
+    # repairs; the tests import that code here, on a developer machine.
+    #
+    # Installed as an isolated, pinned uv tool for the same reason as
+    # ansible-lint: UV_TOOL_BIN_DIR drops its entry point into BIN_DIR without
+    # a shared site-packages to collide in. Requires uv from the standard
+    # toolchain.
+    if [[ ! -x "${BIN_DIR}/uv" ]]; then
+        echo "  ERROR: uv not found at ${BIN_DIR}/uv." >&2
+        echo "         Run ./toolchain/tc_standard_macos_install.sh first." >&2
+        return 1
+    fi
+
+    UV_TOOL_BIN_DIR="${BIN_DIR}" "${BIN_DIR}/uv" tool install --force "pytest==${PYTEST_VERSION}"
+
+    echo "  Installed: $("${BIN_DIR}/pytest" --version 2>&1 | head -1)"
+}
+
 # --- main ---
 
 if ! command -v brew &>/dev/null; then
@@ -239,6 +265,7 @@ install_tflint
 install_checkov
 install_ruff
 install_ansible_lint
+install_pytest
 
 echo ""
 echo "All tools installed. Run ./toolchain/tc_testing_macos_check.sh to verify."

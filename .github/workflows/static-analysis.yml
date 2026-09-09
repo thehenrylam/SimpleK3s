@@ -53,6 +53,7 @@ env:
   SHELLCHECK_VERSION: "0.11.0"
   CHECKOV_VERSION: "3.2.530"
   RUFF_VERSION: "0.15.17"
+  PYTEST_VERSION: "9.1.1"
   TOFU_VERSION: "1.11.2"
   TERRAFORM_VERSION: "1.14.3"
 
@@ -75,6 +76,27 @@ jobs:
 
       - name: Run ruff check
         run: bash testcases/test-out_python.sh
+
+  unittests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install pytest
+        run: pip install "pytest==${PYTEST_VERSION}"
+
+      # The code under test is stdlib-only and ships to nodes; pytest runs only
+      # here and on a developer machine, never on a cluster.
+      - name: Run unit tests
+        run: bash testcases/test-out_unittests.sh
 
   shellcheck:
     name: ShellCheck
