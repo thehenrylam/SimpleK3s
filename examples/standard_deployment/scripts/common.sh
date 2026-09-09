@@ -687,7 +687,8 @@ function ssm_send_command_multi() {
 #   ssm_await_all <region> <profile> <command-id> <max> <interval> <outdir> <id>...
 #
 # Results go to FILES rather than into arrays the caller declares. The original
-# in ssm_verify_cluster.sh mutates three script-level globals by name, which is
+# in ssm_verify_cluster.sh (deleted in #159) mutated three script-level globals by
+# name, which is
 # tolerable inside one script and a trap in a shared library — this file's
 # contract is that a function reads nothing from the ambient environment. Bash
 # namerefs would be the tidy fix, but macOS ships bash 3.2, which has neither

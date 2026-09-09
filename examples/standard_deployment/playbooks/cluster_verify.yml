@@ -1,7 +1,7 @@
 ---
 # Verifies a deployed cluster and FAILS the play if it does not pass.
 #
-# ssm_verify_cluster.sh already reaches a pessimistic verdict and reports it as an
+# sk3s_status.py already reaches a pessimistic verdict and reports it as an
 # exit code ("0 only when every controlplane node passes; 1 otherwise") — including
 # INCONCLUSIVE, where a node never answered. This playbook is the gate that acts on
 # it. Do not reintroduce `|| true`: it discards the verdict, and a failing cluster
