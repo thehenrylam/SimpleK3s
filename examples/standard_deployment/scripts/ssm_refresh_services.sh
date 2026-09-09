@@ -18,7 +18,7 @@ set -euo pipefail
 #
 # PREVIEW BY DEFAULT. Restarting live workloads is disruptive, so an invocation
 # with no target selection reports the plan and changes nothing, following
-# cluster_repair.yml. Acting requires naming a target set (--auto or --only).
+# ssm_repair_cluster.sh. Acting requires naming a target set (--auto or --only).
 #
 # Exit codes: 0 refreshed (or previewed), 1 failed, 2 bad usage.
 
