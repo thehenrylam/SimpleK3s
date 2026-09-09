@@ -135,3 +135,79 @@ def pod_stability(rec):
         rec.failed(f"Pods with recent restarts (within {window}s)", "\n".join(unstable))
     else:
         rec.passed(f"No pod restarts in the last {window}s")
+
+
+# ─── Control-plane components ────────────────────────────────────────────────
+#
+# k3s_api above asks only whether /readyz answers, which is the liveness floor.
+# It says nothing about the scheduler or the controller-manager, and a cluster
+# whose scheduler has stopped still serves a perfectly healthy /readyz while no
+# pod is ever placed again.
+#
+# The heartbeat is the lease, not the object. K3s creates the kube-scheduler and
+# kube-controller-manager leases at startup and they are never garbage-collected,
+# so "the lease exists" stays true long after the holder has died — the same
+# presence-implies-health shape this rewrite exists to remove. What actually
+# moves is spec.renewTime, refreshed every few seconds by a live holder.
+
+DEFAULT_LEASE_STALE_SECONDS = 60
+
+COMPONENT_LEASES = ("kube-scheduler", "kube-controller-manager")
+
+API_ENDPOINTS = ("/livez", "/healthz")
+
+
+def lease_stale_seconds():
+    """How long a lease may go unrenewed before its holder is presumed dead."""
+    raw = os.environ.get("LEASE_STALE_SECONDS", "")
+    if not raw:
+        return DEFAULT_LEASE_STALE_SECONDS
+    if not raw.isdigit() or int(raw) < 1:
+        raise ValueError(f"LEASE_STALE_SECONDS must be a positive integer (got {raw!r})")
+    return int(raw)
+
+
+def lease_age(obj, now=None):
+    """Seconds since the holder last renewed, None if never, False if unreadable."""
+    renewed = _parsed(obj.get("spec", {}).get("renewTime"))
+    if renewed is None or renewed is False:
+        return renewed
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    return (now - renewed).total_seconds()
+
+
+def controlplane(rec, now=None):
+    for path in API_ENDPOINTS:
+        try:
+            body = kube.run(["get", f"--raw={path}"]).strip()
+        except kube.Unavailable as exc:
+            # Non-2xx makes kubectl exit non-zero, so an unhealthy endpoint
+            # arrives here rather than as a body we can compare.
+            rec.failed(f"API {path} did not answer", str(exc))
+            continue
+        if body == "ok":
+            rec.passed(f"API {path} is ok")
+        else:
+            rec.failed(f"API {path} returned {body!r} instead of 'ok'")
+
+    stale_after = lease_stale_seconds()
+    for name in COMPONENT_LEASES:
+        try:
+            obj = kube.run_json(["-n", "kube-system", "get", "lease", name])
+        except kube.Unavailable as exc:
+            rec.failed(f"{name} lease could not be read", str(exc))
+            continue
+        age = lease_age(obj, now)
+        if age is None:
+            rec.failed(f"{name} has never renewed its lease")
+        elif age is False:
+            rec.failed(f"{name} lease has an unreadable renewTime")
+        elif age > stale_after:
+            rec.failed(f"{name} last renewed its lease {int(age)}s ago (limit {stale_after}s)")
+        else:
+            # The exact age is deliberately left out of the passing message.
+            # It changes every second, and the host compares nodes to each other
+            # — a reading that differs by a fraction of a second between nodes is
+            # noise, not a disagreement. The failing branch above keeps the
+            # number, where it is the whole point.
+            rec.passed(f"{name} lease is fresh (renewed within {stale_after}s)")

@@ -19,14 +19,6 @@ _KINDS = {
 }
 
 
-def _dig(obj, path):
-    for part in path.split("."):
-        if not isinstance(obj, dict):
-            return None
-        obj = obj.get(part)
-    return obj
-
-
 def state(kind, namespace, name):
     """Return (ready: bool, message: str) for one workload.
 
@@ -40,8 +32,8 @@ def state(kind, namespace, name):
     want_path, have_path = _KINDS[kind]
 
     obj = kube.run_json(["-n", namespace, "get", kind, name])
-    want = _dig(obj, want_path)
-    have = _dig(obj, have_path) or 0
+    want = kube.dig(obj, want_path)
+    have = kube.dig(obj, have_path) or 0
 
     ref = f"{namespace}/{kind}/{name}"
     if want is None:

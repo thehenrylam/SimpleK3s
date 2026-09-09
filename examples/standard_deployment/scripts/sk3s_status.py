@@ -114,28 +114,57 @@ def collect(results):
     return nodes
 
 
+# Worst verdict wins when collapsing a section: one failure makes the section
+# failed no matter how many checks in it passed.
+VERDICT_RANK = {"passed": 0, "skipped": 1, "failed": 2}
+
+ABSENT = "absent"
+
+
+def section_verdicts(document):
+    """Collapse one node's checks into a single verdict per section."""
+    out = {}
+    for check in document["checks"]:
+        section, result = check["section"], check["result"]
+        if section not in out or VERDICT_RANK[result] > VERDICT_RANK[out[section]]:
+            out[section] = result
+    return out
+
+
 def disagreements(nodes):
-    """Sections where nodes reported different verdicts.
+    """Sections where nodes reached different verdicts.
 
     These checks are cluster-scoped, so every control-plane node should see the
     same thing. When they do not, that is itself a finding — one node cannot be
     picked as right without saying why.
+
+    Compared per section VERDICT, deliberately not per message. Messages carry
+    live readings — "renewed its lease 0s ago", "across 61 pods" — that
+    legitimately differ by the fraction of a second between one node being
+    queried and the next. Keying on the message text reported a disagreement
+    whenever that wording drifted, so a run in which all three nodes passed
+    still came back FAIL.
     """
-    by_section = {}
-    for instance_id, entry in nodes.items():
-        document = entry.get("document")
-        if not document:
-            continue
-        for check in document["checks"]:
-            key = (check["section"], check["message"])
-            by_section.setdefault(key, {})[instance_id] = check["result"]
+    per_node = {
+        instance_id: section_verdicts(entry["document"])
+        for instance_id, entry in nodes.items()
+        if entry.get("document")
+    }
 
     out = []
-    node_count = sum(1 for e in nodes.values() if e.get("document"))
-    for (section, message), verdicts in sorted(by_section.items()):
-        distinct = set(verdicts.values())
-        if len(distinct) > 1 or len(verdicts) != node_count:
-            out.append({"section": section, "message": message, "verdicts": verdicts})
+    sections = {section for verdicts in per_node.values() for section in verdicts}
+    for section in sorted(sections):
+        # A section one node never reported is still a disagreement: it means
+        # that node ran a different set of checks than its peers.
+        verdicts = {node: found.get(section, ABSENT) for node, found in per_node.items()}
+        if len(set(verdicts.values())) > 1:
+            out.append(
+                {
+                    "section": section,
+                    "message": "nodes reached different verdicts",
+                    "verdicts": verdicts,
+                }
+            )
     return out
 
 

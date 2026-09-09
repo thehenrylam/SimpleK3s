@@ -180,11 +180,66 @@ def karpenter(rec):
 # ─── Descheduler ─────────────────────────────────────────────────────────────
 
 
+DESCHEDULER_CRONJOB = "descheduler"
+
+
+def job_state(job):
+    """complete / failed / active for one CronJob-spawned Job."""
+    conditions = job.get("status", {}).get("conditions") or []
+    seen = {c.get("type"): c.get("status") for c in conditions}
+    if seen.get("Complete") == "True":
+        return "complete"
+    if seen.get("Failed") == "True":
+        return "failed"
+    return "active"
+
+
+def latest_finished_job(items, cronjob):
+    """The newest finished Job owned by `cronjob`, as (created, name, state).
+
+    Ownership is filtered on rather than the namespace, because kube-system also
+    holds unrelated helm-install-* Jobs whose failures are not the descheduler's.
+    """
+    finished = []
+    for obj in items:
+        meta = obj.get("metadata", {})
+        owners = meta.get("ownerReferences") or []
+        if not any(o.get("kind") == "CronJob" and o.get("name") == cronjob for o in owners):
+            continue
+        state = job_state(obj)
+        if state != "active":
+            finished.append((meta.get("creationTimestamp") or "", meta.get("name") or "?", state))
+    return sorted(finished)[-1] if finished else None
+
+
 def descheduler(rec):
-    if not kube.exists(["-n", "kube-system", "get", "cronjob", "descheduler"]):
+    """Whether the descheduler is actually rebalancing pods.
+
+    This check previously recorded one assertion — that the CronJob object
+    exists. A suspended CronJob exists, looks entirely healthy, and never evicts
+    anything again; so does one whose every run has been failing. Presence was
+    never the question.
+    """
+    if not kube.exists(["-n", "kube-system", "get", "cronjob", DESCHEDULER_CRONJOB]):
         rec.skipped("cronjob kube-system/descheduler not present (subsystem not enabled)")
         return
-    rec.passed("kube-system/descheduler CronJob exists")
+
+    cronjob = kube.run_json(["-n", "kube-system", "get", "cronjob", DESCHEDULER_CRONJOB])
+    suspended = bool(cronjob.get("spec", {}).get("suspend"))
+    if suspended:
+        rec.failed("kube-system/descheduler is SUSPENDED — it will never run")
+    else:
+        rec.passed("kube-system/descheduler is active")
+
+    jobs = kube.run_json(["-n", "kube-system", "get", "jobs"]).get("items") or []
+    latest = latest_finished_job(jobs, DESCHEDULER_CRONJOB)
+    if latest is None:
+        # A cluster younger than the schedule has not run yet. Unverified, which
+        # is neither a pass nor a failure.
+        rec.skipped("descheduler has not completed a run yet")
+        return
+    _, name, state = latest
+    rec.verdict(state == "complete", f"latest descheduler Job {name} is {state}")
 
 
 # ─── Tailscale ───────────────────────────────────────────────────────────────
