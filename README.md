@@ -49,32 +49,32 @@ Manual recovery procedures for failures automation cannot fix on its own — see
 Every pull request and push to `main` runs a static analysis pipeline (no AWS credentials required):
 - **`tofu fmt` / `terraform fmt`** — enforces consistent formatting
 - **`tflint`** — lint rules for naming, versioning, and AWS best practices
-- **`tofu validate` / `terraform validate`** — type-checks all five root modules (CI runs this under both tools)
+- **`tofu validate` / `terraform validate`** — type-checks all seven root modules (CI runs this under both tools)
 - **`checkov`** — security and compliance scan of Terraform resources
-- **`shellcheck`** — checks linting, syntax, validity of shell scripts
+- **`shellcheck`** — linting, syntax and validity of shell scripts
+- **`ruff`** — lint and format check for Python
+- **`pytest`** — unit tests for the on-node verification logic
 
-There are two main methods of easily testing changes locally:
+The same checks run locally from the repo root. Each prints `[OK]` / `[FAIL]` per
+check and exits non-zero if anything fails:
 
-1. Test via shellscripts
 ``` bash
-./test-outs/test-out_shellscripts.sh # Perform shellscript checks
-./test-outs/test-out_terraform.sh # Perform terraform checks
+bash testcases/test-out_shellscripts.sh   # shellcheck
+bash testcases/test-out_terraform.sh      # fmt, tflint, checkov, validate
+bash testcases/test-out_python.sh         # ruff check + format
+bash testcases/test-out_unittests.sh      # pytest
 ```
-2. Test via [Claude Code](./README.md#claude-code) 
+
+`testcases/test-out_simplek3s.sh` is the fifth script and is **not** part of CI —
+it grades a **deployed** cluster and needs AWS credentials.
+
+Or via [Claude Code](./README.md#claude-code):
+
 ``` bash
-# Within the claude terminal:
-# Usage:
-> /test-out "context of what you want to check"
-# Examples: 
-> /test-out             # Execute all tests 
-> /test-out all         # Execute all tests 
-> /test-out relevant    # Execute tests that's relevant 
-> /test-out shellscript # Execute tests related to shell scripts
-> /test-out terraform   # Execute tests related to terraform config
-# Note: 
-# 1. Test scripts under testcases/ folder will be preferred by the LLM
-# 2. The logs of the tests will be under the testcases/ folder
-# 3. The LLM will prompt you to determine the order of tests to run
+> /test-out             # all static tests
+> /test-out relevant    # only what your changes touched
+> /test-out python      # one area
+# Logs land in testcases/, and it confirms the plan before running.
 ```
 
 # Disclaimer
@@ -100,114 +100,113 @@ There are two main methods of easily testing changes locally:
     - Search up "Install session-manager-plugin for aws cli" via a search engine 
     - https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html
 
-# How to use
-This is used as a Terraform module for your AWS IaC Projects.
-In your Terraform configuration, add the following module to create the k3s cluster:
-``` Terraform
-locals {
-    # IdP SSM Parameter Names
-    # idp_config's should have a JSON string the following format:
-    # {
-    #     issuer        = __IDP_ISSUER_URL__
-    #     client_id     = __IDP_CLIENT_ID__
-    #     client_secret = __IDP_CLIENT_SECRET__
-    #     domain        = __IDP_HOSTED_UI_BASE_DOMAIN__
-    # }
-    # Use the module within ../modules/idp_cognito to create this config
-    idp_ssm_pstore_names = {
-        idp_config  = "<SSM_PARAMETER_NAME_FOR_IDP_CONFIG>"
-    }
-}
+# Quickstart
+The fastest path to a running cluster is the reference deployment, which wires up
+the IdP, persistent volumes, Tailscale and the cluster itself in the right order:
 
-module "k3s_cluster" {
-    source                  = "<PATH_TO_MODULE>/k3s_cluster" # Path to the k3s cluster
-    nickname                = var.nickname                   # Nickname that resources will use (e.g. Name, Tags, etc)
-    node_count              = var.node_count                 # The number of nodes that K3s will start with
-    admin_ip_list           = var.admin_ip_list              # The list of IPs (in CIDR) to allow for admin SSH connections 
-    vpc_id                  = module.vpc_cloud.vpc_id        # The VPC that resources will be put inside of
-    subnet_ids              = module.vpc_cloud.subnet_public_ids # The list of subnets that the cluster nodes reside in
+**➜ [examples/standard_deployment/README.md](./examples/standard_deployment/README.md)**
 
-    # Optional, but highly recommended: Built-in Apps
-    applications = {
-        argocd = {
-            idp_ssm_pstore_names    = local.idp_ssm_pstore_names
-            domain_name             = local.domain_name
-        }
-        monitoring = {
-            idp_ssm_pstore_names    = local.idp_ssm_pstore_names
-            domain_name             = local.domain_name
-        }
-    }
-}
+It is driven by Ansible over four Terraform roots, fronted by a single CLI:
 
-# Optional variables:
-#   Networking:
-#       - controller_subnet_id          : Override the subnet that the controller node will use 
-#                                         (Default is the first subnet from `subnet_ids`)
-#                                         (controller subnet id MUST be found within `subnet_ids`)
-#       - controller_private_ip         : Override the private IP for the controller node 
-#                                         (Won't work if private IP is outside of subnet's CIDR block)
-#       - controller_private_ip_hostnum : Determine the last 3 digits of the controller's private IP
-#                                         (Doesn't get used if `controller_private_ip` is used)
-#       - k3s_nodeport_traefik_http     : The Traefik nodeport that HTTP traffic goes through
-#       - k3s_nodeport_traefik_https    : The Traefik nodeport that HTTPS traffic goes through
-#  Node Infra (EC2):
-#       - ec2_ami_id                    : The AMI id that the EC2 instances (Nodes) will use
-#                                         (default is Debian 13 for ARM on the us-east-1 region)
-#                                         (WARNING: The default value may not work depending on input VPC's region / instance type)
-#       - ec2_instance_type             : The instance type that the K3s nodes will be made up of
-#                                         (Default is t4g.large: 2 vCPU / 8 GiB)
-#                                         (Needs at least 2 vCPU. A control-plane node carries ~1.4 vCPU of requests
-#                                          before any workload, so a 1-vCPU type such as r7g.medium cannot schedule
-#                                          its own baseline and pods will sit Pending)
-#                                         (t4g.medium (4 GiB) is enough for a minimal cluster, but not for the full
-#                                          subsystem + application stack: measured at 81% memory allocated, which
-#                                          drove nodes into swap and took a control-plane node NotReady)
-#       - ec2_swapfile_size             : Sets the size of the SWAPFILE
-#                                         (Default is 1G : Should be between 512M - 1G
-#                                          Too much leads to inconsistent k3s behavior because nodes to be responsive to work)
-#                                         (NOTE: In the context of Kubernetes, SWAPFILE isn't a solution to add more RAM, unfortunately
-#                                          SWAP should ONLY be used as an emergency cushion to avoid OOM issues) 
-#       - ec2_ebs_volume_size           : The disk size of the volume in Gb (Recommended minimum is 12)
-#       - ec2_ebs_volume_type           : The volume type (Recommended is GP3 for performance and price for smaller volume sizes)
+``` bash
+cd examples/standard_deployment
+
+cp group_vars/all.TEMPLATE.yml group_vars/all.yml   # then edit it
+./sk3s infra support apply                          # IdP, volumes, Tailscale
+./sk3s infra cluster apply                          # the K3s cluster itself
+./sk3s status                                       # confirm it came up healthy
 ```
 
-# Try it out (As an example):
-1. Initialize IdP
-    - Navigate to `./examples/ex_idp/`
-    - Copy `./terraform.TEMPLATE.tfvars` file to `./terraform.tfvars` 
-    - Modify `./terraform.tfvars` to your satisfaction (Like the DNS name)
-    - Execute the following command(s):
-        - `AWS_PROFILE="your_aws_profile" tofu init`
-        - `AWS_PROFILE="your_aws_profile" tofu plan`
-        - `AWS_PROFILE="your_aws_profile" tofu apply`
-2. Create your user in AWS Cognito
-    - Login to your AWS account
-    - Navigate to AWS `Cognito` (In the AWS search bar, search for `Cognito` and click on it)
-    - Find the relevant user pool (By default, the user pool's name is `idp-upl-idp-standalone`)
-    - Go inside of the user pool menu by clicking on the user pool's name
-    - At the left side, click on `Users` (Found under `User management`)
-    - At the `Users` menu, click on the `Create user` button (around the top right side)
-    - Fill out the form and click on `Create user`
-        - Email Address: Put an email address that you own
-        - Password: You could choose to set or generate a password (Setting a password can be used if the email you are using is invalid)
-3. Initialize example:
-    - Navigate to `./examples/ex_basic/`
-    - Copy `./terraform.TEMPLATE.tfvars` file to `./terraform.tfvars` 
-    - Modify `./terraform.tfvars` to your satisfaction (Like the DNS name)
-    - Execute the following command(s):
-        - `AWS_PROFILE="your_aws_profile" tofu init`
-        - `AWS_PROFILE="your_aws_profile" tofu plan`
-        - `AWS_PROFILE="your_aws_profile" tofu apply`
+Deploy the support tier **before** the cluster: the cluster reads Parameter Store
+values that tier owns. Tear down in the reverse order.
 
-## How to connect to an EC2 node
-* aws ssm start-session --target `instance id (Found in AWS EC2 dashboard)` --profile `your_aws_profile`
+# Operating a cluster
+`examples/standard_deployment/sk3s` is the operator entry point. Run it with no
+arguments for the full list, or `./sk3s <verb> --help` for one verb.
+
+| | |
+| --- | --- |
+| `./sk3s status` | Health, merged across control-plane nodes (`--depth quick\|standard\|full`) |
+| `./sk3s nodes` | List the cluster's EC2 instances |
+| `./sk3s connect` | Interactive shell on a node (over SSM — no SSH keys) |
+| `./sk3s exec` | Run one command on a node |
+| `./sk3s sync` / `apply` / `pull` | Push bootstrap files from S3; stage manifests; both |
+| `./sk3s refresh` | Restart platform workloads that are wedged |
+| `./sk3s repair` | Rejoin a control-plane node that cannot rejoin itself |
+| `./sk3s infra <tier> <verb>` | `plan` / `apply` / `destroy` a tier (`cluster`, `support`) |
+
+Mutating verbs preview by default and act only on an explicit flag. Every run is
+logged under `logs/`. See [RUNBOOKS.md](./RUNBOOKS.md) when something is broken.
+
+# Using the module directly
+`k3s_cluster` is a Terraform module, so you can consume it from your own IaC
+instead of using the reference deployment. A minimal working invocation:
+
+``` Terraform
+module "k3s_cluster" {
+    source = "<PATH_TO_REPO>/k3s_cluster"
+
+    # ── Required ──
+    nickname      = "my-cluster"                        # short name used in resource naming
+    aws_region    = "us-east-1"
+    vpc_id        = module.vpc_cloud.vpc_id
+    subnet_ids    = module.vpc_cloud.subnet_public_ids  # cluster nodes live here
+    admin_ip_list = ["203.0.113.4/32"]                  # IPs allowed direct access
+
+    # ── Node planes ──
+    # 3 control-plane nodes gives etcd quorum (survives losing one).
+    # Minimum 2 vCPU: a control-plane node carries ~1.4 vCPU of requests before
+    # any workload, so a 1-vCPU type cannot schedule its own baseline.
+    controlplane = {
+        node_count        = 3
+        ec2_instance_type = "t4g.medium"
+    }
+    agentplane = {
+        node_count = 0
+    }
+
+    # ── Optional: built-in applications ──
+    # Both need an OIDC config in Parameter Store as a JSON string:
+    #   { issuer, client_id, client_secret, domain }
+    # examples/modules/idp_cognito creates one for you.
+    applications = {
+        argocd = {
+            pstore_idp_config = "/idp-standalone/idp-standalone/idp_config"
+            domain_name       = "example.com"
+            exposure          = "external"   # public LB; "internal" = tailnet-only
+        }
+        monitoring = {
+            pstore_idp_config = "/idp-standalone/idp-standalone/idp_config"
+            domain_name       = "example.com"
+            exposure          = "external"
+        }
+    }
+}
+```
+
+Optional inputs are grouped into objects rather than a flat list. Every field and
+its default is declared in
+[`k3s_cluster/variables.tf`](./k3s_cluster/variables.tf), which is the source of
+truth — this table is only a map of where to look:
+
+| Input | Covers |
+| --- | --- |
+| `controlplane` / `agentplane` | `node_count`, `ec2_instance_type`, `ec2_ami_id`, `ec2_swapfile_size`, `ebs_volume_size`, `ebs_volume_type`, `kube_reserved_cpu`, `kube_reserved_memory`, and (control plane only) `controller_private_ip_override` |
+| `subsystems` | `traefik`, `kyverno`, `external-secrets`, `descheduler`, `karpenter`, `longhorn`, `tailscale` |
+| `applications` | `argocd`, `monitoring` (versions, `exposure`, Grafana/Prometheus/Alertmanager volume sizes) |
+| top level | `k3s_version`, `ec2_ami_name`, `aws_cli_version`, `ssm_agent_version`, `k3s_nodeport_traefik_http`, `k3s_nodeport_traefik_https`, `account_id` |
+
+For a fully worked example with every subsystem configured, read
+[`examples/standard_deployment/terraform/standard_cluster/main.tf`](./examples/standard_deployment/terraform/standard_cluster/main.tf).
 
 ## Things to keep in mind
-* AWS Free Tier allows for 50K Monthly Active Users for AWS Cognito
-    * In other words, as long are you don't create and maintain more than 50K users per month, you can use it for free!
-* Example IdP is set as a separate entity from the basic example to prevent the event where you need to constantly spin up and spin down the infra without redoing Cognito setups and eating into your users per month limit
-* It is recommended that you keep the region of IdP and the Basic example the same (i.e. both on "us-east-1")
+* **AWS Free Tier allows 50K Monthly Active Users for Cognito.** Comfortable for a
+  small team — but destroying and recreating the user pool forces everyone to
+  register again, and each re-registration spends MAU budget.
+* **That is why the IdP is its own Terraform root.** It survives cluster
+  teardowns, so you can rebuild the cluster freely without redoing Cognito.
+  `./sk3s infra support destroy --limit '!idp'` tears down the rest and leaves it.
+* **Keep the IdP and the cluster in the same region** (e.g. both `us-east-1`).
 
 # Contributing
 Interested in adding more features? Check out the [CONTRIBUTING.md](https://github.com/thehenrylam/SimpleK3s?tab=contributing-ov-file) for code of conduct and a guide on how to make changes ot the project!
