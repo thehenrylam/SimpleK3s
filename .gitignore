@@ -63,7 +63,9 @@ _tmp*/
 examples/*/logs/
 
 # CUSTOM: Lambda build artifacts (zipped by data.archive_file at plan time)
-examples/ex_tailscale/data/*.zip
+# The glob covers the root wherever it lives. An explicit path used to sit here
+# too, and matched nothing from the day the root was renamed — silently, because
+# a stale ignore rule fails no test.
 **/*tailscale/data/*.zip
 
 # CUSTOM: Ignore certain k8s manifests

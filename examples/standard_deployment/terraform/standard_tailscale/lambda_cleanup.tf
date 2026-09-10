@@ -111,9 +111,9 @@ resource "aws_lambda_function" "cleanup" {
   # checkov:skip=CKV_AWS_50:X-Ray tracing is a dev-configurable option (var.lambda_enable_xray_tracing).
 }
 
-# --- Handoff to ex_basic ----------------------------------------------------
+# --- Handoff to standard_cluster ----------------------------------------------------
 # Publish the function ARN via SSM (same publish -> data-read convention used for
-# oauth_config / magic_dns_name). ex_basic reads this to wire its invocation.
+# oauth_config / magic_dns_name). standard_cluster reads this to wire its invocation.
 resource "aws_ssm_parameter" "cleanup_lambda_arn" {
   name        = "/tailscale-standalone/${var.nickname}/cleanup_lambda_arn"
   description = "ARN of the Tailscale device-cleanup Lambda (invoked on cluster destroy)"
