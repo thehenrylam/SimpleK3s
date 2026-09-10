@@ -36,6 +36,27 @@ Run everything from `examples/standard_deployment/`. `./sk3s` lists the verbs;
 
 ### Repair
 
+**Step 1 — wait for the instance to be gone, then rebuild it.**
+
+```sh
+aws ec2 wait instance-terminated --instance-ids <dead-id> --profile <profile> --region <region>
+./sk3s infra cluster apply -e verify_after_apply=false
+```
+
+Both halves matter.
+
+*Wait first.* While the instance is `shutting-down`, Terraform's refresh still
+sees it and plans **nothing** — the apply returns in ~13s reporting success
+having created no replacement. Measured: about **4 minutes** between the
+terminate call and Terraform detecting the deletion. Skipping the wait cost 3m29s
+and a wasted repair cycle in the drill this runbook is based on.
+
+*Skip the verification.* `cluster apply` normally verifies afterwards with 15
+attempts 30s apart. It cannot pass until the repair runs, so it burns ~7 minutes
+on a foregone conclusion. `sk3s status` gives the verdict when you want it.
+
+**Step 2 — repair.**
+
 ```sh
 ./sk3s repair            # preview — the default. Changes nothing.
 ./sk3s repair --apply
@@ -57,6 +78,38 @@ objects, then names what it would change:
 
 Note `via 10.0.3.127` — the **survivor**, not `CONTROLLER_HOST`. That
 indirection is the whole point; see warning 2 above.
+
+### How long it takes
+
+Measured end to end on a 3-node cluster, 2026-09-10:
+
+| Phase | Wall clock |
+| --- | --- |
+| `instance-terminated` wait | **2m 47s** |
+| `infra cluster apply` (creates the replacement) | 32 s |
+| instance boots, SSM registers, `repair` diagnoses | ~1–2 min |
+| `repair --apply` (remove member + join + Ready) | 59 s |
+| workloads converge, `status` passes | ~2–3 min |
+| **total** | **~9m 45s** |
+
+Roughly a third of that is AWS taking the instance from `shutting-down` to
+`terminated`, which nothing can shorten. The wait is not overhead — skipping it
+does not save the time, it just moves it somewhere more confusing.
+
+A drill run *without* the wait took 9m 35s and needed **two** repair cycles: the
+first apply no-opped, so the stale member and the unjoined node were fixed in
+separate passes. Same wall clock, twice the steps, and a middle state that looks
+like the tooling is broken. The wait buys clarity, not speed.
+
+**A node reporting `Ready` is not a cluster reporting `PASS`.** The node was
+`Ready` at T+3s and `sk3s status` still failed for another ~2 minutes on
+`prometheus-...-prometheus 0/1` — the StatefulSet had to reschedule and reattach
+its Longhorn volume. That gap is the phase-1 asymmetry below, not an incomplete
+repair.
+
+Expect Karpenter to provision a worker during the incident to absorb displaced
+load. It consolidates away afterwards, and it will add a node to the per-node
+checks while it exists (48 checks becomes 49).
 
 ### Why the replacement cannot rejoin unaided
 
