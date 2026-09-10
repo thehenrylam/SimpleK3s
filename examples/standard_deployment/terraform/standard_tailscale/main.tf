@@ -2,7 +2,7 @@
 #
 # Durable root that owns everything tailnet-related for a SimpleK3s deployment,
 # kept separate from the cluster (examples/standard_deployment/terraform/standard_cluster/) so it survives cluster
-# teardowns — like examples/ex_idp/. It manages:
+# teardowns — like examples/standard_deployment/terraform/standard_idp/. It manages:
 #   - the operator OAuth client, as a SecureString SSM parameter in the JSON
 #     shape the cluster's tailscale subsystem expects:
 #       { "client_id": "...", "client_secret": "..." }
@@ -75,7 +75,7 @@ resource "aws_ssm_parameter" "tailscale_readonly_oauth" {
 
 # SecureString SSM parameter holding the operator OAuth client as JSON.
 # Path convention: /tailscale-standalone/{nickname}/dns_name
-# This is just here to elegantly package the dns_name to be used in ex_basic (so that we have a consistent variable name to work off of)
+# This is just here to elegantly package the dns_name to be used in standard_cluster (so that we have a consistent variable name to work off of)
 # In addition, it helps better enforce separation of concerns (This module focuses everything about tailscale)
 resource "aws_ssm_parameter" "tailscale_dns_name" {
   name        = "/tailscale-standalone/${var.nickname}/magic_dns_name"

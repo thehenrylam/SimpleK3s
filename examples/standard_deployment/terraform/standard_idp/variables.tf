@@ -24,7 +24,7 @@ variable "dns" {
 #   hostname_prefix -> subsystems.tailscale.hostname_prefix (defaults to the
 #                      cluster `nickname` when unset)
 #   magic_dns_name  -> subsystems.tailscale.magic_dns_name
-# ex_idp is a separate Terraform root, so this coupling cannot be validated in
+# standard_idp is a separate Terraform root, so this coupling cannot be validated in
 # code — if the names drift, tailnet SSO breaks silently.
 variable "tailscale" {
   description = "Tailnet identity (hostname_prefix + magic_dns_name) for internal OIDC URLs; must match subsystems.tailscale in the cluster root. Leave null if no app is internally exposed."

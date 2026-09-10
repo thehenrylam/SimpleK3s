@@ -4,7 +4,7 @@ output "ssm_param_name" {
 }
 
 output "cleanup_lambda_arn" {
-  description = "ARN of the device-cleanup Lambda (ex_basic reads this from SSM to wire its destroy-time invocation)"
+  description = "ARN of the device-cleanup Lambda (standard_cluster reads this from SSM to wire its destroy-time invocation)"
   value       = aws_lambda_function.cleanup.arn
 }
 
@@ -19,7 +19,7 @@ output "list_lambda_name" {
 }
 
 output "preflight_lambda_arn" {
-  description = "ARN of the read-only preflight Lambda (ex_basic reads this from SSM to gate the deploy)"
+  description = "ARN of the read-only preflight Lambda (standard_cluster reads this from SSM to gate the deploy)"
   value       = aws_lambda_function.preflight.arn
 }
 

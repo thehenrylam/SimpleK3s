@@ -52,7 +52,7 @@ locals {
   # IdP SSM Parameter Name
   #   What its used for: Used to enable SSO for apps
   #   Required Actions:
-  #       - Go to SimpleK3s/examples/ex_idp/
+  #       - Go to examples/standard_deployment/terraform/standard_idp/
   #       - Create the IdP resource (Customize the DNS name)
   #       - Use the SSM Param Output via `terraform output -json`
   #           - NOTE: Default values are already provided 
@@ -70,7 +70,7 @@ locals {
   # PVC SSM Parameter Name
   #   What its used for: Enables SimpleK3s to leverage PVCs for its apps (This is not managed by SimpleK3s itself to properly retain data even after it undergoes a terraform/tofu destroy)
   #   Required Actions:
-  #       - Go to SimpleK3s/examples/ex_pvc
+  #       - Go to examples/standard_deployment/terraform/standard_pvc
   #       - Create the PVC resource (Customize the settings, be sure that the EBS sizes are greater than the requested memory by at least 0.5Gi)
   #       - Use the SSM Param Output via `terraform output -json`
   #           - NOTE: Default values are already provided 
@@ -88,7 +88,7 @@ locals {
   # TailScale SSM Parameter Name
   #   What its used for: Enables SimpleK3s to talk to Tailscale to properly set up Tailscale as an entrypoint into your apps
   #   Required Actions:
-  #       - Go to SimpleK3s/examples/ex_tailscale
+  #       - Go to examples/standard_deployment/terraform/standard_tailscale
   #       - Make sure that the following variables are set up in terraform.tfvars file:
   #           - tailscale_oauth_client_id
   #           - tailscale_oauth_client_secret
@@ -109,11 +109,11 @@ locals {
   pstore_tailscale_magic_dns_name = "/tailscale-standalone/tailscale-standalone/magic_dns_name"
   magic_dns_name                  = jsondecode(data.aws_ssm_parameter.pstore_tailscale_magic_dns_name.value).magic_dns_name
 
-  # ARN of the device-cleanup Lambda published by ex_tailscale. Invoked on cluster
+  # ARN of the device-cleanup Lambda published by standard_tailscale. Invoked on cluster
   # destroy to remove this cluster's tailnet devices (prevents "-1" name collisions).
   pstore_tailscale_cleanup_lambda_arn = "/tailscale-standalone/tailscale-standalone/cleanup_lambda_arn"
 
-  # ARN of the read-only preflight Lambda published by ex_tailscale. Invoked at plan
+  # ARN of the read-only preflight Lambda published by standard_tailscale. Invoked at plan
   # time to validate the tailnet (tags + MagicDNS) before the cluster is built.
   pstore_tailscale_preflight_lambda_arn = "/tailscale-standalone/tailscale-standalone/preflight_lambda_arn"
 }
@@ -124,13 +124,13 @@ data "aws_ssm_parameter" "pstore_tailscale_magic_dns_name" {
   name = local.pstore_tailscale_magic_dns_name
 }
 
-# ARN of the device-cleanup Lambda (created + published by examples/ex_tailscale).
+# ARN of the device-cleanup Lambda (created + published by examples/standard_deployment/terraform/standard_tailscale).
 data "aws_ssm_parameter" "pstore_tailscale_cleanup_lambda_arn" {
   name = local.pstore_tailscale_cleanup_lambda_arn
 }
 
 # Destroy-time Tailscale device cleanup.
-# The cleanup Lambda lives in examples/ex_tailscale (a durable root, so it always
+# The cleanup Lambda lives in examples/standard_deployment/terraform/standard_tailscale (a durable root, so it always
 # exists when invoked). Here we only INVOKE it, tied to THIS cluster's lifecycle:
 # lifecycle_scope = "CRUD" is what gives a destroy hook, and the Lambda no-ops on
 # create/update — so cleanup runs only on `tofu destroy`, deleting this cluster's
@@ -154,7 +154,7 @@ resource "aws_lambda_invocation" "tailscale_cleanup" {
 }
 
 # Preflight gate (blocks the apply on a misconfigured tailnet).
-# The read-only preflight Lambda lives in ex_tailscale; here we invoke it at plan
+# The read-only preflight Lambda lives in standard_tailscale; here we invoke it at plan
 # time (data sources) and assert the results, so a missing tag owner or disabled
 # MagicDNS fails the plan BEFORE the ~20-min cluster build. The Lambda fails OPEN
 # on Tailscale API errors (returns ok=true), so a transient hiccup can't wedge apply.
@@ -240,8 +240,8 @@ module "k3s_cluster" {
       consolidate_after = "5m"
     }
 
-    # Persistent storage — deploy examples/ex_pvc first to create the EBS volumes.
-    # ebs_volumes_pstore_name must match the SSM parameter created by ex_pvc.
+    # Persistent storage — deploy examples/standard_deployment/terraform/standard_pvc first to create the EBS volumes.
+    # ebs_volumes_pstore_name must match the SSM parameter created by standard_pvc.
     longhorn = {
       pools = [
         {
