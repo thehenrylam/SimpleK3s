@@ -117,6 +117,9 @@ function ip_to_nodename() {
 
 INSTANCE_IDS=() ; INSTANCE_NAMES=() ; INSTANCE_IPS=() ; INSTANCE_K3S=()
 NODE_NAMES=() ; NODE_STATES=()
+# Etcd membership, which is NOT the same set as the Kubernetes nodes — see
+# quorum_is_safe.
+ETCD_NODES=()
 SURVIVOR_ID="" ; SURVIVOR_IP=""
 STALE_NODES=() ; UNJOINED_IDS=() ; UNJOINED_IPS=()
 
@@ -185,6 +188,18 @@ function gather_nodes() {
         [[ -z "${_NAME}" ]] && continue
         NODE_NAMES[${#NODE_NAMES[@]}]="${_NAME}"
         NODE_STATES[${#NODE_STATES[@]}]="${_STATE}"
+    done <<< "${_OUT}"
+}
+
+# Which nodes actually hold an etcd member. Read from the role label rather than
+# parsed out of the ROLES column, because that column is display text.
+function gather_etcd_members() {
+    local _OUT _NAME
+    _OUT=$(remote "${SURVIVOR_ID}" \
+        "kubectl get nodes -l node-role.kubernetes.io/etcd=true -o name 2>/dev/null") || return 1
+    while read -r _NAME; do
+        [[ -z "${_NAME}" ]] && continue
+        ETCD_NODES[${#ETCD_NODES[@]}]="${_NAME#node/}"
     done <<< "${_OUT}"
 }
 
@@ -287,17 +302,55 @@ function report() {
 
 # Refuse when removing a member would leave the cluster unable to survive a
 # further loss. Members drop with the removal, and quorum is floor(n/2)+1.
+function is_stale_node() {
+    local _WANT="${1}" _N
+    for _N in ${STALE_NODES[@]+"${STALE_NODES[@]}"}; do
+        [[ "${_N}" == "${_WANT}" ]] && return 0
+    done
+    return 1
+}
+
+function state_of_node() {
+    local _WANT="${1}" _I
+    for ((_I=0; _I<${#NODE_NAMES[@]}; _I++)); do
+        if [[ "${NODE_NAMES[$_I]}" == "${_WANT}" ]]; then
+            echo "${NODE_STATES[$_I]}"
+            return 0
+        fi
+    done
+    echo "Unknown"
+}
+
+# Quorum is a property of the ETCD MEMBERSHIP, not of the Kubernetes node count.
+#
+# This used to count every node: members after removal was
+# (all nodes - stale), and "ready" was every Ready node. Agents and Karpenter
+# workers hold no etcd member, so both numbers were inflated by however many
+# happened to exist. Observed live during a node-0 drill: one agent node made it
+# report "Ready nodes: 3" while only two etcd members were actually serving.
+#
+# It was harmless in that run, and would not stay harmless. With 3 etcd members
+# and 2 agents, removing a stale member while a second member sits NotReady
+# computed 4 members / quorum 3 / ready 3 and ALLOWED it — leaving two members
+# with one healthy, which is no quorum at all. The correct arithmetic refuses.
+#
+# Counted over survivors specifically: a member that is itself being removed
+# cannot vote afterwards, and neither can one that is not Ready.
 function quorum_is_safe() {
-    local _READY _MEMBERS_AFTER _QUORUM_AFTER
-    _READY=$(count_ready)
-    _MEMBERS_AFTER=$(( ${#NODE_NAMES[@]} - ${#STALE_NODES[@]} ))
+    local _N _MEMBERS_AFTER=0 _READY_AFTER=0 _QUORUM_AFTER
+    for _N in ${ETCD_NODES[@]+"${ETCD_NODES[@]}"}; do
+        is_stale_node "${_N}" && continue
+        _MEMBERS_AFTER=$(( _MEMBERS_AFTER + 1 ))
+        [[ "$(state_of_node "${_N}")" == "Ready" ]] && _READY_AFTER=$(( _READY_AFTER + 1 ))
+    done
     _QUORUM_AFTER=$(( _MEMBERS_AFTER / 2 + 1 ))
 
-    if (( _READY < _QUORUM_AFTER )); then
+    # An empty membership means the lookup failed, not that removal is free.
+    if (( _READY_AFTER < _QUORUM_AFTER )); then
         echo "${C_RED}Refusing to remove members.${C_RST}" >&2
-        echo "  Ready nodes            : ${_READY}" >&2
-        echo "  Members after removal  : ${_MEMBERS_AFTER} (quorum ${_QUORUM_AFTER})" >&2
-        echo "  Removing now would leave the cluster below quorum. Restore a node first." >&2
+        echo "  Etcd members after removal : ${_MEMBERS_AFTER} (quorum ${_QUORUM_AFTER})" >&2
+        echo "  Of those, Ready            : ${_READY_AFTER}" >&2
+        echo "  Removing now would leave etcd below quorum. Restore a member first." >&2
         return 1
     fi
     return 0
@@ -385,6 +438,7 @@ if ! find_survivor; then
 fi
 
 gather_nodes || exit 1
+gather_etcd_members || exit 1
 diagnose
 report
 
