@@ -165,3 +165,52 @@ def test_removing_every_member_is_refused():
 def test_a_node_missing_from_the_state_table_is_not_treated_as_ready():
     """Unknown is not Ready. Absence is never success (#110)."""
     assert not quorum_is_safe(etcd=["a", "b", "c"], states={"c": "Ready"}, stale=["a"])
+
+
+# ─── The report's etcd figure ────────────────────────────────────────────────
+
+
+def count_ready_etcd(etcd, states):
+    """Run the script's own counter, the one the report prints."""
+    source = SCRIPT.read_text()
+    fns = "\n".join(
+        re.search(rf"^function {n}\(\) \{{.*?^\}}", source, re.MULTILINE | re.DOTALL).group(0)
+        for n in ("state_of_node", "count_ready_etcd")
+    )
+    script = f"""
+    set -uo pipefail
+    NODE_NAMES=({" ".join(f'"{n}"' for n in states)})
+    NODE_STATES=({" ".join(f'"{s}"' for s in states.values())})
+    ETCD_NODES=({" ".join(f'"{n}"' for n in etcd)})
+    {fns}
+    count_ready_etcd
+    """
+    done = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=60)
+    return int(done.stdout.strip())
+
+
+def test_the_report_counts_ready_etcd_members_not_ready_nodes():
+    """The live cluster: 4 Ready nodes, 3 of them etcd members.
+
+    Showing only the node count is what hid the miscount, so the report now
+    carries the figure the guard actually decides on.
+    """
+    assert (
+        count_ready_etcd(
+            etcd=["ip-10-0-1-100", "ip-10-0-2-117", "ip-10-0-3-154"],
+            states={
+                "ip-10-0-1-100": "Ready",
+                "ip-10-0-1-224": "Ready",  # agent
+                "ip-10-0-2-117": "Ready",
+                "ip-10-0-3-154": "Ready",
+            },
+        )
+        == 3
+    )
+
+
+def test_a_not_ready_member_is_not_counted_by_the_report():
+    assert (
+        count_ready_etcd(etcd=["a", "b", "c"], states={"a": "NotReady", "b": "Ready", "c": "Ready"})
+        == 2
+    )

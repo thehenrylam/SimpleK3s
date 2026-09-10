@@ -249,11 +249,23 @@ function count_ready() {
     echo "${_N}"
 }
 
+# Ready etcd members. Reported alongside the node count because the two differ
+# whenever an agent or Karpenter worker exists, and a report that showed only
+# the node count is what hid the quorum miscount (#176) in the first place.
+function count_ready_etcd() {
+    local _N=0 _M
+    for _M in ${ETCD_NODES[@]+"${ETCD_NODES[@]}"}; do
+        [[ "$(state_of_node "${_M}")" == "Ready" ]] && _N=$((_N + 1))
+    done
+    echo "${_N}"
+}
+
 # ─── Phase 3: report ────────────────────────────────────────────────────────────
 
 function report() {
-    local _I _READY
+    local _I _READY _ETCD_READY
     _READY=$(count_ready)
+    _ETCD_READY=$(count_ready_etcd)
 
     echo "Cluster  : nickname=${NICKNAME}  region=${REGION}  profile=${PROFILE}"
     echo "Survivor : ${SURVIVOR_ID} (${SURVIVOR_IP})"
@@ -268,7 +280,8 @@ function report() {
         printf '  %-20s %s\n' "${NODE_NAMES[$_I]}" "${NODE_STATES[$_I]}"
     done
     echo ""
-    echo "Ready nodes: ${_READY}"
+    # Quorum is decided by the etcd figure, never the node figure.
+    echo "Ready nodes: ${_READY}   (etcd members: ${#ETCD_NODES[@]}, ready: ${_ETCD_READY})"
     echo ""
     echo "--- diagnosis ---"
     if (( ${#STALE_NODES[@]} == 0 )); then
