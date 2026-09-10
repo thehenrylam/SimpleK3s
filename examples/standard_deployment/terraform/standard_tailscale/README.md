@@ -1,8 +1,8 @@
-# ex_tailscale — Tailscale lifecycle root
+# standard_tailscale — Tailscale lifecycle root
 
 This is the **durable** root that owns everything tailnet-related for a SimpleK3s
 deployment, kept separate from the cluster (`examples/standard_deployment/terraform/standard_cluster/`) so it survives
-cluster teardowns — the same way `examples/ex_idp/` owns the IdP. It manages:
+cluster teardowns — the same way `examples/standard_deployment/terraform/standard_idp/` owns the IdP. It manages:
 
 1. The Tailscale Kubernetes Operator's **OAuth client**, as a single
    **SecureString** SSM parameter in the JSON shape the cluster expects:
@@ -11,7 +11,7 @@ cluster teardowns — the same way `examples/ex_idp/` owns the IdP. It manages:
    ```
    The cluster's `tailscale` subsystem reads it via External-Secrets and
    materializes the `operator-oauth` Kubernetes secret.
-2. The tailnet **MagicDNS name**, as an SSM parameter consumed by `ex_basic`.
+2. The tailnet **MagicDNS name**, as an SSM parameter consumed by `standard_cluster`.
 3. A **read-only OAuth client** (separate from the operator one) for the read-only
    Lambdas below — see [Read-only OAuth client](#2b-setup-the-read-only-oauth-client).
 4. Three **Lambdas** that manage the tailnet lifecycle around a cluster:
@@ -20,7 +20,7 @@ cluster teardowns — the same way `examples/ex_idp/` owns the IdP. It manages:
      (write) client.
    - `lambda_list.tf` — lists the managed devices (read-only, ad-hoc debugging).
    - `lambda_preflight.tf` — validates the tailnet (tags + MagicDNS) before a
-     deploy; `ex_basic` invokes it and **blocks the apply** on a real misconfig.
+     deploy; `standard_cluster` invokes it and **blocks the apply** on a real misconfig.
    The list + preflight Lambdas use the **read-only** client, so their tokens
    cannot mutate anything.
 

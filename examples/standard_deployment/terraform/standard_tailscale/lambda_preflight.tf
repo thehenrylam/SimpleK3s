@@ -1,7 +1,7 @@
 # Tailscale preflight-check Lambda (read-only)
 #
 # Validates the tailnet before a cluster deploy (invoked as a data source from
-# ex_basic; a precondition there BLOCKS the apply on a real misconfig). Read-only:
+# standard_cluster; a precondition there BLOCKS the apply on a real misconfig). Read-only:
 # uses the dedicated read-only OAuth client (aws_ssm_parameter.tailscale_readonly_oauth).
 # Dispatches on the "check" payload field: "tags" (required tag owners exist) or
 # "dns" (MagicDNS enabled). Fails open on API errors so a hiccup can't wedge apply.
@@ -103,12 +103,12 @@ resource "aws_lambda_function" "preflight" {
   # checkov:skip=CKV_AWS_50:X-Ray tracing is a dev-configurable option (var.lambda_enable_xray_tracing).
 }
 
-# --- Handoff to ex_basic ----------------------------------------------------
-# ex_basic reads this ARN and invokes the function as a data source at plan time,
+# --- Handoff to standard_cluster ----------------------------------------------------
+# standard_cluster reads this ARN and invokes the function as a data source at plan time,
 # then a precondition blocks the apply if a check returns ok=false.
 resource "aws_ssm_parameter" "preflight_lambda_arn" {
   name        = "/tailscale-standalone/${var.nickname}/preflight_lambda_arn"
-  description = "ARN of the Tailscale preflight Lambda (invoked by ex_basic to gate the deploy)"
+  description = "ARN of the Tailscale preflight Lambda (invoked by standard_cluster to gate the deploy)"
   type        = "String"
   value       = aws_lambda_function.preflight.arn
 

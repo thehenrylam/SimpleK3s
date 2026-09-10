@@ -1,7 +1,7 @@
 """Delete this cluster's Tailscale devices when the cluster is destroyed.
 
 Invoked by Terraform (aws_lambda_invocation, lifecycle_scope = "CRUD") from the
-ex_basic cluster root. Only the destroy action does work; create/update are
+standard_cluster cluster root. Only the destroy action does work; create/update are
 no-ops (destroy-only cleanup). Reuses the operator OAuth client (read from SSM)
 to call the Tailscale API and remove devices whose short name matches this
 cluster's hostname prefix AND whose tags intersect the cluster tags, so it can
