@@ -83,14 +83,23 @@ indirection is the whole point; see warning 2 above.
 
 Measured end to end on a 3-node cluster, 2026-09-10:
 
-| | |
+| Phase | Wall clock |
 | --- | --- |
-| `instance-terminated` wait | ~4 min |
-| `infra cluster apply` (create) | ~30 s |
-| instance boots, SSM registers | ~1 min |
-| `repair --apply` (join + Ready) | ~1 min |
-| workloads converge | ~2 min |
-| **total, clean run** | **~8–9 min** |
+| `instance-terminated` wait | **2m 47s** |
+| `infra cluster apply` (creates the replacement) | 32 s |
+| instance boots, SSM registers, `repair` diagnoses | ~1–2 min |
+| `repair --apply` (remove member + join + Ready) | 59 s |
+| workloads converge, `status` passes | ~2–3 min |
+| **total** | **~9m 45s** |
+
+Roughly a third of that is AWS taking the instance from `shutting-down` to
+`terminated`, which nothing can shorten. The wait is not overhead — skipping it
+does not save the time, it just moves it somewhere more confusing.
+
+A drill run *without* the wait took 9m 35s and needed **two** repair cycles: the
+first apply no-opped, so the stale member and the unjoined node were fixed in
+separate passes. Same wall clock, twice the steps, and a middle state that looks
+like the tooling is broken. The wait buys clarity, not speed.
 
 **A node reporting `Ready` is not a cluster reporting `PASS`.** The node was
 `Ready` at T+3s and `sk3s status` still failed for another ~2 minutes on
