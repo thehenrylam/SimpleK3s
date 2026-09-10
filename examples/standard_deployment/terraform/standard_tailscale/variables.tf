@@ -27,7 +27,7 @@ variable "tailscale_oauth_client_secret" {
 }
 
 variable "tailscale_magic_dns_name" {
-  description = "Tailscale Magic DNS Name. This is here as a way to have ex_basic have a structured way to retrieve this value"
+  description = "Tailscale Magic DNS Name. This is here as a way to have standard_cluster have a structured way to retrieve this value"
   type        = string
 
   validation {

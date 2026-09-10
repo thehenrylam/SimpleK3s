@@ -75,9 +75,9 @@ data "aws_iam_policy_document" "longhorn_core" {
       values   = [var.nickname]
     }
   }
-  # SSM: read EBS volume ID lists stored by the user's ex_pvc root.
+  # SSM: read EBS volume ID lists stored by the user's standard_pvc root.
   # Scoped to the exact parameter paths declared in each pool's ebs_volumes_pstore_name
-  # rather than a fixed prefix, so this works regardless of where ex_pvc stores them.
+  # rather than a fixed prefix, so this works regardless of where standard_pvc stores them.
   statement {
     effect  = "Allow"
     actions = ["ssm:GetParameter"]
