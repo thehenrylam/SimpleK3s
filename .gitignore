@@ -67,6 +67,7 @@ examples/*/logs/
 # too, and matched nothing from the day the root was renamed — silently, because
 # a stale ignore rule fails no test.
 **/*tailscale/data/*.zip
+**/*cluster/data/*.zip
 
 # CUSTOM: Ignore certain k8s manifests
 manifests/jenkins.yaml

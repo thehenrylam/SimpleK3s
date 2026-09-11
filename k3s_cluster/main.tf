@@ -21,6 +21,11 @@ terraform {
       source  = "hashicorp/local"
       version = "~> 2.0"
     }
+    # Used by archive_file (Karpenter reap Lambda)
+    archive = {
+      source  = "hashicorp/archive"
+      version = "~> 2.0"
+    }
   }
 }
 
