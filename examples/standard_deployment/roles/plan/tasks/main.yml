@@ -12,12 +12,23 @@
 #   - Set plan_destroy=true to produce a destroy plan (tofu plan -destroy)
 #   - Set plan_file=<name> to write the plan to a file for a later apply
 - name: Module Plan
-  shell: >
-    AWS_PROFILE='{{ aws_profile }}' tofu plan -no-color -detailed-exitcode
-    {{ '-destroy' if (plan_destroy | default(false) | bool) else '' }}
-    {{ ('-out=' + plan_file) if (plan_file | default('')) else '' }}
+  # Output is tee'd so progress can be tailed while the task is still running --
+  # Ansible cannot show a task's stdout until it exits. See defaults/main.yml.
+  #
+  # Without pipefail the pipeline would report tee's status (always 0), silently
+  # breaking the -detailed-exitcode contract asserted below: 1 = error,
+  # 2 = has changes. A masked 2 would make the apply role skip its apply.
+  # $ARGS is unquoted on purpose -- the flags must word-split.
+  shell: |
+    set -o pipefail  # so tofu's exit code survives the pipe to tee, not tee's
+    mkdir -p "{{ tofu_stream_dir }}"
+    ARGS="{{ '-destroy' if (plan_destroy | default(false) | bool) else '' }} {{ ('-out=' + plan_file) if (plan_file | default('')) else '' }}"
+    AWS_PROFILE='{{ aws_profile }}' tofu plan -no-color -detailed-exitcode $ARGS | tee "{{ plan_stream_log }}"
   args:
     chdir: "{{ target_dir }}"
+    # /bin/sh is dash on Debian/Ubuntu and on the CI runners, and dash rejects
+    # `set -o pipefail` outright ("Illegal option -o pipefail"). Verified.
+    executable: /bin/bash
   register: cmdout_plan
   changed_when: cmdout_plan.rc == 2
   failed_when: cmdout_plan.rc == 1
