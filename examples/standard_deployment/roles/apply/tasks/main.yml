@@ -9,9 +9,20 @@
 
 # Apply all using each plan's outputted plan_file
 - name: Module Apply (via plan file)
-  shell: "AWS_PROFILE='{{ aws_profile }}' tofu apply --auto-approve -no-color {{ plan_file }}"
+  # Output is tee'd so progress can be tailed while the task is still running --
+  # Ansible cannot show a task's stdout until it exits. See defaults/main.yml.
+  #
+  # Without pipefail the pipeline would report tee's status (always 0), which
+  # would make changed_when below true even for a failed apply.
+  shell: |
+    set -o pipefail  # so tofu's exit code survives the pipe to tee, not tee's
+    mkdir -p "{{ tofu_stream_dir }}"
+    AWS_PROFILE='{{ aws_profile }}' tofu apply --auto-approve -no-color {{ plan_file }} | tee "{{ apply_stream_log }}"
   args:
     chdir: "{{ module[inventory_hostname].dir }}"
+    # /bin/sh is dash on Debian/Ubuntu and on the CI runners, and dash rejects
+    # `set -o pipefail` outright ("Illegal option -o pipefail"). Verified.
+    executable: /bin/bash
   register: cmdout_apply
   # cmdout_plan is generated from the "plan" role. 
   # If it's rc == 2, then it means there are no changes, thus no need to execute an apply

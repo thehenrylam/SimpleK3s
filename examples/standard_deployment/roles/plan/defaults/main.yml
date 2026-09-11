@@ -1,0 +1,17 @@
+---
+# Where tofu's output is streamed while the task is still running.
+#
+# Ansible cannot emit a task's stdout until the task exits, so a long
+# `tofu plan`/`apply` is completely opaque while it runs. During the issue #128
+# teardown investigation this cost real time: a 20-minute destroy was watched by
+# a stall detector and a diagnostic that both parse Terraform's progress lines,
+# and both saw nothing, because those lines only reached the log after the run
+# ended. Piping through tee gives something to `tail -f` in the meantime.
+#
+# examples/*/logs/ is gitignored, so these accumulate locally and are never
+# committed. Override tofu_stream_dir to relocate them.
+tofu_stream_dir: "{{ playbook_dir }}/../logs"
+# Deliberately NOT named the same as the apply role's log var: the apply role
+# include_role's this one, and two role defaults sharing a name makes which value
+# wins a matter of precedence trivia rather than intent.
+plan_stream_log: "{{ tofu_stream_dir }}/tofu_{{ inventory_hostname }}_plan.log"

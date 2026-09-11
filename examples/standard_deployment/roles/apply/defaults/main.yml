@@ -1,0 +1,6 @@
+---
+# See roles/plan/defaults/main.yml for why tofu's output is streamed to a file.
+# Kept separate from the plan role's log so a failed apply does not overwrite the
+# plan output that explains what it was about to do.
+tofu_stream_dir: "{{ playbook_dir }}/../logs"
+apply_stream_log: "{{ tofu_stream_dir }}/tofu_{{ inventory_hostname }}_apply.log"
