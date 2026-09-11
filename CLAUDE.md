@@ -106,6 +106,12 @@ The `.claude/commands/` directory contains slash commands for use inside Claude 
 - Provisions EC2 nodes (control plane + agent plane), a Network Load Balancer, S3 bootstrap bucket, IAM roles, and security groups.
 - `cluster_ec2.tf`: EC2 instance configs (default: 3 control-plane nodes, `t4g.large`, Debian 13 ARM). Needs 2 vCPU minimum — a control-plane node carries ~1.4 vCPU of requests before any workload, so 1-vCPU types cannot schedule their own baseline.
 - `cloudinit.sh.tftpl`: User-data template — the entry point for all on-node provisioning.
+- `karpenter_reap_lambda.tf`: Destroy-time Lambda that terminates Karpenter's nodes,
+  which are created in-cluster and so never enter Terraform state — their ENIs
+  otherwise block the security group and VPC delete (#128). It lives in the module
+  rather than a deployment root because the ordering it needs (instances → reap →
+  security group) is only expressible between resources inside the module; the
+  `depends_on` in `cluster_ec2.tf` is load-bearing for destroy, not create.
 
 **2. Bootstrap Layer** (`k3s_cluster/cluster_app/bootstrap/`)
 - Shell scripts run on EC2 startup via cloud-init. They download further scripts from S3, install packages, configure swap, install K3s, then sequence subsystem and application setup.

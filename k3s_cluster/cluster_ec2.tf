@@ -170,7 +170,14 @@ resource "random_string" "controlplane_node_suffix" {
   numeric = true
 }
 # Initialize EC2 instances for the K3s cluster
+# depends_on karpenter_reap is load-bearing for DESTROY, not create: it puts these
+# instances ahead of the reap invocation, and instance destroy does not return
+# until 'terminated'. So Karpenter is gone before the reap runs. Remove it and the
+# reap fires against a live cluster, which makes Karpenter replace what it kills.
+# See karpenter_reap_lambda.tf and issue #128.
 resource "aws_instance" "controlplane_ec2_node" {
+  depends_on = [aws_lambda_invocation.karpenter_reap]
+
   count         = local.controlplane.node_count
   ami           = local.controlplane.ec2_ami_id
   instance_type = local.controlplane.ec2_instance_type
@@ -230,6 +237,7 @@ resource "random_string" "agentplane_node_suffix" {
 }
 # Initialize EC2 instances for the K3s cluster
 resource "aws_instance" "agentplane_ec2_node" {
+
   count         = local.agentplane.node_count
   ami           = local.agentplane.ec2_ami_id
   instance_type = local.agentplane.ec2_instance_type
@@ -273,8 +281,13 @@ resource "aws_instance" "agentplane_ec2_node" {
     Nickname = var.nickname
   }
 
-  # Wait for EC2 node to be set up before we start setting up ELB
   depends_on = [
-    aws_instance.controlplane_ec2_node # aws_instance.ec2_node 
+    # Agents join a cluster that already exists, so they are created after the
+    # control plane. NOTE this reverses on destroy: the agent must reach
+    # 'terminated' before the control planes are even asked to stop, which adds
+    # ~4 minutes to every teardown. Tracked separately.
+    aws_instance.controlplane_ec2_node,
+    # See controlplane_ec2_node above: puts this ahead of the reap on destroy.
+    aws_lambda_invocation.karpenter_reap,
   ]
 }

@@ -222,3 +222,26 @@ variable "applications" {
     error_message = "applications.monitoring.exposure must be \"internal\" or \"external\"."
   }
 }
+
+
+# --- Karpenter reap Lambda observability ------------------------------------
+
+variable "lambda_log_retention_days" {
+  description = "CloudWatch Logs retention (days) for the Karpenter reap Lambda."
+  type        = number
+  default     = 180
+
+  validation {
+    condition = contains(
+      [0, 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653],
+      var.lambda_log_retention_days
+    )
+    error_message = "lambda_log_retention_days must be a value CloudWatch Logs accepts."
+  }
+}
+
+variable "lambda_enable_xray_tracing" {
+  description = "Enable X-Ray active tracing on the Karpenter reap Lambda."
+  type        = bool
+  default     = false
+}
